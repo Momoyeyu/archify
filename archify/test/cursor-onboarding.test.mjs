@@ -20,7 +20,7 @@ test('Cursor onboarding stays explicit, bilingual, and backed by the same Skill'
 
   assert.equal(english, englishMirror, 'English README mirrors must stay synchronized');
   assert.match(english, /Cursor, Claude Code, Codex CLI, OpenCode, GitHub Copilot, and WorkBuddy/);
-  assert.match(chinese, /Cursor、Claude Code、Codex CLI、OpenCode 和 GitHub Copilot/);
+  assert.match(chinese, /Cursor、Claude Code、Codex CLI、OpenCode、GitHub Copilot 和 WorkBuddy/);
   for (const surface of [english, chinese, landing]) assert.ok(surface.includes(cursorCommand));
   for (const surface of [english, chinese, start, landing]) {
     assert.doesNotMatch(surface, /skills use[^\n<]*--agent cursor/);
@@ -39,7 +39,10 @@ test('Cursor onboarding stays explicit, bilingual, and backed by the same Skill'
   assert.doesNotMatch(start, /vendor-specific (?:renderer|schema|skill)/i);
 });
 
-const switcherAgents = ['cursor', 'codex', 'claude-code', 'opencode'];
+// The generated switcher's current membership. GitHub Copilot joined in #288, so this
+// baseline tracks the five tabs the Start surface actually ships today. WorkBuddy is
+// deliberately absent: it is a manual-copy instruction, not a generated switcher tab.
+const switcherAgents = ['cursor', 'codex', 'claude-code', 'opencode', 'github-copilot'];
 
 test('WorkBuddy is documented on the Start surface but stays outside the agent switcher', () => {
   const english = fs.readFileSync(path.join(repoRoot, 'README.md'), 'utf8');
@@ -81,7 +84,11 @@ test('WorkBuddy is documented on the Start surface but stays outside the agent s
       `${label}: WorkBuddy must not become an agent-switcher tab`,
     );
     const tabs = [...surface.matchAll(/data-agent="([a-z-]+)">/g)].map((match) => match[1]);
-    assert.deepEqual(tabs, switcherAgents, `${label}: the switcher must stay exactly four agents`);
+    assert.deepEqual(
+      tabs,
+      switcherAgents,
+      `${label}: the switcher must stay exactly the supported agents, with WorkBuddy excluded`,
+    );
 
     const knownAgents = /var KNOWN_AGENTS = new Set\(\[([^\]]*)\]\)/.exec(surface);
     assert.ok(knownAgents, `${label}: KNOWN_AGENTS must stay readable`);
@@ -92,7 +99,7 @@ test('WorkBuddy is documented on the Start surface but stays outside the agent s
     assert.deepEqual(
       parsed,
       switcherAgents,
-      `${label}: KNOWN_AGENTS must stay exactly four agents`,
+      `${label}: KNOWN_AGENTS must stay exactly the supported agents, with WorkBuddy excluded`,
     );
   }
 
