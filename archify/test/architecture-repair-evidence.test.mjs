@@ -144,7 +144,7 @@ test('auto canvas includes an outer route even when no label reaches its corrido
 
 test('showcase reports clipped explicit routes without rewriting their geometry or authored canvas', t => {
   const { cwd, input, diagram } = outerRoute(t);
-  diagram.meta.viewBox = [600, 220];
+  diagram.meta.viewBox = [600, 260];
   fs.writeFileSync(input, JSON.stringify(diagram));
   const { result, receipt } = validate(input, cwd, ['--layout-json']);
   assert.equal(result.status, 1);
@@ -152,7 +152,7 @@ test('showcase reports clipped explicit routes without rewriting their geometry 
   assert.ok(diagnosis);
   assert.deepEqual(diagnosis.evidence.outsidePoints, [[140, 300], [410, 300]]);
   assert.equal(diagnosis.subject.id, 'outer');
-  assert.deepEqual(receipt.viewBox, [600, 220]);
+  assert.deepEqual(receipt.viewBox, [600, 260]);
   assert.deepEqual(JSON.parse(fs.readFileSync(input)), diagram);
   // Standard retains its previous acceptance; stricter clipping diagnostics
   // belong to showcase, just like label canvas containment.
