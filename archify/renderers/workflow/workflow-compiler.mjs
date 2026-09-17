@@ -1,5 +1,13 @@
 import { esc, renderDefinitions, renderSemanticSigil, textUnits } from '../shared/utils.mjs';
-import { animateAttr, focusEdgeAttrs, focusNodeAttrs, focusNodeTitle, svgAccessibleText, svgRootAttrs } from '../shared/cli.mjs';
+import {
+  animateAttr,
+  focusEdgeAttrs,
+  focusNodeAttrs,
+  focusNodeTitle,
+  svgAccessibleText,
+  svgRootAttrs,
+  validateCrossCollectionContracts,
+} from '../shared/cli.mjs';
 import {
   throwDiagnosticError,
   throwDiagnosticProblems,
@@ -824,6 +832,7 @@ function compileWorkflowInternal({
   let inputDiagnostics = [];
   try {
     validateSchema('workflow', qualityResolvedWorkflow);
+    validateCrossCollectionContracts('workflow', qualityResolvedWorkflow);
   } catch (error) {
     inputDiagnostics = Array.isArray(error?.archifyDiagnostics)
       ? error.archifyDiagnostics.map((diagnostic) => ({
