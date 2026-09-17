@@ -182,6 +182,25 @@ Before adding manual routes, check whether unnecessary agent-added controls
 disable automatic port spread; preserve user-required route intent. Use the
 measured clearance rules above rather than guessing coordinates.
 
+### Repair evidence
+
+For architecture, `validate architecture <input.json> --layout-json` exposes the
+resolved component boxes, boundary frames, connection points, and label positions.
+A measurable rejected layout also returns these fields, with `ok: false`,
+`contract: "archify-architecture-layout-v1"`, diagnostics, and exit 1. This is
+repair evidence, not artifact acceptance; it writes no HTML. Malformed input or
+an implementation failure retains the ordinary failure receipt without layout.
+
+Use the measured failing side for `layout/boundary-out-of-bounds`. Left/top
+negative coordinates need an inward move; increasing viewBox width/height only
+addresses right/bottom overflow. Boundaries may wrap members across rows. Keep
+real membership intact and recheck connected routes after moving members.
+
+When several crossing/corridor diagnoses involve the same nodes, consider their
+placement together before adding route controls. Apply one coherent repair and
+validate it; independent label nudges cannot fix a shared layout bottleneck.
+Compare diagnostics by code, subject, and stage instead of total count alone.
+
 ### Repair order
 
 1. Fix missing/invalid `meta.quality_profile` and schema errors.

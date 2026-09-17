@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { esc, renderDefinitions, renderSemanticSigil, textUnits } from '../shared/utils.mjs';
 import { animateAttr, focusEdgeAttrs, focusNodeAttrs, focusNodeTitle, loadDiagramWithBrandMarks, writeDiagram, svgAccessibleText, svgRootAttrs } from '../shared/cli.mjs';
 import { componentBox, boundaryBox, connectionPath } from '../shared/layout-report.mjs';
-import { throwDiagnosticProblems } from '../shared/diagnostics.mjs';
+import { rendererFailure, throwDiagnosticProblems } from '../shared/diagnostics.mjs';
 import { legendFootprint, relationshipLegendObstacles, resolveLegend, renderLegend as renderResolvedLegend } from '../shared/legend.mjs';
 import { availableNodeTextWidth, fittedNodeFontSize, minimumNodeTextWidth } from '../shared/text-fit.mjs';
 import { brandLabelFitWidth, brandMetadataFor, brandTopRailProblem, renderBrandMark } from '../shared/brand-marks.mjs';
@@ -366,6 +366,7 @@ const legendY = () => viewBox[1] - 16;
 // ---- Validation: mechanical correctness, never layout taste -----------------
 function validateArchitecture() {
   const problems = [];
+  const diagnostics = [];
   if (resolvedBoundaryTitles.readabilityProblem) {
     problems.push(resolvedBoundaryTitles.readabilityProblem);
   }
@@ -521,7 +522,36 @@ function validateArchitecture() {
   }
   for (const b of boundaries) {
     if (b.x < 0 || b.y < 0 || b.x + b.width > viewBox[0] || b.y + b.height > viewBox[1]) {
-      problems.push(`Boundary "${b.label}" extends outside the viewBox — its members sit too close to the canvas edge; add margin or enlarge meta.viewBox.`);
+      const overflow = {
+        left: Math.max(0, -b.x),
+        top: Math.max(0, -b.y),
+        right: Math.max(0, b.x + b.width - viewBox[0]),
+        bottom: Math.max(0, b.y + b.height - viewBox[1]),
+      };
+      const sides = Object.entries(overflow).filter(([, pixels]) => pixels > 0)
+        .map(([side, pixels]) => `${side} by ${Math.ceil(pixels)}px`).join(', ');
+      const supportedFixes = [];
+      if (overflow.left || overflow.top) {
+        supportedFixes.push(`move the wrapped components right by at least ${Math.ceil(overflow.left)}px and down by at least ${Math.ceil(overflow.top)}px, then revalidate connected routes and the opposite canvas sides; enlarging meta.viewBox cannot fix left/top overflow`);
+      }
+      if (overflow.right || overflow.bottom) {
+        supportedFixes.push(`increase meta.viewBox to at least [${Math.ceil(Math.max(viewBox[0], b.x + b.width))}, ${Math.ceil(Math.max(viewBox[1], b.y + b.height))}] for right/bottom overflow, or move the wrapped components inward; revalidate desktop readability`);
+      }
+      const message = `Boundary "${b.label}" extends outside the viewBox (${sides}) — preserve wraps membership and repair the measured canvas side.`;
+      diagnostics.push({
+        code: 'layout/boundary-out-of-bounds',
+        severity: 'error',
+        message,
+        subject: { diagramType: 'architecture', boundary: { kind: b.kind, label: b.label, wraps: b.wraps } },
+        evidence: {
+          bounds: { x: b.x, y: b.y, width: b.width, height: b.height },
+          viewBox: [...viewBox],
+          overflow,
+          members: asArray(b.wraps).map((id) => components.get(id)).filter(Boolean).map(componentBox),
+        },
+        supportedFixes,
+      });
+      problems.push(message);
     }
   }
 
@@ -633,6 +663,7 @@ function validateArchitecture() {
   if (problems.length) {
     throwDiagnosticProblems('Architecture layout validation failed', problems, {
       subject: { diagramType: 'architecture' },
+      diagnostics,
     });
   }
 }
@@ -774,17 +805,30 @@ ${renderLegend()}
       </svg>`;
 }
 
-validateArchitecture();
 if (layoutJsonMode) {
-  console.log(JSON.stringify(buildLayoutReport(), null, 2));
-  process.exit(0);
+  try {
+    validateArchitecture();
+  } catch (error) {
+    // A rejected layout is still useful repair evidence. Input/implementation
+    // failures must retain their existing failure boundary, not partial geometry.
+    if (!error.archifyDiagnostics?.length) throw error;
+    console.log(JSON.stringify({
+      ...buildLayoutReport(),
+      ...rendererFailure(error),
+      contract: 'archify-architecture-layout-v1',
+    }, null, 2));
+    process.exitCode = 1;
+  }
+  if (!process.exitCode) console.log(JSON.stringify(buildLayoutReport(), null, 2));
+} else {
+  validateArchitecture();
+  writeDiagram({
+    outPath,
+    template,
+    diagramType: 'architecture',
+    meta: arch.meta,
+    svg: renderSvg(),
+    cards: arch.cards,
+    sourceEvidence,
+  });
 }
-writeDiagram({
-  outPath,
-  template,
-  diagramType: 'architecture',
-  meta: arch.meta,
-  svg: renderSvg(),
-  cards: arch.cards,
-  sourceEvidence,
-});
