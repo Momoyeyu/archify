@@ -122,3 +122,50 @@ test('successful layout keeps existing fields; malformed input never masquerades
   assert.equal(invalid.receipt.components, undefined);
   assert.ok(invalid.receipt.diagnostics.some(d => d.code === 'input/json-parse'));
 });
+
+function outerRoute(t) {
+  const { cwd, input, diagram } = setup(t, [[80, 70], [350, 70]]);
+  delete diagram.meta.viewBox;
+  diagram.meta.quality_profile = 'showcase';
+  delete diagram.boundaries;
+  diagram.connections = [{ id: 'outer', from: 'n0', to: 'n1', fromSide: 'bottom', toSide: 'bottom', via: [[140, 300], [410, 300]] }];
+  fs.writeFileSync(input, JSON.stringify(diagram));
+  return { cwd, input, diagram };
+}
+
+test('auto canvas includes an outer route even when no label reaches its corridor', t => {
+  const { cwd, input } = outerRoute(t);
+  const { result, receipt } = validate(input, cwd, ['--layout-json']);
+  assert.equal(result.status, 0, result.stdout);
+  assert.ok(receipt.viewBox[1] > 300, JSON.stringify(receipt));
+  assert.deepEqual(receipt.connections[0].points, [[140, 130], [140, 300], [410, 300], [410, 130]]);
+  assert.equal(validate(input, cwd).result.status, 0);
+});
+
+test('showcase reports clipped explicit routes without rewriting their geometry or authored canvas', t => {
+  const { cwd, input, diagram } = outerRoute(t);
+  diagram.meta.viewBox = [600, 220];
+  fs.writeFileSync(input, JSON.stringify(diagram));
+  const { result, receipt } = validate(input, cwd, ['--layout-json']);
+  assert.equal(result.status, 1);
+  const diagnosis = receipt.diagnostics.find(d => d.code === 'layout/route-out-of-bounds');
+  assert.ok(diagnosis);
+  assert.deepEqual(diagnosis.evidence.outsidePoints, [[140, 300], [410, 300]]);
+  assert.equal(diagnosis.subject.id, 'outer');
+  assert.deepEqual(receipt.viewBox, [600, 220]);
+  assert.deepEqual(JSON.parse(fs.readFileSync(input)), diagram);
+  // Standard retains its previous acceptance; stricter clipping diagnostics
+  // belong to showcase, just like label canvas containment.
+  diagram.meta.quality_profile = 'standard';
+  fs.writeFileSync(input, JSON.stringify(diagram));
+  assert.equal(validate(input, cwd).result.status, 0);
+});
+
+test('auto canvas does not hide a negative route by growing right or down', t => {
+  const { cwd, input, diagram } = outerRoute(t);
+  diagram.connections[0] = { id: 'outer', from: 'n0', to: 'n1', fromSide: 'top', toSide: 'top', via: [[140, -40], [410, -40]] };
+  fs.writeFileSync(input, JSON.stringify(diagram));
+  const { result, receipt } = validate(input, cwd, ['--layout-json']);
+  assert.equal(result.status, 1);
+  assert.ok(receipt.diagnostics.some(d => d.code === 'layout/route-out-of-bounds' && d.evidence.outsidePoints.every(([, y]) => y < 0)));
+});

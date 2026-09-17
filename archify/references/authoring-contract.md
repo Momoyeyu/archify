@@ -196,6 +196,12 @@ negative coordinates need an inward move; increasing viewBox width/height only
 addresses right/bottom overflow. Boundaries may wrap members across rows. Keep
 real membership intact and recheck connected routes after moving members.
 
+Automatic architecture canvases include route points as well as nodes, frames,
+and labels. An authored viewBox remains authoritative. In showcase,
+`layout/route-out-of-bounds` identifies clipped route points; negative coordinates
+need an inward route, while right/bottom overflow can also use a larger authored
+canvas. Recheck desktop readability after enlarging a canvas.
+
 When several crossing/corridor diagnoses involve the same nodes, consider their
 placement together before adding route controls. Apply one coherent repair and
 validate it; independent label nudges cannot fix a shared layout bottleneck.

@@ -195,7 +195,7 @@ function resolvedViewBoxWidth(candidateBoundaries) {
   if (Array.isArray(arch.meta?.viewBox) && Number.isFinite(arch.meta.viewBox[0])) {
     return arch.meta.viewBox[0];
   }
-  return autoViewBoxFor(candidateBoundaries, connectionLabels)[0];
+  return autoViewBoxFor(candidateBoundaries, connectionGeometry)[0];
 }
 
 function expandBoundaryForReadableTitle(boundary, minimumFontSize) {
@@ -302,6 +302,14 @@ const { pathFor, connectionSides, connectionEndpointSide } = createRouter(compon
 // The auto canvas has to cover these rects; an authored viewBox is never
 // resized to fit them — there the containment rule reports the clipping.
 const connectionLabels = connectionLabelRects();
+// Unlabelled outer corridors are geometry too. Fitting only nodes and labels
+// can clip a valid explicit via route while every browser overflow check passes.
+const connectionGeometry = [
+  ...connectionLabels,
+  ...asArray(arch.connections)
+    .filter((conn) => components.has(conn.from) && components.has(conn.to))
+    .flatMap((conn) => pathFor(conn).points.map(([x, y]) => ({ x, y, width: 0, height: 0 }))),
+];
 
 const rawBoundaries = asArray(arch.boundaries).map(boundaryRect).filter(Boolean);
 function resolveBoundaryTitles() {
@@ -360,7 +368,7 @@ function componentContext(component) {
 // Connection labels are diagram content, so an auto canvas that stopped at the
 // component/boundary bbox would clip them; the label rects join the fit here
 // and in the title convergence above, which sizes fonts for this same width.
-const viewBox = arch.meta?.viewBox || autoViewBoxFor(boundaries, connectionLabels);
+const viewBox = arch.meta?.viewBox || autoViewBoxFor(boundaries, connectionGeometry);
 const legendY = () => viewBox[1] - 16;
 
 // ---- Validation: mechanical correctness, never layout taste -----------------
@@ -560,6 +568,17 @@ function validateArchitecture() {
     if (!components.has(conn.to)) problems.push(`Connection "${conn.label || conn.to}" references unknown target "${conn.to}".`);
     if (components.has(conn.from) && components.has(conn.to)) {
       const routed = pathFor(conn);
+      const outsidePoints = routed.points.filter(([x, y]) => x < 0 || y < 0 || x > viewBox[0] || y > viewBox[1]);
+      if (arch.meta?.quality_profile === 'showcase' && outsidePoints.length) {
+        const message = `Connection "${conn.id || `${conn.from}->${conn.to}`}" extends outside the viewBox — move the measured outside route points inward or enlarge an authored viewBox for right/bottom overflow.`;
+        diagnostics.push({
+          code: 'layout/route-out-of-bounds', severity: 'error', message,
+          subject: { diagramType: 'architecture', collection: 'connections', index: asArray(arch.connections).indexOf(conn), ...(conn.id ? { id: conn.id } : {}), from: conn.from, to: conn.to },
+          evidence: { viewBox: [...viewBox], outsidePoints, points: routed.points },
+          supportedFixes: ['move negative route coordinates inside the canvas; for right/bottom overflow, enlarge meta.viewBox or reroute inward; preserve endpoints, direction and labels, then revalidate'],
+        });
+        problems.push(message);
+      }
       const [start, end] = [routed.points[0], routed.points[routed.points.length - 1]];
       const distance = Math.hypot(end[0] - start[0], end[1] - start[1]);
       if (distance < 24) problems.push(`Connection "${conn.label || `${conn.from}->${conn.to}`}" is too short (${Math.round(distance)}px; minimum 24px) — place its components farther apart.`);
