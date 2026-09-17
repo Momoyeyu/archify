@@ -1416,8 +1416,13 @@ function suggestedLabelFixes(stderr) {
   return [...unique];
 }
 
+test('architecture: an automatic label clears its source and authored canvas edge without manual controls', () => {
+  const { code, stderr } = render('architecture', pinnedLabelDocument({}));
+  assert.equal(code, 0, stderr);
+});
+
 for (const [name, labelControls, expectedFixes] of [
-  ['no authored label controls', {}, 4],
+  ['an authored zero labelDy', { labelDy: 0 }, 4],
   ['an authored labelDx', { labelDx: 120 }, 4],
   ['an authored labelAt', { labelAt: [660, 104] }, 2],
 ]) {
