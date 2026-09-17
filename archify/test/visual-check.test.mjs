@@ -44,7 +44,15 @@ function stagingDirectories(directory) {
   return fs.readdirSync(directory).filter((name) => name.startsWith('.archify-visual-check-'));
 }
 
-function fakeBrowser({ overflowAt, unreadableAt, chromeCollisionAt, stageCollisionAt, stageGapAt, screenshotFailure } = {}) {
+function fakeBrowser({
+  overflowAt,
+  readableScrollAt,
+  unreadableAt,
+  chromeCollisionAt,
+  stageCollisionAt,
+  stageGapAt,
+  screenshotFailure,
+} = {}) {
   const calls = [];
   return {
     calls,
@@ -58,6 +66,7 @@ function fakeBrowser({ overflowAt, unreadableAt, chromeCollisionAt, stageCollisi
         else fs.writeFileSync(screenshotPath, png, { flag: 'wx' });
       }
       const overflow = overflowAt?.({ width, height, theme }) || false;
+      const readableScroll = readableScrollAt?.({ width, height, theme }) || false;
       const unreadable = unreadableAt?.({ width, height, theme }) || false;
       const chromeCollision = chromeCollisionAt?.({ width, height, theme }) || false;
       const stageCollision = stageCollisionAt?.({ width, height, theme }) || false;
@@ -67,8 +76,11 @@ function fakeBrowser({ overflowAt, unreadableAt, chromeCollisionAt, stageCollisi
         innerWidth: width,
         innerHeight: height,
         scrollWidth: width + (overflow ? 1 : 0),
-        scrollHeight: height,
+        scrollHeight: height + (readableScroll ? 240 : 0),
         resolvedTheme: theme,
+        readerLayout: readableScroll ? 'adaptive' : null,
+        readerOverflow: readableScroll ? 'authored' : null,
+        readerFit: readableScroll ? 'intrinsic-height' : null,
         readerWidth: 960,
         diagramWidth: 930,
         viewBoxWidth: 1300,
@@ -2540,6 +2552,56 @@ test('visual-check returns 1 and preserves evidence when any viewport overflows'
   });
   assert.equal(diagnostic?.evidence?.scrollWidth, 1601);
   assert.equal(fs.existsSync(sidecarPaths(input).contactSheet), true);
+});
+
+test('visual-check accepts only Reader-declared readable vertical page scrolling', async () => {
+  const input = artifact('readable-scroll.html');
+  const target = ({ width, theme }) => width === 1440 && theme === 'light';
+  const result = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser({ readableScrollAt: target }),
+  });
+
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.receipt.status, 'pass');
+  assert.equal(result.receipt.containment.status, 'pass');
+  assert.equal(result.receipt.containment.policy, 'fit-or-reader-declared-readable-vertical-scroll');
+  const viewport = result.receipt.containment.viewports.find(({ width }) => width === 1440);
+  assert.equal(viewport.overflowY, true);
+  assert.equal(viewport.verticalScrollAccepted, true);
+  assert.equal(viewport.overflowDisposition, 'readable-vertical-scroll');
+  assert.equal(viewport.readerLayout, 'adaptive');
+  assert.equal(viewport.readerOverflow, 'authored');
+  assert.equal(viewport.readerFit, 'intrinsic-height');
+  assert.equal(result.receipt.diagnostics.some(({ code }) => code === 'viewer/viewport-overflow'), false);
+});
+
+test('visual-check still rejects horizontal overflow and unreadable text in Reader scroll state', async () => {
+  const input = artifact('invalid-readable-scroll.html');
+  const target = ({ width, theme }) => width === 1440 && theme === 'light';
+  const horizontal = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser({ overflowAt: target, readableScrollAt: target }),
+  });
+  const horizontalViewport = horizontal.receipt.containment.viewports.find(({ width }) => width === 1440);
+  assert.equal(horizontal.exitCode, 1);
+  assert.equal(horizontalViewport.verticalScrollAccepted, false);
+  assert.equal(horizontalViewport.overflowDisposition, 'unexpected-overflow');
+  assert.ok(horizontal.receipt.diagnostics.some(({ code }) => code === 'viewer/viewport-overflow'));
+
+  const unreadable = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser({ readableScrollAt: target, unreadableAt: target }),
+  });
+  const unreadableViewport = unreadable.receipt.containment.viewports.find(({ width }) => width === 1440);
+  assert.equal(unreadable.exitCode, 1);
+  assert.equal(unreadableViewport.verticalScrollAccepted, false);
+  assert.equal(unreadableViewport.overflowDisposition, 'unexpected-overflow');
+  assert.ok(unreadable.receipt.diagnostics.some(({ code }) => code === 'viewer/viewport-overflow'));
+  assert.ok(unreadable.receipt.diagnostics.some(({ code }) => code === 'viewer/projected-text-readability'));
 });
 
 test('visual-check refuses changed delivery evidence before launching a browser', async () => {

@@ -39,6 +39,8 @@ test('compiler-measured intrinsic tall workflows reuse the height budget without
   assert.match(reader, /var MIN_PROJECTED_NODE_TEXT_PX = 6/);
   assert.match(reader, /viewBox\.width \* minimumReadableScale\(\) \+ chrome\.diagramX/);
   assert.match(reader, /measuredHeightFit && ratio < WIDE_RATIO \? readableWidth : MIN_READER_WIDTH/);
+  assert.match(reader, /Math\.max\(Math\.ceil\(minWidth \|\| 0\), Math\.round\(width\)\)/);
+  assert.match(reader, /lastWidth > Math\.ceil\(minWidth\)/);
   assert.doesNotMatch(reader, /function eligible\(\)[\s\S]{0,240}ratio > 0/);
 });
 
@@ -79,8 +81,8 @@ test('reader remeasures real content and reduces width before allowing desktop p
   assert.match(reader, /new MutationObserver\(schedule\)/);
   assert.match(reader, /document\.documentElement\.scrollHeight/);
   assert.match(reader, /lastWidth - overflow \* ratio - 4/);
-  assert.match(skill, /1440×900, 1600×1000, and 1920×1080/);
-  assert.match(skill, /2048×1320/);
+  assert.match(skill, /1440×900, 1600×1000, 1920×1080, and 2048×1320/);
+  assert.match(skill, /Reader-declared vertical page scroll/);
   assert.match(skill, /Generate one responsive artifact for laptops and external displays/);
   assert.match(skill, /preserve the authored SVG\/viewBox, proportions, semantic geometry/);
 });

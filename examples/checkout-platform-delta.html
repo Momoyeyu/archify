@@ -16131,8 +16131,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             number(diagramStyle.borderTopWidth) + number(diagramStyle.borderBottomWidth)
         };
       }
-      function applyWidth(width) {
-        var rounded = Math.round(width);
+      function applyWidth(width, minWidth) {
+        var rounded = Math.max(Math.ceil(minWidth || 0), Math.round(width));
         if (Math.abs(rounded - lastWidth) &lt; 1) return false;
         lastWidth = rounded;
         html.style.setProperty(&#39;--archify-reader-width&#39;, rounded + &#39;px&#39;);
@@ -16148,8 +16148,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             document.documentElement.scrollHeight,
             document.body.scrollHeight
           ) - window.innerHeight;
-          if (overflow &gt; 1 &amp;&amp; lastWidth &gt; minWidth) {
-            applyWidth(Math.max(minWidth, lastWidth - overflow * ratio - 4));
+          if (overflow &gt; 1 &amp;&amp; lastWidth &gt; Math.ceil(minWidth)) {
+            applyWidth(Math.max(minWidth, lastWidth - overflow * ratio - 4), minWidth);
             html.setAttribute(&#39;data-reader-overflow&#39;, &#39;reduced&#39;);
           } else if (overflow &gt; 1) {
             html.setAttribute(&#39;data-reader-overflow&#39;, &#39;authored&#39;);
@@ -16179,11 +16179,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         var availableSvgHeight = Math.max(1, window.innerHeight - fixedHeight);
         var desiredWidth = availableSvgHeight * ratio + chrome.diagramX;
         var width = Math.max(minWidth, Math.min(maxWidth, desiredWidth));
-        applyWidth(width);
+        applyWidth(width, minWidth);
         settleOverflow(minWidth);
         return {
           ratio: ratio,
-          width: Math.round(width),
+          width: lastWidth,
           availableSvgHeight: Math.round(availableSvgHeight),
           fixedHeight: Math.round(fixedHeight)
         };
@@ -31608,8 +31608,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             number(diagramStyle.borderTopWidth) + number(diagramStyle.borderBottomWidth)
         };
       }
-      function applyWidth(width) {
-        var rounded = Math.round(width);
+      function applyWidth(width, minWidth) {
+        var rounded = Math.max(Math.ceil(minWidth || 0), Math.round(width));
         if (Math.abs(rounded - lastWidth) &lt; 1) return false;
         lastWidth = rounded;
         html.style.setProperty(&#39;--archify-reader-width&#39;, rounded + &#39;px&#39;);
@@ -31625,8 +31625,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             document.documentElement.scrollHeight,
             document.body.scrollHeight
           ) - window.innerHeight;
-          if (overflow &gt; 1 &amp;&amp; lastWidth &gt; minWidth) {
-            applyWidth(Math.max(minWidth, lastWidth - overflow * ratio - 4));
+          if (overflow &gt; 1 &amp;&amp; lastWidth &gt; Math.ceil(minWidth)) {
+            applyWidth(Math.max(minWidth, lastWidth - overflow * ratio - 4), minWidth);
             html.setAttribute(&#39;data-reader-overflow&#39;, &#39;reduced&#39;);
           } else if (overflow &gt; 1) {
             html.setAttribute(&#39;data-reader-overflow&#39;, &#39;authored&#39;);
@@ -31656,11 +31656,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         var availableSvgHeight = Math.max(1, window.innerHeight - fixedHeight);
         var desiredWidth = availableSvgHeight * ratio + chrome.diagramX;
         var width = Math.max(minWidth, Math.min(maxWidth, desiredWidth));
-        applyWidth(width);
+        applyWidth(width, minWidth);
         settleOverflow(minWidth);
         return {
           ratio: ratio,
-          width: Math.round(width),
+          width: lastWidth,
           availableSvgHeight: Math.round(availableSvgHeight),
           fixedHeight: Math.round(fixedHeight)
         };

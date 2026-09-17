@@ -79,8 +79,8 @@
             number(diagramStyle.borderTopWidth) + number(diagramStyle.borderBottomWidth)
         };
       }
-      function applyWidth(width) {
-        var rounded = Math.round(width);
+      function applyWidth(width, minWidth) {
+        var rounded = Math.max(Math.ceil(minWidth || 0), Math.round(width));
         if (Math.abs(rounded - lastWidth) < 1) return false;
         lastWidth = rounded;
         html.style.setProperty('--archify-reader-width', rounded + 'px');
@@ -96,8 +96,8 @@
             document.documentElement.scrollHeight,
             document.body.scrollHeight
           ) - window.innerHeight;
-          if (overflow > 1 && lastWidth > minWidth) {
-            applyWidth(Math.max(minWidth, lastWidth - overflow * ratio - 4));
+          if (overflow > 1 && lastWidth > Math.ceil(minWidth)) {
+            applyWidth(Math.max(minWidth, lastWidth - overflow * ratio - 4), minWidth);
             html.setAttribute('data-reader-overflow', 'reduced');
           } else if (overflow > 1) {
             html.setAttribute('data-reader-overflow', 'authored');
@@ -127,11 +127,11 @@
         var availableSvgHeight = Math.max(1, window.innerHeight - fixedHeight);
         var desiredWidth = availableSvgHeight * ratio + chrome.diagramX;
         var width = Math.max(minWidth, Math.min(maxWidth, desiredWidth));
-        applyWidth(width);
+        applyWidth(width, minWidth);
         settleOverflow(minWidth);
         return {
           ratio: ratio,
-          width: Math.round(width),
+          width: lastWidth,
           availableSvgHeight: Math.round(availableSvgHeight),
           fixedHeight: Math.round(fixedHeight)
         };

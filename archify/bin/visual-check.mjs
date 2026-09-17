@@ -1682,6 +1682,9 @@ export class ChromeVisualBrowser {
         scrollWidth: Math.ceil(document.documentElement.scrollWidth),
         scrollHeight: Math.ceil(document.documentElement.scrollHeight),
         resolvedTheme: document.documentElement.getAttribute('data-theme') || '',
+        readerLayout: document.documentElement.getAttribute('data-reader-layout') || null,
+        readerOverflow: document.documentElement.getAttribute('data-reader-overflow') || null,
+        readerFit: svg ? svg.getAttribute('data-reader-fit') : null,
         readerWidth: reader ? reader.getBoundingClientRect().width : 0,
         diagramWidth: diagramWidth,
         viewBoxWidth: viewBoxWidth,
@@ -1754,6 +1757,19 @@ function observation({ width, height, theme, metrics }) {
     : Number(metrics.minimumProjectedNodeTextPx);
   const readabilityOk = minimumProjectedNodeTextPx == null
     || minimumProjectedNodeTextPx >= MIN_PROJECTED_NODE_TEXT_PX;
+  const readerLayout = metrics.readerLayout || null;
+  const readerOverflow = metrics.readerOverflow || null;
+  const readerFit = metrics.readerFit || null;
+  const verticalScrollAccepted = Boolean(
+    overflowY
+    && !overflowX
+    && readabilityOk
+    && Number.isFinite(minimumProjectedNodeTextPx)
+    && readerLayout === 'adaptive'
+    && readerOverflow === 'authored'
+    && readerFit === 'intrinsic-height'
+  );
+  const containmentOk = !overflowX && (!overflowY || verticalScrollAccepted);
   const legendDockIntersectionArea = Number(metrics.legendDockIntersectionArea) || 0;
   const dockStageIntersectionArea = Number(metrics.dockStageIntersectionArea) || 0;
   const dockStageGap = metrics.dockStageGap == null ? null : Number(metrics.dockStageGap);
@@ -1777,7 +1793,14 @@ function observation({ width, height, theme, metrics }) {
     scrollHeight,
     overflowX,
     overflowY,
-    ok: !overflowX && !overflowY,
+    verticalScrollAccepted,
+    overflowDisposition: overflowX || (overflowY && !verticalScrollAccepted)
+      ? 'unexpected-overflow'
+      : verticalScrollAccepted ? 'readable-vertical-scroll' : 'contained',
+    readerLayout,
+    readerOverflow,
+    readerFit,
+    ok: containmentOk,
     readerWidth: Number(metrics.readerWidth) || null,
     diagramWidth: Number(metrics.diagramWidth) || null,
     viewBoxWidth: Number(metrics.viewBoxWidth) || null,
@@ -1805,7 +1828,7 @@ function contactSheetHtml({ artifactPath, receipt, screenshots }) {
   const cards = screenshots.map((entry) => `
       <figure>
         <img src="${htmlEscape(entry.file)}" alt="${htmlEscape(`${entry.theme} ${entry.width} by ${entry.height}`)}">
-        <figcaption><strong>${htmlEscape(entry.theme.toUpperCase())}</strong> · ${entry.width}×${entry.height} · containment ${entry.ok ? 'pass' : 'fail'}</figcaption>
+        <figcaption><strong>${htmlEscape(entry.theme.toUpperCase())}</strong> · ${entry.width}×${entry.height} · containment ${entry.ok ? 'pass' : 'fail'}${entry.verticalScrollAccepted ? ' · readable vertical scroll' : ''}</figcaption>
       </figure>`).join('');
   return `<!doctype html>
 <html lang="en">
@@ -1885,6 +1908,10 @@ function observationDiagnostics({ artifact, allObservations, readabilityObservat
           scrollHeight: entry.scrollHeight,
           overflowX: entry.overflowX,
           overflowY: entry.overflowY,
+          overflowDisposition: entry.overflowDisposition,
+          readerLayout: entry.readerLayout,
+          readerOverflow: entry.readerOverflow,
+          readerFit: entry.readerFit,
           ...(entry.overflowY && entry.workflowLanes?.length ? {
             workflowLanes: entry.workflowLanes,
             measurement: 'CSS pixels; rendered node boxes geometrically contained in each lane frame; spaces include headers and routing, not guaranteed removable space',
@@ -1969,7 +1996,11 @@ function baseReceipt({ artifactPath, artifact, sidecars, chrome, deliveryProvena
     state: { detail: 'read', motion: 'still' },
     chrome,
     diagnostics: [],
-    containment: { status: 'fail', viewports: [] },
+    containment: {
+      status: 'fail',
+      policy: 'fit-or-reader-declared-readable-vertical-scroll',
+      viewports: [],
+    },
     readability: { status: 'fail', minimumProjectedNodeTextPx: MIN_PROJECTED_NODE_TEXT_PX, viewports: [] },
     viewerChrome: { status: 'fail', viewports: [] },
     captures: { status: 'fail', screenshots: [], contactSheet: null },
@@ -2071,7 +2102,11 @@ export function persistVisualCheckFailure(
         bytes: artifactBytes.byteLength,
       },
     } : {}),
-    containment: { status: 'fail', viewports: [] },
+    containment: {
+      status: 'fail',
+      policy: 'fit-or-reader-declared-readable-vertical-scroll',
+      viewports: [],
+    },
     captures: { status: 'fail', screenshots: [], contactSheet: null },
     sidecars: { ...directory.sidecars, files: [] },
   };

@@ -330,7 +330,7 @@ test('cli: guide returns repair steps, via semantics, and viewport checks as JSO
   assert.match(prompt, /absolute.*\[x, y\]/);
   assert.match(prompt, /1440×900.*1600×1000.*1920×1080.*2048×1320/);
   assert.match(prompt, /scrollWidth <= window\.innerWidth/);
-  assert.match(prompt, /scrollHeight <= window\.innerHeight/);
+  assert.match(prompt, /Reader-declared readable vertical page scroll/);
   assert.match(prompt, /validate.*diagnostics\[\].*supportedFixes/);
 });
 
@@ -344,7 +344,7 @@ test('cli: guide prints localized repair advice, including an explicit language 
     assert.match(result.stdout, /推荐: 布局修复/);
     assert.match(result.stdout, /schema.*重叠.*方向.*交叉.*标签/s);
     assert.match(result.stdout, /\[start, \.\.\.via, end\]/);
-    assert.match(result.stdout, /scrollHeight <= window\.innerHeight/);
+    assert.match(result.stdout, /Reader 已达到投影文字下限并接受可读的页面纵向滚动/);
     assert.match(result.stdout, /validate/);
   }
 });
