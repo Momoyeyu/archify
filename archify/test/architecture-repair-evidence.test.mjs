@@ -134,11 +134,18 @@ function outerRoute(t) {
 }
 
 test('auto canvas includes an outer route even when no label reaches its corridor', t => {
-  const { cwd, input } = outerRoute(t);
+  const { cwd, input, diagram } = outerRoute(t);
   const { result, receipt } = validate(input, cwd, ['--layout-json']);
   assert.equal(result.status, 0, result.stdout);
   assert.ok(receipt.viewBox[1] > 300, JSON.stringify(receipt));
   assert.deepEqual(receipt.connections[0].points, [[140, 130], [140, 300], [410, 300], [410, 130]]);
+  assert.equal(validate(input, cwd).result.status, 0);
+  diagram.components[1].pos = [350, 240];
+  diagram.connections[0] = { id: 'outer', from: 'n0', to: 'n1', fromSide: 'right', toSide: 'right', via: [[800, 100], [800, 270]] };
+  fs.writeFileSync(input, JSON.stringify(diagram));
+  const right = validate(input, cwd, ['--layout-json']);
+  assert.equal(right.result.status, 0, right.result.stdout);
+  assert.ok(right.receipt.viewBox[0] > 800);
   assert.equal(validate(input, cwd).result.status, 0);
 });
 
