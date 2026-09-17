@@ -11,6 +11,7 @@ import { minimumReadableSourceTextPx } from '../shared/desktop-readability.mjs';
 import { translateMessage as i18nText } from '../shared/i18n.mjs';
 import { gridLayout, resolveComponentPos, validateGridPlacement } from './grid.mjs';
 import { createRouter } from './routing.mjs';
+import { placeAutomaticLabels } from './labels.mjs';
 import {
   asArray,
   isFinitePoint,
@@ -144,9 +145,10 @@ const architectureLegendEntries = resolveLegend(
 // One source for connection label geometry: the rect the containment rule
 // measures is the rect the SVG mask draws, the auto canvas covers, the legend
 // avoids, and the layout report publishes.
+const resolvedLabelPoints = new Map();
 function connectionLabelBox(conn) {
   if (!conn.label) return null;
-  const [lx, ly] = labelPoint(conn, pathFor(conn).points);
+  const [lx, ly] = resolvedLabelPoints.get(conn) || labelPoint(conn, pathFor(conn).points);
   const width = Math.max(30, textUnits(conn.label) * 4.8 + 10);
   return { x: lx - width / 2, y: ly - 10, width, height: 14, lx, ly };
 }
@@ -301,7 +303,7 @@ function layoutBoundaryTitles(rawBoundaries, minimumFontSize) {
 const { pathFor, connectionSides, connectionEndpointSide } = createRouter(components, arch.connections);
 // The auto canvas has to cover these rects; an authored viewBox is never
 // resized to fit them — there the containment rule reports the clipping.
-const connectionLabels = connectionLabelRects();
+let connectionLabels = connectionLabelRects();
 // Unlabelled outer corridors are geometry too. Fitting only nodes and labels
 // can clip a valid explicit via route while every browser overflow check passes.
 const connectionGeometry = [
@@ -370,6 +372,28 @@ function componentContext(component) {
 // and in the title convergence above, which sizes fonts for this same width.
 const viewBox = arch.meta?.viewBox || autoViewBoxFor(boundaries, connectionGeometry);
 const legendY = () => viewBox[1] - 16;
+
+// Fit titles and canvas from the original geometry first. Fallback labels must
+// fit inside that canvas, so moving a label cannot trigger title reflow or a
+// canvas/label feedback loop. Keep standard and every authored label control.
+if (arch.meta?.quality_profile === 'showcase') {
+  connectionLabels = placeAutomaticLabels({
+    labels: connectionLabels,
+    routes: asArray(arch.connections).flatMap((conn, relationIndex) => (
+      components.has(conn.from) && components.has(conn.to)
+        ? [{ relationIndex, points: pathFor(conn).points }] : []
+    )),
+    components: [...components.values()],
+    titles: boundaries.map(boundary => boundary.title),
+    viewBox,
+    // Leave the resolved legend band available; moving a label must not hide
+    // an otherwise visible legend. Existing labels keep their placement.
+    placementBottom: architectureLegendEntries.length
+      ? legendY() - 32 - legendFootprint(architectureLegendEntries, { width: viewBox[0] - layout.margin * 2 }).extraHeight
+      : viewBox[1],
+  });
+  for (const rect of connectionLabels) resolvedLabelPoints.set(rect.relation, [rect.lx, rect.ly]);
+}
 
 // ---- Validation: mechanical correctness, never layout taste -----------------
 function validateArchitecture() {
@@ -707,7 +731,7 @@ function buildLayoutReport() {
       .filter((conn) => components.has(conn.from) && components.has(conn.to))
       .map((conn) => {
         const routed = pathFor(conn);
-        const labelAt = conn.label ? labelPoint(conn, routed.points) : null;
+        const labelAt = conn.label ? resolvedLabelPoints.get(conn) || labelPoint(conn, routed.points) : null;
         return connectionPath(conn, routed, labelAt);
       }),
     labels,
