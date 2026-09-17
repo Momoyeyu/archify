@@ -821,7 +821,13 @@ function renderLegend() {
 }
 
 function renderSvg() {
-  return `      <svg viewBox="0 0 ${viewBox[0]} ${viewBox[1]}" ${svgRootAttrs(arch.meta)}>
+  // An automatic architecture canvas is compiler-measured geometry. Let the
+  // Reader spend the real desktop height budget on it, including when an
+  // outer route makes the canvas taller than the ordinary wide-diagram
+  // threshold. Authored viewBoxes remain authoritative and keep the
+  // established Viewer contract.
+  const readerFit = arch.meta?.viewBox ? '' : ' data-reader-fit="intrinsic-height"';
+  return `      <svg viewBox="0 0 ${viewBox[0]} ${viewBox[1]}" ${svgRootAttrs(arch.meta)}${readerFit}>
 ${svgAccessibleText(arch.meta, 'architecture')}
 ${renderDefinitions()}
 

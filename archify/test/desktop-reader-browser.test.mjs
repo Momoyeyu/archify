@@ -122,6 +122,55 @@ test('production showcase is readable in the real 1440 by 900 adaptive reader', 
   }
 });
 
+test('route-expanded intrinsic architecture fits every required desktop viewport', {
+  skip: chromePath ? false : 'Set ARCHIFY_CHROME to run the real browser regression.',
+}, async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-route-expanded-reader-'));
+  const input = path.join(
+    skillRoot,
+    'test/fixtures/architecture-viewport/route-expanded-worldscope.architecture.json',
+  );
+  const artifact = path.join(tmp, 'route-expanded-worldscope.html');
+  try {
+    execFileSync(process.execPath, [
+      path.join(skillRoot, 'bin', 'archify.mjs'),
+      'deliver',
+      'architecture',
+      input,
+      artifact,
+      '--quality',
+      'showcase',
+      '--json',
+    ], { cwd: skillRoot, encoding: 'utf8' });
+
+    const html = fs.readFileSync(artifact, 'utf8');
+    const svgRoot = html.match(/<svg\b[^>]*>/)?.[0];
+    assert.ok(svgRoot, 'expected an SVG root');
+    assert.match(svgRoot, /viewBox="0 0 980 678"/);
+    assert.match(svgRoot, /data-reader-fit="intrinsic-height"/);
+
+    const result = await runVisualCheck({ artifactPath: artifact, chromePath });
+    assert.equal(result.exitCode, 0, JSON.stringify(result.receipt, null, 2));
+    assert.equal(result.receipt.containment.status, 'pass');
+    assert.equal(result.receipt.readability.status, 'pass');
+    assert.equal(result.receipt.viewerChrome.status, 'pass');
+    for (const viewport of result.receipt.containment.viewports) {
+      assert.equal(viewport.overflowX, false, JSON.stringify(viewport, null, 2));
+      assert.equal(viewport.overflowY, false, JSON.stringify(viewport, null, 2));
+      assert.equal(viewport.scrollHeight, viewport.height, JSON.stringify(viewport, null, 2));
+      assert.ok(viewport.minimumProjectedNodeTextPx >= MIN_PROJECTED_NODE_TEXT_PX);
+    }
+    const desktop = result.receipt.containment.viewports.find(({ width, height }) => (
+      width === DESKTOP_READABILITY_VIEWPORT.width
+      && height === DESKTOP_READABILITY_VIEWPORT.height
+    ));
+    assert.ok(desktop);
+    assert.ok(desktop.diagramWidth < desktop.viewBoxWidth, JSON.stringify(desktop, null, 2));
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('offline intrinsic workflows fit while authored overflow still identifies lane frames', {
   skip: chromePath ? false : 'Set ARCHIFY_CHROME to run the real browser regression.',
 }, async () => {

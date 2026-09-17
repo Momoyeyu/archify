@@ -1301,6 +1301,24 @@ test('architecture: an auto viewBox grows to contain a wide connection label', (
   assert.match(pinned.stderr, /\[composition\/label-canvas-containment\]/);
 });
 
+test('architecture: measured auto canvases opt into height-aware reader fitting', () => {
+  const automatic = load('architecture');
+  delete automatic.meta.viewBox;
+  const rendered = render('architecture', automatic);
+  assert.equal(rendered.code, 0, rendered.stderr);
+  const automaticSvg = fs.readFileSync(rendered.outPath, 'utf8').match(/<svg\b[^>]*>/)?.[0];
+  assert.ok(automaticSvg, 'expected an SVG root for the automatic canvas');
+  assert.match(automaticSvg, /data-reader-fit="intrinsic-height"/);
+
+  const authored = structuredClone(automatic);
+  authored.meta.viewBox = [1080, 620];
+  const pinned = render('architecture', authored);
+  assert.equal(pinned.code, 0, pinned.stderr);
+  const authoredSvg = fs.readFileSync(pinned.outPath, 'utf8').match(/<svg\b[^>]*>/)?.[0];
+  assert.ok(authoredSvg, 'expected an SVG root for the authored canvas');
+  assert.doesNotMatch(authoredSvg, /data-reader-fit=/);
+});
+
 // Boundary-title fonts are resolved against the same width the canvas actually
 // renders into. When a connection label alone widens the auto canvas past the
 // desktop reader width, the title font must rise with it — otherwise validate
