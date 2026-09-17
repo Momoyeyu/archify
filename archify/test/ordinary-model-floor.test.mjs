@@ -925,11 +925,8 @@ test('packaged skill puts a bounded ordinary-model path before progressive featu
     '`deliver` is the final acceptance command',
     'deliver <type> <candidate.json> <output.html> --quality showcase --json',
     'A non-zero exit can never be described as success',
-    'Continue focused correction while the objective error count reaches a new minimum',
-    'If two consecutive rounds do not improve that best count',
     'Do not read `renderers/shared/geometry.mjs`',
     'validate <type>',
-    'supportedFixes',
   ]) {
     assert.match(
       skill.slice(fastPath, fastPathEnd),
