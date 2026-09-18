@@ -1,17 +1,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
   ChromeVisualBrowser,
   VISUAL_CHECK_VIEWPORTS,
   chromeVisualBrowserArgs,
+  findChrome,
   persistVisualCheckFailure,
   runVisualCheck,
   sidecarPaths,
@@ -32,6 +34,15 @@ function sha256(file) {
   return createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 }
 
+function entryIdentity(file) {
+  const stat = fs.lstatSync(file, { bigint: true });
+  return { device: stat.dev, inode: stat.ino, mode: stat.mode };
+}
+
+function stagingDirectories(directory) {
+  return fs.readdirSync(directory).filter((name) => name.startsWith('.archify-visual-check-'));
+}
+
 function fakeBrowser({ overflowAt, unreadableAt, chromeCollisionAt, stageCollisionAt, stageGapAt, screenshotFailure } = {}) {
   const calls = [];
   return {
@@ -41,7 +52,7 @@ function fakeBrowser({ overflowAt, unreadableAt, chromeCollisionAt, stageCollisi
       if (screenshotPath && screenshotFailure?.({ width, height, theme })) {
         throw new Error('synthetic screenshot failure');
       }
-      if (screenshotPath) fs.writeFileSync(screenshotPath, png);
+      if (screenshotPath) fs.writeFileSync(screenshotPath, png, { flag: 'wx' });
       const overflow = overflowAt?.({ width, height, theme }) || false;
       const unreadable = unreadableAt?.({ width, height, theme }) || false;
       const chromeCollision = chromeCollisionAt?.({ width, height, theme }) || false;
@@ -90,6 +101,79 @@ function fakeChromeChild() {
   };
   return child;
 }
+
+test('findChrome discovers chrome.exe from a Windows PATH after default locations', () => {
+  const checked = [];
+  const expected = String.raw`D:\Browser Bin\chrome.EXE`;
+  const resolved = findChrome({
+    platform: 'win32',
+    env: {
+      PROGRAMFILES: String.raw`C:\Program Files`,
+      PATH: String.raw`C:\Tools;D:\Browser Bin`,
+      PATHEXT: '.EXE;.CMD',
+    },
+    resolveExecutable(candidate) {
+      checked.push(candidate);
+      return candidate === expected ? candidate : null;
+    },
+  });
+
+  assert.equal(resolved, expected);
+  assert.deepEqual(checked.slice(0, 2), [
+    String.raw`C:\Program Files\Google\Chrome\Application\chrome.exe`,
+    String.raw`C:\Program Files\Chromium\Application\chrome.exe`,
+  ]);
+  assert.ok(
+    checked.indexOf(String.raw`C:\Program Files\Chromium\Application\chrome.exe`)
+      < checked.indexOf(String.raw`C:\Tools\chrome.EXE`),
+    'default install locations must be checked before PATH',
+  );
+});
+
+test('findChrome keeps an installed Windows Chrome ahead of PATH candidates', () => {
+  const checked = [];
+  const installed = String.raw`C:\Program Files\Google\Chrome\Application\chrome.exe`;
+  const portable = String.raw`D:\Browser Bin\chrome.EXE`;
+  const resolved = findChrome({
+    platform: 'win32',
+    env: {
+      PROGRAMFILES: String.raw`C:\Program Files`,
+      PATH: String.raw`D:\Browser Bin`,
+      PATHEXT: '.EXE',
+    },
+    resolveExecutable(candidate) {
+      checked.push(candidate);
+      return candidate === installed || candidate === portable ? candidate : null;
+    },
+  });
+
+  assert.equal(resolved, installed);
+  assert.deepEqual(checked, [installed]);
+});
+
+test('findChrome checks Chromium command names on a Windows PATH', () => {
+  const checked = [];
+  const expected = String.raw`D:\Browser Bin\chromium.EXE`;
+  const resolved = findChrome({
+    platform: 'win32',
+    env: {
+      PATH: String.raw`D:\Browser Bin`,
+      PATHEXT: '.EXE',
+    },
+    resolveExecutable(candidate) {
+      checked.push(candidate);
+      return candidate === expected ? candidate : null;
+    },
+  });
+
+  assert.equal(resolved, expected);
+  assert.deepEqual(checked, [
+    String.raw`D:\Browser Bin\chrome.EXE`,
+    String.raw`D:\Browser Bin\google-chrome.EXE`,
+    String.raw`D:\Browser Bin\google-chrome-stable.EXE`,
+    expected,
+  ]);
+});
 
 test('visual-check disables the Chrome sandbox only for root or an explicit environment opt-in', () => {
   const profileRoot = path.join(tmp, 'chrome-profile');
@@ -228,9 +312,9 @@ test('sidecarPaths places outputs in outDir instead of beside the artifact', () 
   assert.equal(outputs.screenshots.every((entry) => path.dirname(entry.path) === separateDir), true);
   assert.equal(path.basename(outputs.receipt), 'outdir-source.visual-check.json');
 
-  // Omitting outDir keeps the existing beside-the-artifact behavior unchanged.
+  // Omitting outDir keeps evidence beside the physical artifact.
   const defaultOutputs = sidecarPaths(input);
-  assert.equal(path.dirname(defaultOutputs.receipt), path.dirname(input));
+  assert.equal(path.dirname(defaultOutputs.receipt), path.dirname(fs.realpathSync.native(input)));
 });
 
 test('visual-check writes all sidecars into --out-dir end-to-end, none beside the artifact', async () => {
@@ -258,6 +342,1582 @@ test('visual-check writes all sidecars into --out-dir end-to-end, none beside th
   const besideArtifact = sidecarPaths(input);
   assert.equal(fs.existsSync(besideArtifact.receipt), false, 'no sidecar should land beside the artifact when outDir is set');
   assert.equal(fs.existsSync(besideArtifact.contactSheet), false);
+});
+
+test('visual-check sidecar directory identity treats a physical alias as redundant', async (t) => {
+  const physicalDirectory = path.join(tmp, 'physical-sidecar-directory');
+  const aliasDirectory = path.join(tmp, 'aliased-sidecar-directory');
+  fs.mkdirSync(physicalDirectory, { recursive: true });
+  try {
+    fs.symlinkSync(
+      physicalDirectory,
+      aliasDirectory,
+      process.platform === 'win32' ? 'junction' : 'dir',
+    );
+  } catch (error) {
+    t.skip(`directory aliases are unavailable: ${error.message}`);
+    return;
+  }
+
+  const input = path.join(physicalDirectory, 'aliased-sidecars.html');
+  fs.writeFileSync(input, '<!doctype html><html><body>aliased evidence</body></html>');
+  const outputs = sidecarPaths(input, { outDir: aliasDirectory });
+  assert.notEqual(path.dirname(outputs.receipt), path.dirname(input), 'precondition: spellings differ');
+
+  const result = await runVisualCheck({
+    artifactPath: input,
+    outDir: aliasDirectory,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser(),
+  });
+  assert.equal(result.exitCode, 0);
+  assert.equal('directory' in result.receipt.sidecars, false);
+
+  const failure = persistVisualCheckFailure(input, {
+    schemaVersion: 1,
+    command: 'visual-check',
+    artifact: { path: input },
+    error: 'synthetic delivery failure',
+    diagnostics: [{ code: 'delivery/provenance-failed' }],
+  }, { outDir: aliasDirectory });
+  assert.equal('directory' in failure.sidecars, false);
+});
+
+test('visual-check preserves unowned receipt, contact-sheet, and screenshot path collisions', async () => {
+  const cases = [
+    { name: 'receipt', select: (outputs) => outputs.receipt, bytes: Buffer.from('{"foreign":true}\n') },
+    { name: 'contact-sheet', select: (outputs) => outputs.contactSheet, bytes: Buffer.from('<!doctype html><title>real artifact</title>\n') },
+    { name: 'screenshot', select: (outputs) => outputs.screenshots[0].path, bytes: Buffer.from('foreign png bytes\n') },
+  ];
+
+  for (const scenario of cases) {
+    const input = artifact(`unowned-${scenario.name}.html`);
+    const outputs = sidecarPaths(input);
+    const collision = scenario.select(outputs);
+    fs.writeFileSync(collision, scenario.bytes);
+    let launched = false;
+
+    const result = await runVisualCheck({
+      artifactPath: input,
+      chromePath: '/fake/chrome',
+      browserFactory: async () => {
+        launched = true;
+        return fakeBrowser();
+      },
+    });
+
+    assert.equal(result.exitCode, 1, scenario.name);
+    assert.equal(result.receipt.diagnostics.at(-1)?.code, 'viewer/evidence-path-conflict', scenario.name);
+    assert.equal(launched, false, scenario.name);
+    assert.deepEqual(fs.readFileSync(collision), scenario.bytes, scenario.name);
+  }
+
+  const input = artifact('unowned-persist-failure.html');
+  const outputs = sidecarPaths(input);
+  const sentinel = Buffer.from('<!doctype html><title>real artifact</title>\n');
+  fs.writeFileSync(outputs.contactSheet, sentinel);
+  const receipt = persistVisualCheckFailure(input, {
+    schemaVersion: 1,
+    command: 'visual-check',
+    artifact: { path: input, sha256: sha256(input), bytes: fs.statSync(input).size },
+    error: 'synthetic delivery failure',
+    diagnostics: [{ code: 'delivery/provenance-failed' }],
+  });
+  assert.equal(receipt.diagnostics.at(-1)?.code, 'viewer/evidence-path-conflict');
+  assert.deepEqual(fs.readFileSync(outputs.contactSheet), sentinel);
+  assert.equal(fs.existsSync(outputs.receipt), false);
+});
+
+test('visual-check preserves receipt, contact-sheet, and PNG claimants created after preflight', async () => {
+  const cases = [
+    { name: 'receipt', select: (outputs) => outputs.receipt, noChrome: true },
+    { name: 'contact-sheet', select: (outputs) => outputs.contactSheet },
+    { name: 'screenshot', select: (outputs) => outputs.screenshots[0].path },
+  ];
+
+  for (const scenario of cases) {
+    const input = artifact(`late-${scenario.name}-claimant.html`);
+    const outDir = path.join(tmp, `late-${scenario.name}-evidence`);
+    const outputs = sidecarPaths(input, { outDir });
+    const claimant = scenario.select(outputs);
+    const sentinel = Buffer.from(`late ${scenario.name} claimant\n`);
+    let claimed = false;
+    const claim = () => {
+      if (claimed) return;
+      claimed = true;
+      fs.writeFileSync(claimant, sentinel, { flag: 'wx' });
+    };
+    const browser = fakeBrowser();
+    const inspect = browser.inspect.bind(browser);
+    browser.inspect = async (args) => {
+      const metrics = await inspect(args);
+      claim();
+      return metrics;
+    };
+
+    const result = await runVisualCheck({
+      artifactPath: input,
+      outDir,
+      ...(scenario.noChrome
+        ? { resolveChrome: () => { claim(); return null; } }
+        : { chromePath: '/fake/chrome', browserFactory: async () => browser }),
+    });
+
+    assert.equal(result.exitCode, 1, scenario.name);
+    assert.equal(result.receipt.diagnostics.at(-1)?.code, 'viewer/evidence-path-conflict', scenario.name);
+    assert.deepEqual(fs.readFileSync(claimant), sentinel, scenario.name);
+    assert.deepEqual(stagingDirectories(outDir), [], scenario.name);
+    for (const target of [outputs.receipt, outputs.contactSheet, ...outputs.screenshots.map((entry) => entry.path)]) {
+      if (target !== claimant) assert.equal(fs.existsSync(target), false, `${scenario.name}: ${target}`);
+    }
+  }
+});
+
+test('visual-check preserves receipt, contact-sheet, and PNG replacements made after preflight', async () => {
+  const cases = [
+    { name: 'receipt', select: (outputs) => outputs.receipt, noChrome: true },
+    { name: 'contact-sheet', select: (outputs) => outputs.contactSheet },
+    { name: 'screenshot', select: (outputs) => outputs.screenshots[0].path },
+  ];
+
+  for (const scenario of cases) {
+    const input = artifact(`late-${scenario.name}-replacement.html`);
+    const outputs = sidecarPaths(input);
+    const first = await runVisualCheck({
+      artifactPath: input,
+      chromePath: '/fake/chrome',
+      browserFactory: async () => fakeBrowser(),
+    });
+    assert.equal(first.exitCode, 0, `${scenario.name}: initial evidence`);
+    const targets = [outputs.receipt, outputs.contactSheet, ...outputs.screenshots.map((entry) => entry.path)];
+    const before = new Map(targets.map((target) => [target, fs.readFileSync(target)]));
+    const replaced = scenario.select(outputs);
+    const sentinel = Buffer.from(`replacement ${scenario.name}\n`);
+    let replacementIdentity;
+    let injected = false;
+    const replace = () => {
+      if (injected) return;
+      injected = true;
+      fs.unlinkSync(replaced);
+      fs.writeFileSync(replaced, sentinel, { flag: 'wx' });
+      replacementIdentity = entryIdentity(replaced);
+    };
+    const browser = fakeBrowser();
+    const inspect = browser.inspect.bind(browser);
+    browser.inspect = async (args) => {
+      const metrics = await inspect(args);
+      replace();
+      return metrics;
+    };
+
+    const result = await runVisualCheck({
+      artifactPath: input,
+      ...(scenario.noChrome
+        ? { resolveChrome: () => { replace(); return null; } }
+        : { chromePath: '/fake/chrome', browserFactory: async () => browser }),
+    });
+
+    assert.equal(result.exitCode, 1, scenario.name);
+    assert.equal(result.receipt.diagnostics.at(-1)?.code, 'viewer/evidence-path-conflict', scenario.name);
+    assert.deepEqual(fs.readFileSync(replaced), sentinel, scenario.name);
+    assert.deepEqual(entryIdentity(replaced), replacementIdentity, scenario.name);
+    for (const target of targets) {
+      if (target !== replaced) assert.deepEqual(fs.readFileSync(target), before.get(target), `${scenario.name}: ${target}`);
+    }
+    assert.deepEqual(stagingDirectories(path.dirname(outputs.receipt)), [], scenario.name);
+  }
+});
+
+test('visual-check preserves a regular successor swapped at the backup link boundary', async (t) => {
+  const input = artifact('backup-link-regular-successor.html');
+  const outputs = sidecarPaths(input);
+  const first = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser(),
+  });
+  assert.equal(first.exitCode, 0);
+
+  const displaced = path.join(tmp, 'backup-link-regular-displaced.json');
+  const successor = Buffer.from('external regular successor at backup boundary\n');
+  const stagingBefore = new Set(stagingDirectories(path.dirname(outputs.receipt)));
+  const linkSync = fs.linkSync.bind(fs);
+  const renameSync = fs.renameSync.bind(fs);
+  let injected = false;
+  let successorIdentity;
+  t.after(() => {
+    fs.rmSync(displaced, { force: true });
+    for (const directory of stagingDirectories(path.dirname(outputs.receipt))) {
+      if (!stagingBefore.has(directory)) {
+        fs.rmSync(path.join(path.dirname(outputs.receipt), directory), { recursive: true, force: true });
+      }
+    }
+  });
+  t.mock.method(fs, 'linkSync', (source, target) => {
+    const sourcePath = String(source);
+    const targetPath = String(target);
+    if (!injected
+      && path.basename(sourcePath) === path.basename(outputs.receipt)
+      && path.basename(targetPath) === 'previous-0'
+      && path.basename(path.dirname(targetPath)).startsWith('.archify-visual-check-')) {
+      renameSync(sourcePath, displaced);
+      fs.writeFileSync(sourcePath, successor, { flag: 'wx' });
+      successorIdentity = entryIdentity(sourcePath);
+      injected = true;
+    }
+    return linkSync(sourcePath, targetPath);
+  });
+
+  const result = await runVisualCheck({
+    artifactPath: input,
+    resolveChrome: () => null,
+  });
+
+  assert.equal(injected, true);
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.receipt.diagnostics.at(-1)?.code, 'viewer/evidence-path-conflict');
+  assert.deepEqual(fs.readFileSync(outputs.receipt), successor);
+  assert.deepEqual(entryIdentity(outputs.receipt), successorIdentity);
+});
+
+for (const scenario of [
+  {
+    name: 'directory',
+    create(file) {
+      fs.mkdirSync(file);
+    },
+    assertPreserved(file) {
+      assert.equal(fs.lstatSync(file).isDirectory(), true);
+    },
+  },
+  {
+    name: 'FIFO',
+    create(file, t) {
+      const created = spawnSync('mkfifo', [file], { encoding: 'utf8' });
+      if (created.status !== 0) {
+        t.skip(`mkfifo is unavailable: ${created.stderr || `exit ${created.status}`}`);
+        const error = new Error('mkfifo unavailable');
+        error.code = 'ARCHIFY_TEST_SKIPPED';
+        throw error;
+      }
+    },
+    assertPreserved(file) {
+      assert.equal(fs.lstatSync(file).isFIFO(), true);
+    },
+  },
+  {
+    name: 'symlink',
+    create(file, t) {
+      const target = path.join(tmp, 'backup-link-symlink-target');
+      fs.writeFileSync(target, 'symlink target', { flag: fs.existsSync(target) ? 'w' : 'wx' });
+      try {
+        fs.symlinkSync(target, file, 'file');
+      } catch (error) {
+        if (error?.code === 'EPERM') {
+          t.skip(`file symlinks are unavailable: ${error.message}`);
+          const skipped = new Error('file symlinks unavailable');
+          skipped.code = 'ARCHIFY_TEST_SKIPPED';
+          throw skipped;
+        }
+        throw error;
+      }
+    },
+    assertPreserved(file) {
+      assert.equal(fs.lstatSync(file).isSymbolicLink(), true);
+    },
+  },
+]) {
+  test(`visual-check preserves a ${scenario.name} swapped at the backup link boundary`, async (t) => {
+    const input = artifact(`backup-link-${scenario.name.toLowerCase()}-successor.html`);
+    const outputs = sidecarPaths(input);
+    const first = await runVisualCheck({
+      artifactPath: input,
+      chromePath: '/fake/chrome',
+      browserFactory: async () => fakeBrowser(),
+    });
+    assert.equal(first.exitCode, 0);
+
+    const displaced = path.join(tmp, `backup-link-${scenario.name.toLowerCase()}-displaced.json`);
+    const stagingBefore = new Set(stagingDirectories(path.dirname(outputs.receipt)));
+    const linkSync = fs.linkSync.bind(fs);
+    const renameSync = fs.renameSync.bind(fs);
+    let injected = false;
+    t.after(() => {
+      fs.rmSync(displaced, { force: true });
+      fs.rmSync(outputs.receipt, { recursive: true, force: true });
+      for (const directory of stagingDirectories(path.dirname(outputs.receipt))) {
+        if (!stagingBefore.has(directory)) {
+          fs.rmSync(path.join(path.dirname(outputs.receipt), directory), { recursive: true, force: true });
+        }
+      }
+    });
+    t.mock.method(fs, 'linkSync', (source, target) => {
+      const sourcePath = String(source);
+      const targetPath = String(target);
+      if (!injected
+        && path.basename(sourcePath) === path.basename(outputs.receipt)
+        && path.basename(targetPath) === 'previous-0'
+        && path.basename(path.dirname(targetPath)).startsWith('.archify-visual-check-')) {
+        renameSync(sourcePath, displaced);
+        scenario.create(sourcePath, t);
+        injected = true;
+      }
+      return linkSync(sourcePath, targetPath);
+    });
+
+    let result;
+    try {
+      result = await runVisualCheck({
+        artifactPath: input,
+        resolveChrome: () => null,
+      });
+    } catch (error) {
+      if (error?.code === 'ARCHIFY_TEST_SKIPPED') return;
+      throw error;
+    }
+
+    assert.equal(injected, true);
+    assert.equal(result.exitCode, 1);
+    assert.equal(result.receipt.diagnostics.at(-1)?.code, 'viewer/evidence-path-conflict');
+    scenario.assertPreserved(outputs.receipt);
+  });
+}
+
+test('visual-check preserves an in-place evidence edit made after preflight', async () => {
+  const input = artifact('late-in-place-evidence-edit.html');
+  const outputs = sidecarPaths(input);
+  const first = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser(),
+  });
+  assert.equal(first.exitCode, 0);
+
+  const targets = [
+    outputs.receipt,
+    outputs.contactSheet,
+    ...outputs.screenshots.map((entry) => entry.path),
+  ];
+  const before = new Map(targets.map((target) => [target, fs.readFileSync(target)]));
+  const originalIdentity = entryIdentity(outputs.contactSheet);
+  const sentinel = Buffer.from('external in-place contact-sheet edit\n');
+  let editedIdentity;
+  let injected = false;
+  const browser = fakeBrowser();
+  const inspect = browser.inspect.bind(browser);
+  browser.inspect = async (args) => {
+    const metrics = await inspect(args);
+    if (!injected) {
+      fs.writeFileSync(outputs.contactSheet, sentinel);
+      editedIdentity = entryIdentity(outputs.contactSheet);
+      injected = true;
+    }
+    return metrics;
+  };
+
+  const result = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => browser,
+  });
+
+  assert.equal(injected, true);
+  assert.deepEqual(editedIdentity, originalIdentity, 'the injected edit must retain the captured inode');
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.receipt.diagnostics.at(-1)?.code, 'viewer/evidence-path-conflict');
+  assert.equal(
+    result.receipt.diagnostics.at(-1)?.evidence?.reason?.code,
+    'previous-evidence-content-changed',
+  );
+  assert.deepEqual(fs.readFileSync(outputs.contactSheet), sentinel);
+  assert.deepEqual(entryIdentity(outputs.contactSheet), editedIdentity);
+  for (const target of targets) {
+    if (target !== outputs.contactSheet) assert.deepEqual(fs.readFileSync(target), before.get(target), target);
+  }
+  assert.deepEqual(stagingDirectories(path.dirname(outputs.receipt)), []);
+});
+
+test('visual-check preserves an in-place backup edit made before cleanup', async (t) => {
+  const input = artifact('late-in-place-backup-edit.html');
+  const outputs = sidecarPaths(input);
+  const first = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser(),
+  });
+  assert.equal(first.exitCode, 0);
+
+  const targets = [
+    outputs.receipt,
+    outputs.contactSheet,
+    ...outputs.screenshots.map((entry) => entry.path),
+  ];
+  const before = new Map(targets.map((target) => [target, fs.readFileSync(target)]));
+  const originalIdentity = entryIdentity(outputs.contactSheet);
+  const sentinel = Buffer.from('external in-place backup edit\n');
+  const linkSync = fs.linkSync.bind(fs);
+  let editedIdentity;
+  let injected = false;
+  t.mock.method(fs, 'linkSync', (source, target) => {
+    const result = linkSync(source, target);
+    if (!injected
+      && path.basename(String(source)) === 'receipt.json'
+      && path.basename(path.dirname(String(source))).startsWith('.archify-visual-check-')) {
+      const backup = path.join(path.dirname(String(source)), 'previous-1');
+      fs.writeFileSync(backup, sentinel);
+      editedIdentity = entryIdentity(backup);
+      injected = true;
+    }
+    return result;
+  });
+
+  const result = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser(),
+  });
+
+  assert.equal(injected, true);
+  assert.deepEqual(editedIdentity, originalIdentity, 'the injected edit must retain the backup inode');
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.receipt.diagnostics.at(-1)?.code, 'viewer/evidence-path-conflict');
+  assert.equal(
+    result.receipt.diagnostics.at(-1)?.evidence?.reason?.code,
+    'backup-content-changed-before-cleanup',
+  );
+  assert.deepEqual(fs.readFileSync(outputs.contactSheet), sentinel);
+  assert.deepEqual(entryIdentity(outputs.contactSheet), editedIdentity);
+  for (const target of targets) {
+    if (target !== outputs.contactSheet) assert.deepEqual(fs.readFileSync(target), before.get(target), target);
+  }
+  assert.deepEqual(stagingDirectories(path.dirname(outputs.receipt)), []);
+});
+
+test('visual-check refuses hard-linked receipt, contact-sheet, and PNG evidence without mutation', async (t) => {
+  const selectors = [
+    ['receipt', (outputs) => outputs.receipt],
+    ['contact-sheet', (outputs) => outputs.contactSheet],
+    ['screenshot', (outputs) => outputs.screenshots[0].path],
+  ];
+
+  for (const [name, select] of selectors) {
+    const input = artifact(`hardlinked-${name}.html`);
+    const outputs = sidecarPaths(input);
+    const first = await runVisualCheck({
+      artifactPath: input,
+      chromePath: '/fake/chrome',
+      browserFactory: async () => fakeBrowser(),
+    });
+    assert.equal(first.exitCode, 0, `${name}: initial evidence`);
+    const target = select(outputs);
+    const alias = `${target}.alias`;
+    try {
+      fs.linkSync(target, alias);
+    } catch (error) {
+      t.skip(`hard links are unavailable: ${error.message}`);
+      return;
+    }
+    const before = fs.readFileSync(target);
+    let launched = false;
+    const result = await runVisualCheck({
+      artifactPath: input,
+      chromePath: '/fake/chrome',
+      browserFactory: async () => { launched = true; return fakeBrowser(); },
+    });
+    assert.equal(result.exitCode, 1, name);
+    assert.equal(launched, false, name);
+    assert.equal(result.receipt.diagnostics.at(-1)?.code, 'viewer/evidence-path-conflict', name);
+    assert.match(
+      result.receipt.diagnostics.at(-1)?.evidence?.reason?.code || '',
+      /^(?:requested-entry|target)-hardlinked$/,
+      name,
+    );
+    assert.deepEqual(fs.readFileSync(target), before, name);
+    assert.deepEqual(fs.readFileSync(alias), before, `${name}: alias`);
+  }
+});
+
+test('visual-check rejects an lstat-to-open symlink substitution without following it', async (t) => {
+  const input = artifact('staged-evidence-symlink-race.html');
+  const outputs = sidecarPaths(input);
+  const sentinel = path.join(tmp, 'staged-evidence-symlink-sentinel.txt');
+  const probe = path.join(tmp, 'staged-evidence-symlink-probe');
+  const sentinelBytes = Buffer.from('must never be read through the staged evidence path\n');
+  fs.writeFileSync(sentinel, sentinelBytes);
+  try {
+    fs.symlinkSync(sentinel, probe, 'file');
+    fs.unlinkSync(probe);
+  } catch (error) {
+    t.skip(`file symlinks are unavailable: ${error.message}`);
+    return;
+  }
+
+  const browser = fakeBrowser();
+  const inspect = browser.inspect.bind(browser);
+  let screenshotReady = false;
+  browser.inspect = async (args) => {
+    const metrics = await inspect(args);
+    if (args.screenshotPath) screenshotReady = true;
+    return metrics;
+  };
+
+  const openSync = fs.openSync.bind(fs);
+  let injected = false;
+  let claimant;
+  t.mock.method(fs, 'openSync', (file, flags, mode) => {
+    const candidate = String(file);
+    if (!injected
+      && screenshotReady
+      && path.basename(candidate) === 'capture-0.png'
+      && path.basename(path.dirname(candidate)).startsWith('.archify-visual-check-')) {
+      fs.unlinkSync(candidate);
+      fs.symlinkSync(sentinel, candidate, 'file');
+      claimant = candidate;
+      injected = true;
+    }
+    return openSync(file, flags, mode);
+  });
+  t.after(() => {
+    for (const directory of stagingDirectories(path.dirname(outputs.receipt))) {
+      fs.rmSync(path.join(path.dirname(outputs.receipt), directory), { recursive: true, force: true });
+    }
+  });
+
+  const result = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => browser,
+  });
+
+  assert.equal(injected, true);
+  assert.equal(result.exitCode, 1);
+  assert.deepEqual(fs.readFileSync(sentinel), sentinelBytes);
+  assert.equal(fs.lstatSync(claimant).isSymbolicLink(), true);
+  assert.equal(fs.existsSync(outputs.receipt), false);
+  assert.equal(fs.existsSync(outputs.contactSheet), false);
+  assert.equal(outputs.screenshots.every((entry) => !fs.existsSync(entry.path)), true);
+});
+
+test('visual-check rejects an lstat-to-open FIFO substitution without blocking', {
+  skip: process.platform === 'win32' ? 'named pipes use different APIs on Windows' : false,
+  timeout: 5_000,
+}, async (t) => {
+  const input = artifact('staged-evidence-fifo-race.html');
+  const outputs = sidecarPaths(input);
+  const probe = path.join(tmp, 'staged-evidence-fifo-probe');
+  const probeResult = spawnSync('mkfifo', [probe]);
+  if (probeResult.status !== 0) {
+    t.skip(`mkfifo is unavailable: ${probeResult.stderr?.toString() || 'unknown error'}`);
+    return;
+  }
+  fs.unlinkSync(probe);
+
+  const browser = fakeBrowser();
+  const inspect = browser.inspect.bind(browser);
+  let screenshotReady = false;
+  browser.inspect = async (args) => {
+    const metrics = await inspect(args);
+    if (args.screenshotPath) screenshotReady = true;
+    return metrics;
+  };
+
+  const openSync = fs.openSync.bind(fs);
+  let injected = false;
+  let claimant;
+  t.mock.method(fs, 'openSync', (file, flags, mode) => {
+    const candidate = String(file);
+    if (!injected
+      && screenshotReady
+      && path.basename(candidate) === 'capture-0.png'
+      && path.basename(path.dirname(candidate)).startsWith('.archify-visual-check-')) {
+      fs.unlinkSync(candidate);
+      const created = spawnSync('mkfifo', [candidate]);
+      assert.equal(created.status, 0, created.stderr?.toString());
+      claimant = candidate;
+      injected = true;
+    }
+    return openSync(file, flags, mode);
+  });
+  t.after(() => {
+    for (const directory of stagingDirectories(path.dirname(outputs.receipt))) {
+      fs.rmSync(path.join(path.dirname(outputs.receipt), directory), { recursive: true, force: true });
+    }
+  });
+
+  const started = Date.now();
+  const result = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => browser,
+  });
+
+  assert.equal(injected, true);
+  assert.equal(result.exitCode, 1);
+  assert.ok(Date.now() - started < 2_000, 'FIFO inspection must fail without waiting for a writer');
+  assert.equal(fs.lstatSync(claimant).isFIFO(), true);
+  assert.equal(fs.existsSync(outputs.receipt), false);
+  assert.equal(fs.existsSync(outputs.contactSheet), false);
+  assert.equal(outputs.screenshots.every((entry) => !fs.existsSync(entry.path)), true);
+});
+
+for (const operation of ['run', 'persist-failure']) {
+  test(`visual-check ${operation} rejects an artifact changed to a FIFO before open`, {
+    skip: process.platform === 'win32' ? 'named pipes use different APIs on Windows' : false,
+    timeout: 10_000,
+  }, (t) => {
+    const input = artifact(`artifact-fifo-substitution-${operation}.html`);
+    const outputs = sidecarPaths(input);
+    const visualCheckUrl = new URL('../bin/visual-check.mjs', import.meta.url).href;
+    t.after(() => {
+      try {
+        if (fs.lstatSync(input).isFIFO()) fs.unlinkSync(input);
+      } catch {}
+    });
+    const script = `
+      import { spawnSync } from 'node:child_process';
+      import fs from 'node:fs';
+      import path from 'node:path';
+      import { persistVisualCheckFailure, runVisualCheck } from ${JSON.stringify(visualCheckUrl)};
+      const artifact = ${JSON.stringify(input)};
+      const openSync = fs.openSync.bind(fs);
+      let injected = false;
+      fs.openSync = (file, flags, mode) => {
+        if (!injected && path.resolve(String(file)) === artifact) {
+          fs.unlinkSync(artifact);
+          const created = spawnSync('mkfifo', [artifact]);
+          if (created.status !== 0) throw new Error(created.stderr?.toString() || 'mkfifo failed');
+          injected = true;
+        }
+        return openSync(file, flags, mode);
+      };
+      ${operation === 'run'
+        ? `try {
+            await runVisualCheck({ artifactPath: artifact, resolveChrome: () => null });
+            console.error('operation unexpectedly accepted the FIFO');
+            process.exitCode = 2;
+          } catch (error) {
+            console.log(JSON.stringify({ injected, reason: error.evidenceReason?.code || error.message }));
+          }`
+        : `const receipt = persistVisualCheckFailure(artifact, {
+            schemaVersion: 1,
+            command: 'visual-check',
+            status: 'fail',
+            diagnostics: [],
+          });
+          console.log(JSON.stringify({
+            injected,
+            reason: receipt.diagnostics?.at(-1)?.evidence?.reason?.code || receipt.error,
+          }));`}
+    `;
+
+    const child = spawnSync(process.execPath, ['--input-type=module', '--eval', script], {
+      encoding: 'utf8',
+      timeout: 3_000,
+    });
+
+    assert.equal(child.error, undefined, child.error?.message);
+    assert.equal(child.status, 0, child.stderr || child.stdout);
+    const observed = JSON.parse(child.stdout);
+    assert.equal(observed.injected, true);
+    assert.match(observed.reason, /not-regular-file|changed-during-inspection|artifact-unreadable/);
+    assert.equal(fs.lstatSync(input).isFIFO(), true);
+    assert.equal(fs.existsSync(outputs.receipt), false);
+    assert.equal(fs.existsSync(outputs.contactSheet), false);
+    assert.equal(outputs.screenshots.every((entry) => !fs.existsSync(entry.path)), true);
+  });
+}
+
+test('visual-check rejects a previous receipt changed to a FIFO before its content open', {
+  skip: process.platform === 'win32' ? 'named pipes use different APIs on Windows' : false,
+  timeout: 10_000,
+}, async (t) => {
+  const input = artifact('previous-receipt-fifo-substitution.html');
+  const outputs = sidecarPaths(input);
+  const first = await runVisualCheck({ artifactPath: input, resolveChrome: () => null });
+  assert.equal(first.exitCode, 2);
+  const receiptBefore = fs.readFileSync(outputs.receipt);
+  const visualCheckUrl = new URL('../bin/visual-check.mjs', import.meta.url).href;
+  t.after(() => {
+    try {
+      if (fs.lstatSync(outputs.receipt).isFIFO()) fs.unlinkSync(outputs.receipt);
+    } catch {}
+  });
+  const script = `
+    import { spawnSync } from 'node:child_process';
+    import fs from 'node:fs';
+    import path from 'node:path';
+    import { runVisualCheck } from ${JSON.stringify(visualCheckUrl)};
+    const artifact = ${JSON.stringify(input)};
+    const receipt = ${JSON.stringify(outputs.receipt)};
+    const openSync = fs.openSync.bind(fs);
+    let receiptOpens = 0;
+    let injected = false;
+    fs.openSync = (file, flags, mode) => {
+      if (path.resolve(String(file)) === receipt) {
+        receiptOpens += 1;
+        if (!injected && receiptOpens === 3) {
+          fs.unlinkSync(receipt);
+          const created = spawnSync('mkfifo', [receipt]);
+          if (created.status !== 0) throw new Error(created.stderr?.toString() || 'mkfifo failed');
+          injected = true;
+        }
+      }
+      return openSync(file, flags, mode);
+    };
+    const result = await runVisualCheck({ artifactPath: artifact, resolveChrome: () => null });
+    console.log(JSON.stringify({
+      injected,
+      receiptOpens,
+      exitCode: result.exitCode,
+      reason: result.receipt.diagnostics?.at(-1)?.evidence?.reason?.code,
+    }));
+  `;
+
+  const child = spawnSync(process.execPath, ['--input-type=module', '--eval', script], {
+    encoding: 'utf8',
+    timeout: 3_000,
+  });
+
+  assert.equal(child.error, undefined, child.error?.message);
+  assert.equal(child.status, 0, child.stderr || child.stdout);
+  const observed = JSON.parse(child.stdout);
+  assert.equal(observed.injected, true, JSON.stringify(observed));
+  assert.equal(observed.receiptOpens, 3);
+  assert.equal(observed.exitCode, 1);
+  assert.equal(observed.reason, 'requested-entry-changed-during-inspection');
+  assert.equal(fs.lstatSync(outputs.receipt).isFIFO(), true);
+  assert.deepEqual(receiptBefore.length > 0, true);
+  assert.deepEqual(stagingDirectories(path.dirname(outputs.receipt)), []);
+});
+
+test('visual-check preserves existing evidence modes under a restrictive umask', async (t) => {
+  if (process.platform === 'win32') {
+    t.skip('POSIX permission bits are not portable to Windows');
+    return;
+  }
+
+  const input = artifact('preserved-evidence-modes.html');
+  const outputs = sidecarPaths(input);
+  const targets = [
+    outputs.receipt,
+    outputs.contactSheet,
+    ...outputs.screenshots.map((entry) => entry.path),
+  ];
+  const first = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser(),
+  });
+  assert.equal(first.exitCode, 0);
+  for (const target of targets) fs.chmodSync(target, 0o666);
+
+  const previousUmask = process.umask(0o077);
+  let second;
+  try {
+    second = await runVisualCheck({
+      artifactPath: input,
+      chromePath: '/fake/chrome',
+      browserFactory: async () => fakeBrowser(),
+    });
+  } finally {
+    process.umask(previousUmask);
+  }
+
+  assert.equal(second.exitCode, 0);
+  for (const target of targets) {
+    assert.equal(fs.statSync(target).mode & 0o777, 0o666, target);
+  }
+});
+
+test('visual-check never follows the former predictable temporary symlink', async (t) => {
+  const input = artifact('predictable-temporary-symlink.html');
+  const outputs = sidecarPaths(input);
+  const sentinel = path.join(tmp, 'predictable-temporary-sentinel.txt');
+  const temporary = `${outputs.receipt}.tmp-${process.pid}`;
+  const bytes = Buffer.from('must not be truncated\n');
+  fs.writeFileSync(sentinel, bytes);
+  try {
+    fs.symlinkSync(sentinel, temporary, 'file');
+  } catch (error) {
+    t.skip(`file symlinks are unavailable: ${error.message}`);
+    return;
+  }
+
+  const result = await runVisualCheck({ artifactPath: input, resolveChrome: () => null });
+
+  assert.equal(result.exitCode, 2);
+  assert.deepEqual(fs.readFileSync(sentinel), bytes);
+  assert.equal(fs.lstatSync(temporary).isSymbolicLink(), true);
+  assert.deepEqual(stagingDirectories(path.dirname(outputs.receipt)), []);
+});
+
+test('visual-check preserves absent and replaced paths that become symlinks after preflight', async (t) => {
+  const sentinel = path.join(tmp, 'late-symlink-sentinel.txt');
+  const sentinelBytes = Buffer.from('symlink claimant target\n');
+  fs.writeFileSync(sentinel, sentinelBytes);
+  const cases = [
+    { name: 'absent', prepare: async () => {} },
+    {
+      name: 'existing',
+      prepare: async (input) => {
+        const first = await runVisualCheck({
+          artifactPath: input,
+          chromePath: '/fake/chrome',
+          browserFactory: async () => fakeBrowser(),
+        });
+        assert.equal(first.exitCode, 0);
+      },
+    },
+  ];
+
+  for (const scenario of cases) {
+    const input = artifact(`late-${scenario.name}-symlink.html`);
+    const outputs = sidecarPaths(input);
+    await scenario.prepare(input);
+    const before = new Map(
+      [outputs.contactSheet, ...outputs.screenshots.map((entry) => entry.path)]
+        .filter((file) => fs.existsSync(file))
+        .map((file) => [file, fs.readFileSync(file)]),
+    );
+    let injected = false;
+    const inject = () => {
+      if (injected) return;
+      injected = true;
+      if (fs.existsSync(outputs.receipt)) fs.unlinkSync(outputs.receipt);
+      fs.symlinkSync(sentinel, outputs.receipt, 'file');
+    };
+
+    let result;
+    try {
+      result = await runVisualCheck({
+        artifactPath: input,
+        resolveChrome: () => { inject(); return null; },
+      });
+    } catch (error) {
+      if (error?.code === 'EPERM') {
+        t.skip(`file symlinks are unavailable: ${error.message}`);
+        return;
+      }
+      throw error;
+    }
+
+    assert.equal(result.exitCode, 1, scenario.name);
+    assert.equal(result.receipt.diagnostics.at(-1)?.code, 'viewer/evidence-path-conflict', scenario.name);
+    assert.equal(fs.lstatSync(outputs.receipt).isSymbolicLink(), true, scenario.name);
+    assert.deepEqual(fs.readFileSync(sentinel), sentinelBytes, scenario.name);
+    for (const [file, bytes] of before) assert.deepEqual(fs.readFileSync(file), bytes, `${scenario.name}: ${file}`);
+    assert.deepEqual(stagingDirectories(path.dirname(outputs.receipt)), [], scenario.name);
+  }
+});
+
+test('visual-check rejects a screenshot candidate externally hard-linked before registration', async (t) => {
+  const input = artifact('staged-screenshot-hardlink.html');
+  const outputs = sidecarPaths(input);
+  const alias = path.join(tmp, 'staged-screenshot-external-alias.png');
+  const browser = fakeBrowser();
+  const inspect = browser.inspect.bind(browser);
+  let injected = false;
+  let hardLinkUnavailable;
+  browser.inspect = async (args) => {
+    const metrics = await inspect(args);
+    if (args.screenshotPath && !injected && !hardLinkUnavailable) {
+      try {
+        fs.linkSync(args.screenshotPath, alias);
+      } catch (error) {
+        if (['EPERM', 'EACCES', 'ENOTSUP'].includes(error?.code)) {
+          hardLinkUnavailable = error;
+          return metrics;
+        }
+        throw error;
+      }
+      injected = true;
+    }
+    return metrics;
+  };
+
+  const result = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => browser,
+  });
+
+  if (hardLinkUnavailable) {
+    t.skip(`hard links are unavailable: ${hardLinkUnavailable.message}`);
+    return;
+  }
+  assert.equal(injected, true, 'the staged screenshot hard-link injection must run');
+  assert.equal(result.exitCode, 1);
+  assert.equal(fs.existsSync(alias), true);
+  assert.deepEqual(fs.readFileSync(alias), png);
+  assert.equal(fs.lstatSync(alias, { bigint: true }).nlink, 1n);
+  assert.equal(fs.existsSync(outputs.contactSheet), false);
+  assert.equal(outputs.screenshots.every((entry) => !fs.existsSync(entry.path)), true);
+  assert.deepEqual(stagingDirectories(path.dirname(outputs.receipt)), []);
+});
+
+for (const candidate of [
+  { name: 'contact-sheet', stagedName: 'contact-sheet.html', chrome: true },
+  { name: 'receipt', stagedName: 'receipt.json', chrome: false },
+]) {
+  test(`visual-check rolls back when the staged ${candidate.name} gains an external hard link during publish`, async (t) => {
+    const input = artifact(`staged-${candidate.name}-publish-hardlink.html`);
+    const outputs = sidecarPaths(input);
+    const alias = path.join(tmp, `staged-${candidate.name}-publish-external-alias`);
+    const linkSync = fs.linkSync.bind(fs);
+    let injected = false;
+    t.mock.method(fs, 'linkSync', (source, target) => {
+      if (!injected && path.basename(source) === candidate.stagedName) {
+        linkSync(source, alias);
+        injected = true;
+      }
+      return linkSync(source, target);
+    });
+
+    const result = await runVisualCheck({
+      artifactPath: input,
+      ...(candidate.chrome
+        ? { chromePath: '/fake/chrome', browserFactory: async () => fakeBrowser() }
+        : { resolveChrome: () => null }),
+    });
+
+    assert.equal(injected, true);
+    assert.equal(result.exitCode, 1);
+    assert.equal(result.receipt.diagnostics.at(-1)?.code, 'viewer/evidence-path-conflict');
+    assert.equal(fs.existsSync(alias), true);
+    assert.equal(fs.lstatSync(alias, { bigint: true }).nlink, 1n);
+    assert.equal(fs.existsSync(outputs.receipt), false);
+    assert.equal(fs.existsSync(outputs.contactSheet), false);
+    assert.equal(outputs.screenshots.every((entry) => !fs.existsSync(entry.path)), true);
+    assert.deepEqual(stagingDirectories(path.dirname(outputs.receipt)), []);
+  });
+}
+
+for (const scenario of [
+  {
+    name: 'contact sheet',
+    selectEarly: (outputs) => outputs.contactSheet,
+    triggerStagedName: 'capture-0.png',
+  },
+  {
+    name: 'first screenshot',
+    selectEarly: (outputs) => outputs.screenshots[0].path,
+    triggerStagedName: 'receipt.json',
+  },
+]) {
+  test(`visual-check final set sweep preserves a replacement of the early ${scenario.name}`, async (t) => {
+    const input = artifact(`final-sweep-${scenario.name.replaceAll(' ', '-')}.html`);
+    const outputs = sidecarPaths(input);
+    const stagingBefore = new Set(stagingDirectories(path.dirname(outputs.receipt)));
+    t.after(() => {
+      for (const directory of stagingDirectories(path.dirname(outputs.receipt))) {
+        if (!stagingBefore.has(directory)) {
+          fs.rmSync(path.join(path.dirname(outputs.receipt), directory), { recursive: true, force: true });
+        }
+      }
+    });
+    const first = await runVisualCheck({
+      artifactPath: input,
+      chromePath: '/fake/chrome',
+      browserFactory: async () => fakeBrowser(),
+    });
+    assert.equal(first.exitCode, 0);
+    const targets = [outputs.receipt, outputs.contactSheet, ...outputs.screenshots.map((entry) => entry.path)];
+    const before = new Map(targets.map((target) => [target, fs.readFileSync(target)]));
+    const replaced = scenario.selectEarly(outputs);
+    const sentinel = Buffer.from(`late replacement of ${scenario.name}\n`);
+    const linkSync = fs.linkSync.bind(fs);
+    let replacementIdentity;
+    let injected = false;
+    t.mock.method(fs, 'linkSync', (source, target) => {
+      const result = linkSync(source, target);
+      if (!injected
+          && path.basename(String(source)) === scenario.triggerStagedName
+          && path.basename(path.dirname(String(source))).startsWith('.archify-visual-check-')) {
+        injected = true;
+        fs.unlinkSync(replaced);
+        fs.writeFileSync(replaced, sentinel, { flag: 'wx' });
+        replacementIdentity = entryIdentity(replaced);
+      }
+      return result;
+    });
+
+    const result = await runVisualCheck({
+      artifactPath: input,
+      chromePath: '/fake/chrome',
+      browserFactory: async () => fakeBrowser(),
+    });
+
+    assert.equal(injected, true);
+    assert.equal(result.exitCode, 1);
+    assert.equal(result.receipt.diagnostics.at(-1)?.code, 'viewer/evidence-path-conflict');
+    assert.equal(result.receipt.diagnostics.at(-1)?.evidence?.reason?.code, 'published-set-identity-mismatch');
+    assert.deepEqual(fs.readFileSync(replaced), sentinel);
+    assert.deepEqual(entryIdentity(replaced), replacementIdentity);
+    for (const target of targets) {
+      if (target !== replaced) assert.deepEqual(fs.readFileSync(target), before.get(target), target);
+    }
+  });
+}
+
+test('visual-check rollback preserves an in-place edit to an already published member', async (t) => {
+  const input = artifact('rollback-published-content-edit.html');
+  const outputs = sidecarPaths(input);
+  const first = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser(),
+  });
+  assert.equal(first.exitCode, 0);
+
+  const targets = [
+    outputs.receipt,
+    outputs.contactSheet,
+    ...outputs.screenshots.map((entry) => entry.path),
+  ];
+  const before = new Map(targets.map((target) => [target, fs.readFileSync(target)]));
+  const originalContactIdentity = entryIdentity(outputs.contactSheet);
+  const stagingBefore = new Set(stagingDirectories(path.dirname(outputs.receipt)));
+  t.after(() => {
+    for (const directory of stagingDirectories(path.dirname(outputs.receipt))) {
+      if (!stagingBefore.has(directory)) {
+        fs.rmSync(path.join(path.dirname(outputs.receipt), directory), { recursive: true, force: true });
+      }
+    }
+  });
+
+  const sentinel = Buffer.from('external in-place edit after contact-sheet publication\n');
+  const linkSync = fs.linkSync.bind(fs);
+  let firstPublishedIdentity;
+  let editedIdentity;
+  let injected = false;
+  t.mock.method(fs, 'linkSync', (source, target) => {
+    const sourceName = path.basename(String(source));
+    const fromStaging = path.basename(path.dirname(String(source))).startsWith('.archify-visual-check-');
+    if (!injected && firstPublishedIdentity && fromStaging && sourceName === 'capture-0.png') {
+      fs.writeFileSync(outputs.contactSheet, sentinel);
+      editedIdentity = entryIdentity(outputs.contactSheet);
+      injected = true;
+      throw new Error('synthetic later evidence publication failure');
+    }
+    const result = linkSync(source, target);
+    if (!firstPublishedIdentity && fromStaging && sourceName === 'contact-sheet.html') {
+      firstPublishedIdentity = entryIdentity(target);
+    }
+    return result;
+  });
+
+  const result = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser(),
+  });
+
+  assert.equal(injected, true);
+  assert.deepEqual(editedIdentity, firstPublishedIdentity, 'the edit must retain the published inode');
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.receipt.diagnostics.at(-1)?.code, 'viewer/evidence-write');
+  const rollbackReasons = result.receipt.diagnostics.at(-1)?.evidence?.errors
+    ?.map((entry) => entry.reason).join('\n') || '';
+  assert.match(rollbackReasons, /published entry content changed; it was preserved/);
+  assert.match(rollbackReasons, /final path is occupied; the owned backup was preserved/);
+  assert.deepEqual(fs.readFileSync(outputs.contactSheet), sentinel);
+  assert.deepEqual(entryIdentity(outputs.contactSheet), editedIdentity);
+  for (const target of targets) {
+    if (target !== outputs.contactSheet) assert.deepEqual(fs.readFileSync(target), before.get(target), target);
+  }
+
+  const retained = stagingDirectories(path.dirname(outputs.receipt))
+    .filter((directory) => !stagingBefore.has(directory));
+  assert.equal(retained.length, 1);
+  const backup = path.join(path.dirname(outputs.receipt), retained[0], 'previous-1');
+  assert.deepEqual(fs.readFileSync(backup), before.get(outputs.contactSheet));
+  assert.deepEqual(entryIdentity(backup), originalContactIdentity);
+});
+
+test('visual-check rollback preserves a successor swapped at the public removal boundary', async (t) => {
+  const input = artifact('rollback-public-removal-successor.html');
+  const outputs = sidecarPaths(input);
+  const first = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser(),
+  });
+  assert.equal(first.exitCode, 0);
+
+  const stagingBefore = new Set(stagingDirectories(path.dirname(outputs.receipt)));
+  const displaced = path.join(tmp, 'rollback-public-removal-owned-displaced.html');
+  const successor = Buffer.from('external successor at the public removal boundary\n');
+  t.after(() => {
+    fs.rmSync(displaced, { force: true });
+    for (const directory of stagingDirectories(path.dirname(outputs.receipt))) {
+      if (!stagingBefore.has(directory)) {
+        fs.rmSync(path.join(path.dirname(outputs.receipt), directory), { recursive: true, force: true });
+      }
+    }
+  });
+
+  const linkSync = fs.linkSync.bind(fs);
+  const renameSync = fs.renameSync.bind(fs);
+  let contactPublished = false;
+  let failureInjected = false;
+  let successorInjected = false;
+  let successorIdentity;
+  t.mock.method(fs, 'linkSync', (source, target) => {
+    const sourceName = path.basename(String(source));
+    const fromStaging = path.basename(path.dirname(String(source))).startsWith('.archify-visual-check-');
+    if (!failureInjected && contactPublished && fromStaging && sourceName === 'capture-0.png') {
+      failureInjected = true;
+      throw new Error('synthetic later evidence publication failure');
+    }
+    const result = linkSync(source, target);
+    if (!contactPublished && fromStaging && sourceName === 'contact-sheet.html') {
+      contactPublished = true;
+    }
+    return result;
+  });
+  t.mock.method(fs, 'renameSync', (source, target) => {
+    const sourcePath = String(source);
+    const targetPath = String(target);
+    if (failureInjected
+      && !successorInjected
+      && path.basename(sourcePath) === path.basename(outputs.contactSheet)
+      && path.basename(path.dirname(targetPath)).startsWith('.archify-remove-')) {
+      renameSync(sourcePath, displaced);
+      fs.writeFileSync(sourcePath, successor, { flag: 'wx' });
+      successorIdentity = entryIdentity(sourcePath);
+      successorInjected = true;
+    }
+    return renameSync(sourcePath, targetPath);
+  });
+
+  const result = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser(),
+  });
+
+  assert.equal(failureInjected, true, JSON.stringify(result.receipt.diagnostics.at(-1)));
+  assert.equal(successorInjected, true, JSON.stringify(result.receipt.diagnostics.at(-1)));
+  assert.equal(result.exitCode, 1);
+  assert.deepEqual(fs.readFileSync(outputs.contactSheet), successor);
+  assert.deepEqual(entryIdentity(outputs.contactSheet), successorIdentity);
+  const rollbackErrors = result.receipt.diagnostics.at(-1)?.evidence?.errors || [];
+  assert.ok(rollbackErrors.some(
+    (entry) => entry.file
+      && path.basename(entry.file) === path.basename(outputs.contactSheet)
+      && /successor was restored and preserved/.test(entry.reason),
+  ));
+});
+
+test('visual-check restore rollback preserves a successor swapped at its public cleanup boundary', async (t) => {
+  const input = artifact('restore-public-cleanup-successor.html');
+  const outputs = sidecarPaths(input);
+  const first = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser(),
+  });
+  assert.equal(first.exitCode, 0);
+
+  const displaced = path.join(tmp, 'restore-public-cleanup-owned-displaced.html');
+  const successor = Buffer.from('external successor at restore cleanup boundary\n');
+  const stagingBefore = new Set(stagingDirectories(path.dirname(outputs.receipt)));
+  const linkSync = fs.linkSync.bind(fs);
+  const lstatSync = fs.lstatSync.bind(fs);
+  const unlinkSync = fs.unlinkSync.bind(fs);
+  const renameSync = fs.renameSync.bind(fs);
+  let publicationFailed = false;
+  let corruptNextRestoredStat = false;
+  let verificationInjected = false;
+  let successorInjected = false;
+  let successorIdentity;
+  const injectSuccessor = (publicPath) => {
+    renameSync(publicPath, displaced);
+    fs.writeFileSync(publicPath, successor, { flag: 'wx' });
+    successorIdentity = entryIdentity(publicPath);
+    successorInjected = true;
+  };
+  t.after(() => {
+    fs.rmSync(displaced, { force: true });
+    for (const directory of stagingDirectories(path.dirname(outputs.receipt))) {
+      if (!stagingBefore.has(directory)) {
+        fs.rmSync(path.join(path.dirname(outputs.receipt), directory), { recursive: true, force: true });
+      }
+    }
+  });
+  t.mock.method(fs, 'linkSync', (source, target) => {
+    const sourcePath = String(source);
+    const targetPath = String(target);
+    const fromStaging = path.basename(path.dirname(sourcePath)).startsWith('.archify-visual-check-');
+    if (!publicationFailed
+      && fromStaging
+      && path.basename(sourcePath) === 'contact-sheet.html'
+      && path.basename(targetPath) === path.basename(outputs.contactSheet)) {
+      publicationFailed = true;
+      throw new Error('synthetic publication failure before backup restore');
+    }
+    const result = linkSync(sourcePath, targetPath);
+    if (path.basename(sourcePath) === 'previous-1'
+      && path.basename(targetPath) === path.basename(outputs.contactSheet)) {
+      corruptNextRestoredStat = true;
+    }
+    return result;
+  });
+  t.mock.method(fs, 'lstatSync', (file, options) => {
+    const filePath = String(file);
+    const stat = lstatSync(filePath, options);
+    if (corruptNextRestoredStat
+      && path.basename(filePath) === path.basename(outputs.contactSheet)) {
+      corruptNextRestoredStat = false;
+      verificationInjected = true;
+      return new Proxy(stat, {
+        get(target, property, receiver) {
+          if (property === 'ino') return target.ino + 1n;
+          const value = Reflect.get(target, property, receiver);
+          return typeof value === 'function' ? value.bind(target) : value;
+        },
+      });
+    }
+    return stat;
+  });
+  t.mock.method(fs, 'unlinkSync', (file) => {
+    const filePath = String(file);
+    if (verificationInjected
+      && !successorInjected
+      && path.basename(filePath) === path.basename(outputs.contactSheet)) {
+      injectSuccessor(filePath);
+    }
+    return unlinkSync(filePath);
+  });
+  t.mock.method(fs, 'renameSync', (source, target) => {
+    const sourcePath = String(source);
+    const targetPath = String(target);
+    if (verificationInjected
+      && !successorInjected
+      && path.basename(sourcePath) === path.basename(outputs.contactSheet)
+      && path.basename(path.dirname(targetPath)).startsWith('.archify-remove-')) {
+      injectSuccessor(sourcePath);
+    }
+    return renameSync(sourcePath, targetPath);
+  });
+
+  const result = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser(),
+  });
+
+  assert.equal(publicationFailed, true);
+  assert.equal(verificationInjected, true);
+  assert.equal(successorInjected, true);
+  assert.equal(result.exitCode, 1);
+  assert.equal(fs.existsSync(outputs.contactSheet), true);
+  assert.deepEqual(fs.readFileSync(outputs.contactSheet), successor);
+  assert.deepEqual(entryIdentity(outputs.contactSheet), successorIdentity);
+});
+
+for (const scenario of [
+  { name: 'backup unlink', fault: 'unlink' },
+  { name: 'staging rmdir', fault: 'rmdir' },
+]) {
+  test(`visual-check reports committed cleanup warning after ${scenario.name} failure`, async (t) => {
+    const input = artifact(`committed-cleanup-${scenario.fault}.html`);
+    const outputs = sidecarPaths(input);
+    const first = await runVisualCheck({
+      artifactPath: input,
+      chromePath: '/fake/chrome',
+      browserFactory: async () => fakeBrowser(),
+    });
+    assert.equal(first.exitCode, 0);
+    const oldContactSheet = fs.readFileSync(outputs.contactSheet);
+    const stagingBefore = new Set(stagingDirectories(path.dirname(outputs.receipt)));
+    const claimantBytes = Buffer.from('external staging cleanup claimant\n');
+    let injected = false;
+    let retainedPath;
+
+    if (scenario.fault === 'unlink') {
+      const unlinkSync = fs.unlinkSync.bind(fs);
+      t.mock.method(fs, 'unlinkSync', (file) => {
+        const candidate = String(file);
+        if (!injected
+          && path.basename(candidate) === 'previous-1'
+          && path.basename(path.dirname(candidate)).startsWith('.archify-visual-check-')) {
+          injected = true;
+          retainedPath = candidate;
+          const error = new Error('synthetic backup unlink failure');
+          error.code = 'EACCES';
+          throw error;
+        }
+        return unlinkSync(file);
+      });
+    } else {
+      const rmdirSync = fs.rmdirSync.bind(fs);
+      t.mock.method(fs, 'rmdirSync', (directory) => {
+        const candidate = String(directory);
+        if (!injected && path.basename(candidate).startsWith('.archify-visual-check-')) {
+          retainedPath = path.join(candidate, 'external-cleanup-claimant');
+          fs.writeFileSync(retainedPath, claimantBytes, { flag: 'wx' });
+          injected = true;
+        }
+        return rmdirSync(directory);
+      });
+    }
+    t.after(() => {
+      for (const directory of stagingDirectories(path.dirname(outputs.receipt))) {
+        if (!stagingBefore.has(directory)) {
+          fs.rmSync(path.join(path.dirname(outputs.receipt), directory), { recursive: true, force: true });
+        }
+      }
+    });
+
+    const result = await runVisualCheck({
+      artifactPath: input,
+      chromePath: '/fake/chrome',
+      browserFactory: async () => fakeBrowser(),
+    });
+
+    assert.equal(injected, true);
+    assert.equal(result.exitCode, 1);
+    assert.equal(result.receipt.ok, false);
+    assert.equal(result.receipt.status, 'fail');
+    assert.equal(result.receipt.publication?.status, 'committed-with-warning');
+    assert.equal(result.receipt.publication?.recoveryDirectory, path.dirname(retainedPath));
+    assert.ok(result.receipt.publication?.cleanupErrors?.length > 0);
+    assert.match(result.receipt.error, /cleanup is incomplete/i);
+    assert.ok(result.receipt.error.includes(path.dirname(retainedPath)));
+    const cleanupDiagnostic = result.receipt.diagnostics.at(-1);
+    assert.equal(cleanupDiagnostic?.code, 'viewer/evidence-cleanup-incomplete');
+    assert.equal(cleanupDiagnostic?.severity, 'warning');
+    assert.equal(
+      cleanupDiagnostic?.evidence?.recoveryDirectory,
+      path.dirname(retainedPath),
+    );
+    assert.equal(fs.existsSync(retainedPath), true);
+    assert.deepEqual(
+      fs.readFileSync(retainedPath),
+      scenario.fault === 'unlink' ? oldContactSheet : claimantBytes,
+    );
+    assert.equal(JSON.parse(fs.readFileSync(outputs.receipt, 'utf8')).status, 'pass');
+    assert.equal(fs.existsSync(outputs.contactSheet), true);
+    assert.equal(outputs.screenshots.every((entry) => fs.existsSync(entry.path)), true);
+  });
+}
+
+test('public visual-check CLI reports a committed cleanup warning', (t) => {
+  const input = artifact('public-cli-committed-cleanup-warning.html');
+  const outputs = sidecarPaths(input);
+  const cli = path.join(skillRoot, 'bin', 'archify.mjs');
+  const missingChrome = path.join(tmp, 'missing-cleanup-warning-chrome');
+  const baseEnv = {
+    ...process.env,
+    ARCHIFY_CHROME: missingChrome,
+    ARCHIFY_UPDATE_CHECK_DISABLED: '1',
+  };
+  const first = spawnSync(process.execPath, [cli, 'visual-check', input, '--json'], {
+    encoding: 'utf8',
+    env: baseEnv,
+  });
+  assert.equal(first.status, 2, first.stderr || first.stdout);
+  const oldReceipt = fs.readFileSync(outputs.receipt);
+  const stagingBefore = new Set(stagingDirectories(path.dirname(outputs.receipt)));
+  const hook = path.join(tmp, 'visual-cleanup-warning-hook.mjs');
+  fs.writeFileSync(hook, `
+    import fs from 'node:fs';
+    import path from 'node:path';
+    const unlinkSync = fs.unlinkSync.bind(fs);
+    let injected = false;
+    fs.unlinkSync = (file) => {
+      const candidate = String(file);
+      if (!injected
+        && path.basename(candidate) === 'previous-0'
+        && path.basename(path.dirname(candidate)).startsWith('.archify-visual-check-')) {
+        injected = true;
+        const error = new Error('synthetic public CLI backup unlink failure');
+        error.code = 'EACCES';
+        throw error;
+      }
+      return unlinkSync(file);
+    };
+  `);
+  t.after(() => {
+    for (const directory of stagingDirectories(path.dirname(outputs.receipt))) {
+      if (!stagingBefore.has(directory)) {
+        fs.rmSync(path.join(path.dirname(outputs.receipt), directory), { recursive: true, force: true });
+      }
+    }
+  });
+
+  const second = spawnSync(process.execPath, [cli, 'visual-check', input, '--json'], {
+    encoding: 'utf8',
+    env: {
+      ...baseEnv,
+      NODE_OPTIONS: `--import=${pathToFileURL(hook).href}`,
+    },
+  });
+
+  assert.equal(second.status, 1, second.stderr || second.stdout);
+  const receipt = JSON.parse(second.stdout);
+  assert.equal(receipt.status, 'fail');
+  assert.equal(receipt.ok, false);
+  assert.equal(receipt.publication?.status, 'committed-with-warning');
+  assert.match(receipt.error, /cleanup is incomplete/i);
+  assert.equal(receipt.diagnostics.at(-1)?.code, 'viewer/evidence-cleanup-incomplete');
+  assert.equal(receipt.diagnostics.at(-1)?.severity, 'warning');
+  const recoveryDirectory = receipt.publication?.recoveryDirectory;
+  assert.equal(typeof recoveryDirectory, 'string');
+  const retained = path.join(recoveryDirectory, 'previous-0');
+  assert.deepEqual(fs.readFileSync(retained), oldReceipt);
+  assert.equal(JSON.parse(fs.readFileSync(outputs.receipt, 'utf8')).status, 'skipped');
+});
+
+test('visual-check rolls back when staged evidence changes after receipt binding', async (t) => {
+  const input = artifact('staged-content-changed-after-receipt-binding.html');
+  const outputs = sidecarPaths(input);
+  const sentinel = Buffer.from('mutated staged screenshot bytes\n');
+  const linkSync = fs.linkSync.bind(fs);
+  let injected = false;
+  t.mock.method(fs, 'linkSync', (source, target) => {
+    const result = linkSync(source, target);
+    if (!injected
+      && path.basename(String(source)) === 'contact-sheet.html'
+      && path.basename(path.dirname(String(source))).startsWith('.archify-visual-check-')) {
+      fs.writeFileSync(path.join(path.dirname(String(source)), 'capture-0.png'), sentinel);
+      injected = true;
+    }
+    return result;
+  });
+
+  const result = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser(),
+  });
+
+  assert.equal(injected, true);
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.receipt.diagnostics.at(-1)?.code, 'viewer/evidence-path-conflict');
+  assert.equal(
+    result.receipt.diagnostics.at(-1)?.evidence?.reason?.code,
+    'staged-evidence-content-mismatch',
+  );
+  assert.equal(fs.existsSync(outputs.receipt), false);
+  assert.equal(fs.existsSync(outputs.contactSheet), false);
+  assert.equal(outputs.screenshots.every((entry) => !fs.existsSync(entry.path)), true);
+  assert.deepEqual(stagingDirectories(path.dirname(outputs.receipt)), []);
+});
+
+test('visual-check preserves digest-mismatched evidence instead of treating its receipt as ownership', async () => {
+  const input = artifact('digest-mismatched-evidence.html');
+  const outputs = sidecarPaths(input);
+  const first = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser(),
+  });
+  assert.equal(first.exitCode, 0);
+  const sentinel = Buffer.from('tampered contact sheet\n');
+  fs.writeFileSync(outputs.contactSheet, sentinel);
+  const receiptBefore = fs.readFileSync(outputs.receipt);
+  let launched = false;
+
+  const result = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => { launched = true; return fakeBrowser(); },
+  });
+
+  assert.equal(result.exitCode, 1);
+  assert.equal(launched, false);
+  assert.equal(result.receipt.diagnostics.at(-1)?.code, 'viewer/evidence-path-conflict');
+  assert.equal(result.receipt.diagnostics.at(-1)?.evidence?.reason?.code, 'ownership-evidence-digest-mismatch');
+  assert.deepEqual(fs.readFileSync(outputs.contactSheet), sentinel);
+  assert.deepEqual(fs.readFileSync(outputs.receipt), receiptBefore);
+});
+
+test('public visual-check CLI preserves an unowned contact-sheet path', () => {
+  const input = artifact('public-cli-evidence-collision.html');
+  const outputs = sidecarPaths(input);
+  const sentinel = Buffer.from('<!doctype html><title>independent artifact</title>\n');
+  fs.writeFileSync(outputs.contactSheet, sentinel);
+
+  const result = spawnSync(process.execPath, [
+    path.join(skillRoot, 'bin', 'archify.mjs'),
+    'visual-check',
+    input,
+    '--json',
+  ], {
+    cwd: skillRoot,
+    encoding: 'utf8',
+    env: { ...process.env, ARCHIFY_CHROME: '' },
+  });
+
+  assert.equal(result.status, 1, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.diagnostics.at(-1)?.code, 'viewer/evidence-path-conflict');
+  assert.deepEqual(fs.readFileSync(outputs.contactSheet), sentinel);
+  assert.equal(fs.existsSync(outputs.receipt), false);
+});
+
+test('visual-check fails closed without writes when sidecar directory identity is unknown', async () => {
+  const input = artifact('unknown-sidecar-identity.html');
+  const unknownIdentity = () => ({
+    status: 'unknown',
+    reason: { code: 'synthetic-identity-unavailable', systemCode: 'EACCES' },
+  });
+  const runOutDir = path.join(tmp, 'unknown-sidecar-run');
+  let launched = false;
+
+  const result = await runVisualCheck({
+    artifactPath: input,
+    outDir: runOutDir,
+    chromePath: '/fake/chrome',
+    compareSidecarParents: unknownIdentity,
+    browserFactory: async () => {
+      launched = true;
+      return fakeBrowser();
+    },
+  });
+
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.receipt.status, 'fail');
+  assert.match(result.receipt.error, /physical identity/i);
+  assert.equal(result.receipt.diagnostics.at(-1)?.code, 'viewer/sidecar-directory-identity');
+  assert.equal(
+    result.receipt.diagnostics.at(-1)?.evidence?.comparison?.code,
+    'synthetic-identity-unavailable',
+  );
+  assert.equal(launched, false);
+  assert.equal(fs.existsSync(runOutDir), false, 'identity failure must precede evidence directory creation');
+
+  const persistOutDir = path.join(tmp, 'unknown-sidecar-persist');
+  const persistOutputs = sidecarPaths(input, { outDir: persistOutDir });
+  fs.mkdirSync(persistOutDir, { recursive: true });
+  const existingEvidence = [
+    persistOutputs.receipt,
+    persistOutputs.contactSheet,
+    ...persistOutputs.screenshots.map((entry) => entry.path),
+  ];
+  for (const [index, file] of existingEvidence.entries()) {
+    fs.writeFileSync(file, `existing evidence ${index}\n`);
+  }
+  const before = existingEvidence.map((file) => fs.readFileSync(file));
+  const failure = persistVisualCheckFailure(input, {
+    schemaVersion: 1,
+    command: 'visual-check',
+    artifact: { path: input },
+    error: 'synthetic delivery failure',
+    diagnostics: [{ code: 'delivery/provenance-failed' }],
+  }, {
+    outDir: persistOutDir,
+    compareSidecarParents: unknownIdentity,
+  });
+  assert.match(failure.error, /physical identity/i);
+  assert.equal(failure.diagnostics.at(-1)?.code, 'viewer/sidecar-directory-identity');
+  assert.deepEqual(
+    existingEvidence.map((file) => fs.readFileSync(file)),
+    before,
+    'failure persistence must not invalidate or replace evidence on unknown identity',
+  );
 });
 
 test('visual-check returns 1 and preserves evidence when any viewport overflows', async () => {
@@ -292,9 +1952,13 @@ test('visual-check refuses changed delivery evidence before launching a browser'
   const input = artifact('changed-before-browser.html');
   const outDir = path.join(tmp, 'changed-before-browser-evidence');
   const outputs = sidecarPaths(input, { outDir });
-  fs.mkdirSync(outDir, { recursive: true });
-  fs.writeFileSync(outputs.contactSheet, 'old evidence');
-  for (const entry of outputs.screenshots) fs.writeFileSync(entry.path, png);
+  const previous = await runVisualCheck({
+    artifactPath: input,
+    outDir,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser(),
+  });
+  assert.equal(previous.exitCode, 0);
   let launched = false;
   const result = await runVisualCheck({
     artifactPath: input,
@@ -317,7 +1981,7 @@ test('visual-check refuses changed delivery evidence before launching a browser'
   assert.equal(fs.existsSync(sidecarPaths(input).receipt), false);
 });
 
-test('visual-check persists cleanup errors in its failure receipt', () => {
+test('visual-check failure persistence refuses an unowned non-file evidence path', () => {
   const input = artifact('uncleanable-evidence.html');
   const outputs = sidecarPaths(input);
   fs.mkdirSync(outputs.screenshots[0].path);
@@ -325,11 +1989,10 @@ test('visual-check persists cleanup errors in its failure receipt', () => {
     schemaVersion: 1, command: 'visual-check', artifact: { path: input },
     error: 'delivery failed', diagnostics: [{ code: 'delivery/provenance-failed' }],
   });
-  const saved = JSON.parse(fs.readFileSync(outputs.receipt));
-  assert.deepEqual(saved.diagnostics, receipt.diagnostics);
-  assert.equal(saved.diagnostics[1].code, 'viewer/evidence-write');
-  assert.equal(saved.diagnostics[1].evidence.errors[0].file, outputs.screenshots[0].path);
-  assert.equal(saved.status, 'fail');
+  assert.equal(receipt.diagnostics[1].code, 'viewer/evidence-path-conflict');
+  assert.equal(receipt.diagnostics[1].subject.evidencePath, outputs.screenshots[0].path);
+  assert.equal(fs.existsSync(outputs.receipt), false);
+  assert.equal(fs.statSync(outputs.screenshots[0].path).isDirectory(), true);
 });
 
 test('visual-check rechecks delivery evidence after capture and discards screenshots on failure', async () => {
@@ -360,7 +2023,7 @@ test('visual-check rechecks delivery evidence after capture and discards screens
   assert.ok(outputs.screenshots.every((entry) => !fs.existsSync(entry.path)));
 });
 
-test('visual-check records cleanup errors after post-capture provenance failure', async () => {
+test('visual-check preserves a screenshot-path claimant after post-capture provenance failure', async () => {
   const input = artifact('changed-with-uncleanable-browser-evidence.html');
   const outputs = sidecarPaths(input);
   let verificationCount = 0;
@@ -371,7 +2034,6 @@ test('visual-check records cleanup errors after post-capture provenance failure'
     verifyArtifact: () => {
       verificationCount += 1;
       if (verificationCount === 2) {
-        fs.rmSync(outputs.screenshots[0].path);
         fs.mkdirSync(outputs.screenshots[0].path);
         const error = new Error('Another delivery failed during capture.');
         error.deliveryProvenance = { status: 'failed' };
@@ -386,12 +2048,11 @@ test('visual-check records cleanup errors after post-capture provenance failure'
   assert.equal(result.receipt.provenance, 'failed');
   assert.deepEqual(result.receipt.diagnostics.map((entry) => entry.code), [
     'delivery/provenance-failed',
-    'viewer/evidence-write',
+    'viewer/evidence-path-conflict',
   ]);
-  assert.equal(result.receipt.diagnostics[1].evidence.errors[0].file, outputs.screenshots[0].path);
-  const saved = JSON.parse(fs.readFileSync(outputs.receipt));
-  assert.deepEqual(saved.diagnostics, result.receipt.diagnostics);
-  assert.equal(saved.status, 'fail');
+  assert.equal(result.receipt.diagnostics[1].subject.evidencePath, outputs.screenshots[0].path);
+  assert.equal(fs.statSync(outputs.screenshots[0].path).isDirectory(), true);
+  assert.equal(fs.existsSync(outputs.receipt), false);
 });
 
 test('visual-check returns 1 when the real reader projects node text below 6px', async () => {
@@ -513,8 +2174,12 @@ test('visual-check describes insufficient stage clearance without claiming an ov
 test('visual-check returns 1 and removes misleading capture sidecars on screenshot failure', async () => {
   const input = artifact('capture-failure.html');
   const outputs = sidecarPaths(input);
-  fs.writeFileSync(outputs.contactSheet, 'stale');
-  for (const screenshot of outputs.screenshots) fs.writeFileSync(screenshot.path, png);
+  const previous = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser(),
+  });
+  assert.equal(previous.exitCode, 0);
 
   const result = await runVisualCheck({
     artifactPath: input,
@@ -551,6 +2216,27 @@ test('visual-check returns 2 with a truthful skipped receipt when Chrome is unav
   assert.equal(result.receipt.diagnostics[0]?.code, 'viewer/chrome-unavailable');
   assert.ok(result.receipt.diagnostics[0]?.supportedFixes.some((fix) => fix.includes('ARCHIFY_CHROME')));
   assert.equal(fs.existsSync(sidecarPaths(input).receipt), true);
+});
+
+test('a no-Chrome rerun retires captures only when the successful receipt proves ownership', async () => {
+  const input = artifact('no-chrome-owned-rerun.html');
+  const outputs = sidecarPaths(input);
+  const first = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser(),
+  });
+  assert.equal(first.exitCode, 0);
+  assert.equal(fs.existsSync(outputs.contactSheet), true);
+  assert.equal(outputs.screenshots.every((entry) => fs.existsSync(entry.path)), true);
+
+  const skipped = await runVisualCheck({ artifactPath: input, resolveChrome: () => null });
+
+  assert.equal(skipped.exitCode, 2);
+  assert.equal(JSON.parse(fs.readFileSync(outputs.receipt, 'utf8')).status, 'skipped');
+  assert.equal(fs.existsSync(outputs.contactSheet), false);
+  assert.equal(outputs.screenshots.every((entry) => !fs.existsSync(entry.path)), true);
+  assert.deepEqual(stagingDirectories(path.dirname(outputs.receipt)), []);
 });
 
 process.on('exit', () => fs.rmSync(tmp, { recursive: true, force: true }));

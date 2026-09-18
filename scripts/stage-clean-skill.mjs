@@ -5,6 +5,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { containedBy, sameEntry } from '../archify/renderers/shared/path-semantics.mjs';
+import { validatePortablePathSet } from '../archify/renderers/shared/portable-path.mjs';
 import { assertThirdPartyNotices } from './third-party-notices-contract.mjs';
 
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -15,6 +17,12 @@ const REQUIRED_INPUTS = new Set([
   'archify/scripts/check-update.mjs',
   'archify/scripts/update-contract.mjs',
   'archify/skill-release.json',
+]);
+const RUNTIME_DEPENDENCIES = Object.freeze([
+  'archify/renderers/shared/atomic-output.mjs',
+  'archify/renderers/shared/output-path.mjs',
+  'archify/renderers/shared/path-semantics.mjs',
+  'archify/renderers/shared/portable-path.mjs',
 ]);
 const EXCLUDED_FILES = new Set([
   'archify/package-lock.json',
@@ -59,6 +67,7 @@ function trackedEntries(repoRoot) {
     const separator = record.indexOf('\t');
     const metadata = separator === -1 ? [] : record.slice(0, separator).split(' ');
     const relative = separator === -1 ? '' : record.slice(separator + 1);
+    // path-contract-allow: git-path -- git ls-files emits repository-relative POSIX paths.
     if (metadata.length !== 3 || !relative.startsWith('archify/')) {
       throw new Error(`invalid tracked package record: ${JSON.stringify(record)}`);
     }
@@ -181,23 +190,6 @@ function snapshotSourceEntry(entry) {
   }
 }
 
-function canonicalizeExistingPrefix(target) {
-  // realpathSync rejects paths that do not exist yet, so resolve the deepest
-  // existing ancestor through symlinks and re-append the missing tail.
-  const pending = [];
-  let current = path.resolve(target);
-  for (;;) {
-    try {
-      return path.join(fs.realpathSync(current), ...pending);
-    } catch {
-      const parent = path.dirname(current);
-      if (parent === current) return path.join(current, ...pending);
-      pending.unshift(path.basename(current));
-      current = parent;
-    }
-  }
-}
-
 function cleanPackageManifest(destination) {
   const packagePath = path.join(destination, 'package.json');
   const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
@@ -236,6 +228,22 @@ function validateThirdPartyNoticeInputs(repoRoot, packageEntries) {
   }
 }
 
+function validateRuntimeDependencies(packageEntries) {
+  const packaged = new Set(packageEntries.map((entry) => entry.relative));
+  for (const relative of RUNTIME_DEPENDENCIES) {
+    const basename = path.basename(relative);
+    const imported = packageEntries.some((entry) => (
+      // path-contract-allow: portable-logical-path -- Both values are tracked package entry names.
+      entry.relative !== relative
+      && /[.]m?js$/u.test(entry.relative)
+      && entry.content.includes(basename)
+    ));
+    if (imported && !packaged.has(relative)) {
+      throw new Error(`required package input is not tracked by Git: ${relative}`);
+    }
+  }
+}
+
 export function stageCleanSkill({ repoRoot = scriptRoot, destination, modeManifest = null }) {
   const resolvedRoot = fs.realpathSync(path.resolve(repoRoot));
   if (!destination) throw new Error('clean Skill staging requires a destination');
@@ -248,18 +256,6 @@ export function stageCleanSkill({ repoRoot = scriptRoot, destination, modeManife
   // an executable bit), so the archive must not re-derive modes from stat.
   const resolvedModeManifest = modeManifest === null ? null : path.resolve(modeManifest);
   if (resolvedModeManifest !== null) {
-    // Compare physical locations: a symlinked ancestor on either side must not
-    // let the manifest land inside the staged tree, where the writer would see
-    // an unrecorded file and refuse the archive.
-    const canonicalDestination = canonicalizeExistingPrefix(resolvedDestination);
-    const canonicalManifest = canonicalizeExistingPrefix(resolvedModeManifest);
-    const relativeToDestination = path.relative(canonicalDestination, canonicalManifest);
-    const outsideDestination = relativeToDestination === '..'
-      || relativeToDestination.startsWith(`..${path.sep}`)
-      || path.isAbsolute(relativeToDestination);
-    if (!outsideDestination) {
-      throw new Error(`mode manifest must be written outside the staged Skill tree: ${resolvedModeManifest}`);
-    }
     // The manifest belongs to this invocation only: never overwrite, and never
     // later remove, a file that already existed at that path.
     let manifestExists = true;
@@ -271,6 +267,16 @@ export function stageCleanSkill({ repoRoot = scriptRoot, destination, modeManife
     }
     if (manifestExists) {
       throw new Error(`mode manifest path already exists: ${resolvedModeManifest}`);
+    }
+    // Compare physical locations: a symlinked ancestor on either side must not
+    // let the manifest land inside the staged tree, where the writer would see
+    // an unrecorded file and refuse the archive.
+    const manifestContainment = containedBy(resolvedDestination, resolvedModeManifest);
+    if (manifestContainment.status === 'match') {
+      throw new Error(`mode manifest must be written outside the staged Skill tree: ${resolvedModeManifest}`);
+    }
+    if (manifestContainment.status === 'unknown') {
+      throw new Error(`mode manifest location could not be verified safely (${manifestContainment.reason.code}): ${resolvedModeManifest}`);
     }
   }
 
@@ -288,10 +294,18 @@ export function stageCleanSkill({ repoRoot = scriptRoot, destination, modeManife
   }
   requireTrackedFile(resolvedRoot, 'THIRD_PARTY_NOTICES.md');
 
-  const packageEntries = entries
-    .filter((entry) => !excluded(entry.relative))
+  const includedEntries = entries.filter((entry) => !excluded(entry.relative));
+  validatePortablePathSet(
+    includedEntries.map((entry) => entry.relative.slice('archify/'.length)),
+    { profile: 'archive' },
+  );
+
+  const packageEntries = includedEntries
     .map((entry) => preflightSourceEntry(resolvedRoot, entry))
     .map((entry) => snapshotSourceEntry(entry));
+  // Current packages must contain every imported runtime, while historical
+  // snapshots that predate a runtime remain reproducible by the DSH adapter.
+  validateRuntimeDependencies(packageEntries);
   validateThirdPartyNoticeInputs(resolvedRoot, packageEntries);
 
   const modes = Object.fromEntries(
@@ -327,13 +341,15 @@ export function stageCleanSkill({ repoRoot = scriptRoot, destination, modeManife
   return { destination: resolvedDestination, fileCount, modes };
 }
 
-function isMainModule() {
-  if (!process.argv[1]) return false;
+export function isMainModule({
+  argvPath = process.argv[1],
+  modulePath = fileURLToPath(import.meta.url),
+} = {}) {
+  if (!argvPath) return false;
   try {
-    return fs.realpathSync(path.resolve(process.argv[1]))
-      === fs.realpathSync(fileURLToPath(import.meta.url));
+    return sameEntry(argvPath, modulePath).status === 'match';
   } catch {
-    return path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
+    return false;
   }
 }
 

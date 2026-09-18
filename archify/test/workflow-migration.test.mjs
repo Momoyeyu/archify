@@ -597,6 +597,86 @@ test('workflow migration reports a cyclic-symlink destination as structured JSON
   assert.equal(failure.diagnostics[0].subject.output, path.resolve(destination));
 });
 
+test('workflow migration rejects a dangling destination symlink without touching it', () => {
+  const source = copyFixture('dangling-destination-source.workflow.json');
+  const destination = path.join(tmp, 'dangling-destination.workflow.json');
+  const missingTarget = path.join(tmp, 'missing-migration-target.workflow.json');
+  fs.symlinkSync(missingTarget, destination, 'file');
+  const linkBefore = fs.readlinkSync(destination);
+
+  const result = runMigration(source, destination);
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout);
+  assert.equal(fs.lstatSync(destination).isSymbolicLink(), true);
+  assert.equal(fs.readlinkSync(destination), linkBefore);
+  assert.equal(fs.existsSync(missingTarget), false);
+  assert.equal(parseJsonOutput(result).diagnostics[0].code, 'migration/destination-type');
+});
+
+test('workflow migration preserves a destination claimant created before final verification', () => {
+  const source = copyFixture('destination-race-source.workflow.json');
+  const destination = path.join(tmp, 'destination-race.workflow.json');
+  const claimant = '{"claimant":"migration destination"}\n';
+  const importModule = path.join(tmp, 'claim-migration-destination.mjs');
+  fs.writeFileSync(importModule, `
+import fs from 'node:fs';
+const readFileSync = fs.readFileSync;
+let sourceReads = 0;
+fs.readFileSync = (file, ...args) => {
+  const bytes = readFileSync(file, ...args);
+  if (String(file) === ${JSON.stringify(source)}) {
+    sourceReads += 1;
+    if (sourceReads === 2) {
+      fs.writeFileSync(${JSON.stringify(destination)}, ${JSON.stringify(claimant)}, { flag: 'wx' });
+    }
+  }
+  return bytes;
+};
+`);
+
+  const result = runMigration(source, destination, { importModule });
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout);
+  assert.equal(fs.readFileSync(destination, 'utf8'), claimant);
+  assert.equal(parseJsonOutput(result).diagnostics[0].code, 'migration/destination-changed');
+});
+
+test('workflow migration preserves an existing destination replaced during candidate mode finalization', () => {
+  const source = copyFixture('destination-chmod-race-source.workflow.json');
+  const destination = path.join(tmp, 'destination-chmod-race.workflow.json');
+  const detached = path.join(tmp, 'detached-destination-chmod-race.workflow.json');
+  const previous = '{"previous":"migration destination"}\n';
+  const claimant = '{"claimant":"migration destination during chmod"}\n';
+  fs.writeFileSync(destination, previous);
+  const importModule = path.join(tmp, 'claim-migration-destination-during-chmod.mjs');
+  fs.writeFileSync(importModule, `
+import fs from 'node:fs';
+import path from 'node:path';
+const chmodSync = fs.chmodSync.bind(fs);
+const renameSync = fs.renameSync.bind(fs);
+const writeFileSync = fs.writeFileSync.bind(fs);
+let claimed = false;
+fs.chmodSync = (file, ...args) => {
+  const result = chmodSync(file, ...args);
+  if (!claimed
+    && path.basename(String(file)) === 'candidate.workflow.json'
+    && path.basename(path.dirname(String(file))).startsWith('.archify-migration-')) {
+    claimed = true;
+    renameSync(${JSON.stringify(destination)}, ${JSON.stringify(detached)});
+    writeFileSync(${JSON.stringify(destination)}, ${JSON.stringify(claimant)}, { flag: 'wx' });
+  }
+  return result;
+};
+`);
+
+  const result = runMigration(source, destination, { importModule });
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout);
+  assert.equal(fs.readFileSync(destination, 'utf8'), claimant);
+  assert.equal(fs.readFileSync(detached, 'utf8'), previous);
+  assert.equal(parseJsonOutput(result).diagnostics[0].code, 'migration/destination-changed');
+});
+
 test('failed workflow migration emits diagnostics and never writes its destination', () => {
   const source = path.join(tmp, 'pin-conflict-source.workflow.json');
   const destination = path.join(tmp, 'pin-conflict-destination.workflow.json');

@@ -139,6 +139,9 @@ The five diagram schemas reference `common.schema.json#/$defs/...`:
 - `componentType` — `frontend`, `backend`, `database`, `cloud`, `security`,
   `messagebus`, `external`
 - `locale` — the bounded renderer locale, `en`, `zh-CN`, or `es`
+- `portableOutputPath` — the portable POSIX-relative `.html` path used by
+  `meta.output`; see the two output-path boundaries in the
+  [delivery contract](../references/delivery-contract.md#output-path-contracts)
 - `brandMark` — one optional built-in brand ID or explicit HTTP(S) site URL
 - `variant` — `default`, `emphasis`, `security`, `dashed` (sequence messages
   extend this list locally with `return`)
@@ -149,6 +152,11 @@ The five diagram schemas reference `common.schema.json#/$defs/...`:
 
 Lifecycle state `type` is mode-specific (`start`/`active`/`waiting`/...) and
 stays in `lifecycle.schema.json`.
+
+The JSON Schema definition is the portable contract's structurally expressible
+preflight. The shipped generated validator wrapper and CLI additionally enforce
+byte-based component limits and the complete runtime path contract; consumers
+that need the same cross-platform acceptance boundary should use that wrapper.
 
 ## Runtime validation
 

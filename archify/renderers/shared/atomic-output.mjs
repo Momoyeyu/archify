@@ -1,0 +1,981 @@
+import { createHash, randomBytes } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+
+import { canonicalFuturePath } from './output-path.mjs';
+
+function relation(status, code, details = {}) {
+  return { status, reason: { code, ...details } };
+}
+
+function filesystemFailure(code, error, details = {}) {
+  return relation('unknown', code, {
+    ...details,
+    ...(typeof error?.code === 'string' ? { systemCode: error.code } : {}),
+    ...(typeof error?.message === 'string' ? { message: error.message } : {}),
+  });
+}
+
+function entryType(metadata) {
+  if (metadata.isFile()) return 'file';
+  if (metadata.isSymbolicLink()) return 'symbolic-link';
+  if (metadata.isDirectory()) return 'directory';
+  if (metadata.isFIFO()) return 'fifo';
+  if (metadata.isSocket()) return 'socket';
+  if (metadata.isBlockDevice()) return 'block-device';
+  if (metadata.isCharacterDevice()) return 'character-device';
+  return 'other';
+}
+
+// Windows lstat can fall back to directory enumeration when a file handle
+// cannot be opened, and that fallback reports a synthetic link count of one.
+// Treat handle-backed fstat as authoritative and fail closed when it cannot be
+// reconciled with the no-follow path snapshots on either side of the open.
+function captureRegularFileHandle(filePath, initial, subject) {
+  const pathKey = subject === 'target'
+    ? 'commitPath'
+    : subject === 'requested-entry'
+      ? 'requestedPath'
+      : 'candidatePath';
+  if (initial.ino === 0n) {
+    return relation('unknown', `${subject}-identity-unavailable`, { [pathKey]: filePath });
+  }
+  let descriptor;
+  let handle;
+  let current;
+  let closeError;
+  try {
+    const noFollow = process.platform === 'win32' ? 0 : (fs.constants.O_NOFOLLOW || 0);
+    const nonBlock = fs.constants.O_NONBLOCK || 0;
+    descriptor = fs.openSync(filePath, fs.constants.O_RDONLY | noFollow | nonBlock);
+    handle = fs.fstatSync(descriptor, { bigint: true });
+    current = fs.lstatSync(filePath, { bigint: true });
+  } catch (error) {
+    return filesystemFailure(`${subject}-handle-inspection-failed`, error, {
+      [pathKey]: filePath,
+    });
+  } finally {
+    if (descriptor !== undefined) {
+      try {
+        fs.closeSync(descriptor);
+      } catch (error) {
+        closeError = error;
+      }
+    }
+  }
+  if (closeError) {
+    return filesystemFailure(`${subject}-handle-close-failed`, closeError, {
+      [pathKey]: filePath,
+    });
+  }
+  if (!handle.isFile() || !current.isFile()
+    || handle.ino === 0n || current.ino === 0n
+    || handle.dev !== initial.dev || handle.ino !== initial.ino
+    || current.dev !== handle.dev || current.ino !== handle.ino) {
+    return relation('unknown', `${subject}-changed-during-inspection`, {
+      [pathKey]: filePath,
+    });
+  }
+  if (handle.nlink === 0n) {
+    return relation('unknown', `${subject}-link-count-unavailable`, {
+      [pathKey]: filePath,
+    });
+  }
+  if (handle.nlink !== 1n) {
+    return relation('unsupported', `${subject}-hardlinked`, {
+      [pathKey]: filePath,
+      links: handle.nlink.toString(),
+    });
+  }
+  return { status: 'captured', metadata: handle };
+}
+
+const regularFileBindings = new WeakMap();
+const digestChunkBytes = 64 * 1024;
+
+function validExpectedLinks(value) {
+  return Number.isSafeInteger(value) && value > 0;
+}
+
+function validateBindingExpectations(options) {
+  const hasSha256 = options.expectedSha256 !== undefined;
+  const hasBytes = options.expectedBytes !== undefined;
+  const expectedIdentity = options.expectedIdentity;
+  if (hasSha256 !== hasBytes
+    || (hasSha256 && !/^[a-f\d]{64}$/i.test(options.expectedSha256))
+    || (hasBytes && (!Number.isSafeInteger(options.expectedBytes) || options.expectedBytes < 0))
+    || (options.expectedMode !== undefined
+      && (!Number.isSafeInteger(options.expectedMode)
+        || options.expectedMode < 0
+        || options.expectedMode > 0o777))
+    || (expectedIdentity !== undefined
+      && (typeof expectedIdentity?.device !== 'bigint'
+        || typeof expectedIdentity?.inode !== 'bigint'
+        || expectedIdentity.inode === 0n))
+    || typeof options.includeContent !== 'boolean'
+    || !validExpectedLinks(options.expectedLinks)) {
+    return relation('unknown', 'invalid-regular-file-binding-expectation');
+  }
+  return null;
+}
+
+function descriptorDigest(descriptor, expectedSize, subject, filePath, includeContent) {
+  if (expectedSize < 0n || expectedSize > BigInt(Number.MAX_SAFE_INTEGER)) {
+    return relation('unknown', `${subject}-size-unavailable`, { filePath });
+  }
+  const expectedBytes = Number(expectedSize);
+  const digest = createHash('sha256');
+  let capturedContent;
+  let chunk;
+  try {
+    capturedContent = includeContent ? Buffer.allocUnsafe(expectedBytes) : null;
+    chunk = capturedContent
+      || Buffer.allocUnsafe(Math.min(digestChunkBytes, Math.max(1, expectedBytes)));
+  } catch (error) {
+    return filesystemFailure(`${subject}-content-inspection-failed`, error, { filePath });
+  }
+  let bytes = 0;
+  try {
+    while (bytes < expectedBytes) {
+      const offset = includeContent ? bytes : 0;
+      const read = fs.readSync(
+        descriptor,
+        chunk,
+        offset,
+        Math.min(digestChunkBytes, chunk.byteLength - offset, expectedBytes - bytes),
+        bytes,
+      );
+      if (read === 0) break;
+      digest.update(chunk.subarray(offset, offset + read));
+      bytes += read;
+    }
+  } catch (error) {
+    return filesystemFailure(`${subject}-content-inspection-failed`, error, { filePath });
+  }
+  return {
+    status: 'inspected',
+    sha256: digest.digest('hex'),
+    bytes,
+    ...(includeContent ? { buffer: capturedContent.subarray(0, bytes) } : {}),
+  };
+}
+
+function sameHandleState(left, right) {
+  return left.dev === right.dev
+    && left.ino === right.ino
+    && left.nlink === right.nlink
+    && left.mode === right.mode
+    && left.size === right.size
+    && left.mtimeNs === right.mtimeNs
+    && left.ctimeNs === right.ctimeNs;
+}
+
+function inspectRegularFileDescriptor({
+  descriptor,
+  filePath,
+  identity,
+  subject,
+  expectedLinks,
+  phase,
+  includeContent = false,
+}) {
+  let beforeHandle;
+  let beforePath;
+  let afterHandle;
+  let afterPath;
+  let content;
+  try {
+    beforeHandle = fs.fstatSync(descriptor, { bigint: true });
+    beforePath = fs.lstatSync(filePath, { bigint: true });
+  } catch (error) {
+    return filesystemFailure(`${subject}-handle-${phase}-failed`, error, { filePath });
+  }
+  if (!beforeHandle.isFile() || !beforePath.isFile()) {
+    return relation('unsupported', `${subject}-not-regular-file`, {
+      filePath,
+      entryType: entryType(beforePath),
+    });
+  }
+  if (beforeHandle.ino === 0n || beforePath.ino === 0n) {
+    return relation('unknown', `${subject}-identity-unavailable`, { filePath });
+  }
+  if (beforeHandle.dev !== identity.device
+    || beforeHandle.ino !== identity.inode
+    || beforePath.dev !== beforeHandle.dev
+    || beforePath.ino !== beforeHandle.ino) {
+    return relation(phase === 'inspection' ? 'unknown' : 'different',
+      `${subject}-${phase === 'inspection' ? 'changed-during-inspection' : 'identity-changed'}`,
+      { filePath });
+  }
+  if (beforeHandle.nlink === 0n) {
+    return relation('unknown', `${subject}-link-count-unavailable`, { filePath });
+  }
+  if (beforeHandle.nlink !== BigInt(expectedLinks)) {
+    if (beforeHandle.nlink > BigInt(expectedLinks)) {
+      return relation('unsupported', `${subject}-hardlinked`, {
+        filePath,
+        links: beforeHandle.nlink.toString(),
+      });
+    }
+    return relation('different', `${subject}-link-count-changed`, {
+      filePath,
+      expectedLinks,
+      currentLinks: beforeHandle.nlink.toString(),
+    });
+  }
+  content = descriptorDigest(
+    descriptor,
+    beforeHandle.size,
+    subject,
+    filePath,
+    includeContent,
+  );
+  if (content.status !== 'inspected') return content;
+  try {
+    afterHandle = fs.fstatSync(descriptor, { bigint: true });
+    afterPath = fs.lstatSync(filePath, { bigint: true });
+  } catch (error) {
+    return filesystemFailure(`${subject}-handle-${phase}-failed`, error, { filePath });
+  }
+  if (!afterHandle.isFile() || !afterPath.isFile()
+    || afterHandle.ino === 0n || afterPath.ino === 0n
+    || afterHandle.dev !== identity.device || afterHandle.ino !== identity.inode
+    || afterPath.dev !== afterHandle.dev || afterPath.ino !== afterHandle.ino) {
+    return relation(phase === 'inspection' ? 'unknown' : 'different',
+      `${subject}-${phase === 'inspection' ? 'changed-during-inspection' : 'identity-changed'}`,
+      { filePath });
+  }
+  if (!sameHandleState(beforeHandle, afterHandle)) {
+    return relation('unknown', `${subject}-changed-during-${phase}`, { filePath });
+  }
+  if (content.bytes !== Number(afterHandle.size)) {
+    return relation('unknown', `${subject}-changed-during-${phase}`, { filePath });
+  }
+  return { status: 'inspected', metadata: afterHandle, content };
+}
+
+function closeCapturedDescriptor(descriptor, subject, filePath) {
+  try {
+    fs.closeSync(descriptor);
+    return null;
+  } catch (error) {
+    return filesystemFailure(`${subject}-handle-close-failed`, error, { filePath });
+  }
+}
+
+/**
+ * Capture a regular file through an open descriptor. The opaque binding keeps
+ * the descriptor alive so callers can prove that the same inode, mode and
+ * bytes are still named by either the original path or a deliberate hard-link
+ * publication path. Callers must release every successfully captured binding.
+ */
+export function captureRegularFileBinding(filePath, {
+  subject = 'file',
+  expectedSha256,
+  expectedBytes,
+  expectedMode,
+  expectedIdentity,
+  expectedLinks = 1,
+  includeContent = false,
+} = {}) {
+  const options = {
+    expectedSha256,
+    expectedBytes,
+    expectedMode,
+    expectedIdentity,
+    expectedLinks,
+    includeContent,
+  };
+  const invalid = validateBindingExpectations(options);
+  if (invalid) return invalid;
+  const resolvedPath = path.resolve(filePath);
+  let initial;
+  try {
+    initial = fs.lstatSync(resolvedPath, { bigint: true });
+  } catch (error) {
+    return filesystemFailure(`${subject}-inspection-failed`, error, { filePath: resolvedPath });
+  }
+  const type = entryType(initial);
+  if (type !== 'file') {
+    return relation('unsupported', `${subject}-not-regular-file`, {
+      filePath: resolvedPath,
+      entryType: type,
+    });
+  }
+  if (initial.ino === 0n) {
+    return relation('unknown', `${subject}-identity-unavailable`, { filePath: resolvedPath });
+  }
+
+  let descriptor;
+  try {
+    const noFollow = process.platform === 'win32' ? 0 : (fs.constants.O_NOFOLLOW || 0);
+    const nonBlock = fs.constants.O_NONBLOCK || 0;
+    descriptor = fs.openSync(resolvedPath, fs.constants.O_RDONLY | noFollow | nonBlock);
+  } catch (error) {
+    return filesystemFailure(`${subject}-handle-inspection-failed`, error, { filePath: resolvedPath });
+  }
+  const identity = { device: initial.dev, inode: initial.ino };
+  if (expectedIdentity !== undefined
+    && (identity.device !== expectedIdentity.device
+      || identity.inode !== expectedIdentity.inode)) {
+    const closeFailure = closeCapturedDescriptor(descriptor, subject, resolvedPath);
+    return closeFailure || relation('different', `${subject}-identity-changed`, {
+      filePath: resolvedPath,
+    });
+  }
+  const inspected = inspectRegularFileDescriptor({
+    descriptor,
+    filePath: resolvedPath,
+    identity,
+    subject,
+    expectedLinks,
+    phase: 'inspection',
+    includeContent,
+  });
+  if (inspected.status !== 'inspected') {
+    const closeFailure = closeCapturedDescriptor(descriptor, subject, resolvedPath);
+    return closeFailure || inspected;
+  }
+  const mode = Number(inspected.metadata.mode & 0o777n);
+  if (expectedMode !== undefined && mode !== expectedMode) {
+    const closeFailure = closeCapturedDescriptor(descriptor, subject, resolvedPath);
+    return closeFailure || relation('different', `${subject}-mode-changed`, {
+      filePath: resolvedPath,
+      expectedMode,
+      currentMode: mode,
+    });
+  }
+  if (expectedSha256 !== undefined
+    && (inspected.content.sha256.toLowerCase() !== expectedSha256.toLowerCase()
+      || inspected.content.bytes !== expectedBytes)) {
+    const closeFailure = closeCapturedDescriptor(descriptor, subject, resolvedPath);
+    return closeFailure || relation('different', `${subject}-content-changed`, {
+      filePath: resolvedPath,
+      expectedSha256,
+      currentSha256: inspected.content.sha256,
+      expectedBytes,
+      currentBytes: inspected.content.bytes,
+    });
+  }
+
+  const binding = Object.freeze({});
+  regularFileBindings.set(binding, {
+    descriptor,
+    filePath: resolvedPath,
+    subject,
+    expectedLinks,
+    identity,
+    mode,
+    sha256: inspected.content.sha256,
+    bytes: inspected.content.bytes,
+  });
+  return {
+    status: 'captured',
+    binding,
+    identity: { ...identity, mode, links: inspected.metadata.nlink },
+    content: {
+      sha256: inspected.content.sha256,
+      bytes: inspected.content.bytes,
+      ...(includeContent ? { buffer: inspected.content.buffer } : {}),
+    },
+    mode,
+  };
+}
+
+/** Verify a captured descriptor against its original or an alternate linked path. */
+export function verifyRegularFileBinding(binding, { filePath, expectedLinks } = {}) {
+  const captured = regularFileBindings.get(binding);
+  if (!captured) return relation('unknown', 'regular-file-binding-unavailable');
+  const links = expectedLinks ?? captured.expectedLinks;
+  if (!validExpectedLinks(links)) {
+    return relation('unknown', 'invalid-regular-file-binding-expectation');
+  }
+  const verificationPath = path.resolve(filePath ?? captured.filePath);
+  const inspected = inspectRegularFileDescriptor({
+    descriptor: captured.descriptor,
+    filePath: verificationPath,
+    identity: captured.identity,
+    subject: captured.subject,
+    expectedLinks: links,
+    phase: 'verification',
+  });
+  if (inspected.status !== 'inspected') return inspected;
+  const mode = Number(inspected.metadata.mode & 0o777n);
+  if (mode !== captured.mode) {
+    return relation('different', `${captured.subject}-mode-changed`, {
+      filePath: verificationPath,
+      previousMode: captured.mode,
+      currentMode: mode,
+    });
+  }
+  if (inspected.content.sha256 !== captured.sha256
+    || inspected.content.bytes !== captured.bytes) {
+    return relation('different', `${captured.subject}-content-changed`, {
+      filePath: verificationPath,
+      previousSha256: captured.sha256,
+      currentSha256: inspected.content.sha256,
+      previousBytes: captured.bytes,
+      currentBytes: inspected.content.bytes,
+    });
+  }
+  return relation('match', `${captured.subject}-binding-match`, {
+    filePath: verificationPath,
+    links,
+  });
+}
+
+/** Close and invalidate a captured regular-file binding. */
+export function releaseRegularFileBinding(binding) {
+  const captured = regularFileBindings.get(binding);
+  if (!captured) return relation('unknown', 'regular-file-binding-unavailable');
+  regularFileBindings.delete(binding);
+  const failure = closeCapturedDescriptor(
+    captured.descriptor,
+    captured.subject,
+    captured.filePath,
+  );
+  return failure || relation('released', `${captured.subject}-binding-released`, {
+    filePath: captured.filePath,
+  });
+}
+
+function createRemovalQuarantine(parentPath) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const directory = path.join(
+      parentPath,
+      `.archify-remove-${randomBytes(16).toString('hex')}`,
+    );
+    try {
+      fs.mkdirSync(directory, { mode: 0o700 });
+      return { status: 'created', directory };
+    } catch (error) {
+      if (error?.code !== 'EEXIST') {
+        return filesystemFailure('removal-quarantine-create-failed', error, {
+          parentPath,
+        });
+      }
+    }
+  }
+  return relation('unknown', 'removal-quarantine-name-exhausted', { parentPath });
+}
+
+function removeEmptyQuarantine(directory) {
+  try {
+    fs.rmdirSync(directory);
+    return null;
+  } catch (error) {
+    return filesystemFailure('removal-quarantine-cleanup-failed', error, {
+      recoveryDirectory: directory,
+    });
+  }
+}
+
+function removalRecovery(subject, code, filePath, quarantineDirectory, quarantineFile, error) {
+  return {
+    status: 'recovery-required',
+    reason: {
+      code: `${subject}-${code}`,
+      filePath,
+      ...(typeof error?.code === 'string' ? { systemCode: error.code } : {}),
+      ...(error?.message ? { message: error.message } : {}),
+    },
+    recoveryDirectory: quarantineDirectory,
+    recoveryFile: quarantineFile,
+    target: filePath,
+  };
+}
+
+/**
+ * Remove a public regular-file name without a verify-to-unlink race. The
+ * public entry is first moved into an unpredictable private directory and is
+ * deleted only after the caller's still-open binding proves that the moved
+ * inode, mode and bytes are the owned entry. If the move captured a successor,
+ * restore it with a no-clobber hard link or retain it as recovery material.
+ * The caller retains ownership of `binding` and must release it separately.
+ */
+export function quarantineRemoveRegularFileBinding(binding, filePath, {
+  subject = 'public-entry',
+  expectedLinks = 1,
+} = {}) {
+  if (!validExpectedLinks(expectedLinks)) {
+    return relation('unknown', 'invalid-regular-file-binding-expectation');
+  }
+  const resolvedPath = path.resolve(filePath);
+  const quarantine = createRemovalQuarantine(path.dirname(resolvedPath));
+  if (quarantine.status !== 'created') return quarantine;
+  const quarantineFile = path.join(quarantine.directory, path.basename(resolvedPath));
+  const removeEmpty = () => removeEmptyQuarantine(quarantine.directory);
+
+  const beforeMove = verifyRegularFileBinding(binding, {
+    filePath: resolvedPath,
+    expectedLinks,
+  });
+  if (beforeMove.status !== 'match') {
+    const cleanup = removeEmpty();
+    return cleanup || beforeMove;
+  }
+
+  try {
+    fs.renameSync(resolvedPath, quarantineFile);
+  } catch (error) {
+    const cleanup = removeEmpty();
+    return cleanup || filesystemFailure(`${subject}-quarantine-move-failed`, error, {
+      filePath: resolvedPath,
+    });
+  }
+
+  const moved = verifyRegularFileBinding(binding, {
+    filePath: quarantineFile,
+    expectedLinks,
+  });
+  if (moved.status === 'match') {
+    try {
+      fs.unlinkSync(quarantineFile);
+    } catch (error) {
+      return removalRecovery(
+        subject,
+        'quarantine-cleanup-failed',
+        resolvedPath,
+        quarantine.directory,
+        quarantineFile,
+        error,
+      );
+    }
+    const cleanup = removeEmpty();
+    return cleanup || relation('removed', `${subject}-removed`, { filePath: resolvedPath });
+  }
+
+  let displaced;
+  try {
+    displaced = fs.lstatSync(quarantineFile, { bigint: true });
+  } catch (error) {
+    return removalRecovery(
+      subject,
+      'replacement-inspection-failed',
+      resolvedPath,
+      quarantine.directory,
+      quarantineFile,
+      error,
+    );
+  }
+  if (displaced.ino === 0n || displaced.nlink === 0n) {
+    return removalRecovery(
+      subject,
+      'replacement-identity-unavailable',
+      resolvedPath,
+      quarantine.directory,
+      quarantineFile,
+    );
+  }
+  try {
+    fs.linkSync(quarantineFile, resolvedPath);
+  } catch (error) {
+    return removalRecovery(
+      subject,
+      error?.code === 'EEXIST' ? 'replacement-restore-blocked' : 'replacement-restore-failed',
+      resolvedPath,
+      quarantine.directory,
+      quarantineFile,
+      error,
+    );
+  }
+
+  let restored;
+  let retained;
+  try {
+    restored = fs.lstatSync(resolvedPath, { bigint: true });
+    retained = fs.lstatSync(quarantineFile, { bigint: true });
+  } catch (error) {
+    return removalRecovery(
+      subject,
+      'replacement-restore-verification-failed',
+      resolvedPath,
+      quarantine.directory,
+      quarantineFile,
+      error,
+    );
+  }
+  if (restored.dev !== displaced.dev || restored.ino !== displaced.ino
+    || retained.dev !== displaced.dev || retained.ino !== displaced.ino
+    || restored.nlink !== displaced.nlink + 1n
+    || retained.nlink !== displaced.nlink + 1n) {
+    return removalRecovery(
+      subject,
+      'replacement-restore-identity-changed',
+      resolvedPath,
+      quarantine.directory,
+      quarantineFile,
+    );
+  }
+  try {
+    fs.unlinkSync(quarantineFile);
+  } catch (error) {
+    return removalRecovery(
+      subject,
+      'replacement-quarantine-cleanup-failed',
+      resolvedPath,
+      quarantine.directory,
+      quarantineFile,
+      error,
+    );
+  }
+  try {
+    restored = fs.lstatSync(resolvedPath, { bigint: true });
+  } catch (error) {
+    const cleanup = removeEmpty();
+    return cleanup || filesystemFailure(
+      `${subject}-replacement-final-verification-failed`,
+      error,
+      { filePath: resolvedPath },
+    );
+  }
+  if (restored.dev !== displaced.dev || restored.ino !== displaced.ino
+    || restored.nlink !== displaced.nlink) {
+    const cleanup = removeEmpty();
+    return cleanup || relation('different', `${subject}-replacement-final-identity-changed`, {
+      filePath: resolvedPath,
+    });
+  }
+  const cleanup = removeEmpty();
+  return cleanup || relation('preserved', `${subject}-replacement-restored`, {
+    filePath: resolvedPath,
+    priorState: moved.reason,
+  });
+}
+
+/**
+ * Create a no-clobber hard-link backup of a bound public file, then remove the
+ * public name through the quarantine protocol above. The backup is reported as
+ * verified only after both names have been reconciled with the open binding.
+ */
+export function backupPublicRegularFileBinding(binding, filePath, backupPath, {
+  subject = 'public-entry',
+} = {}) {
+  const resolvedPath = path.resolve(filePath);
+  const resolvedBackup = path.resolve(backupPath);
+  const beforeLink = verifyRegularFileBinding(binding, {
+    filePath: resolvedPath,
+    expectedLinks: 1,
+  });
+  if (beforeLink.status !== 'match') {
+    return { ...beforeLink, backupCreated: false, backupVerified: false };
+  }
+  try {
+    fs.linkSync(resolvedPath, resolvedBackup);
+  } catch (error) {
+    return {
+      ...filesystemFailure(`${subject}-backup-link-failed`, error, {
+        filePath: resolvedPath,
+        backupPath: resolvedBackup,
+      }),
+      backupCreated: false,
+      backupVerified: false,
+    };
+  }
+  for (const linkedPath of [resolvedPath, resolvedBackup]) {
+    const linked = verifyRegularFileBinding(binding, {
+      filePath: linkedPath,
+      expectedLinks: 2,
+    });
+    if (linked.status !== 'match') {
+      return {
+        status: 'recovery-required',
+        reason: {
+          code: `${subject}-backup-binding-mismatch`,
+          filePath: resolvedPath,
+          backupPath: resolvedBackup,
+          linkedState: linked.reason,
+        },
+        recoveryDirectory: path.dirname(resolvedBackup),
+        recoveryFile: resolvedBackup,
+        target: resolvedPath,
+        backupCreated: true,
+        backupVerified: false,
+      };
+    }
+  }
+  const removed = quarantineRemoveRegularFileBinding(binding, resolvedPath, {
+    subject,
+    expectedLinks: 2,
+  });
+  if (removed.status !== 'removed') {
+    return {
+      ...removed,
+      backupPath: resolvedBackup,
+      backupCreated: true,
+      backupVerified: true,
+    };
+  }
+  const finalized = verifyRegularFileBinding(binding, {
+    filePath: resolvedBackup,
+    expectedLinks: 1,
+  });
+  if (finalized.status !== 'match') {
+    return {
+      status: 'recovery-required',
+      reason: {
+        code: `${subject}-backup-finalization-failed`,
+        filePath: resolvedPath,
+        backupPath: resolvedBackup,
+        backupState: finalized.reason,
+      },
+      recoveryDirectory: path.dirname(resolvedBackup),
+      recoveryFile: resolvedBackup,
+      target: resolvedPath,
+      backupCreated: true,
+      backupVerified: false,
+    };
+  }
+  return {
+    status: 'backed-up',
+    reason: {
+      code: `${subject}-backed-up`,
+      filePath: resolvedPath,
+      backupPath: resolvedBackup,
+    },
+    backupPath: resolvedBackup,
+    backupCreated: true,
+    backupVerified: true,
+  };
+}
+
+/** Remove only the directory entry that still names a caller-owned inode. */
+export function removeOwnedRegularFile(filePath, identity, { subject = 'candidate' } = {}) {
+  const resolvedPath = path.resolve(filePath);
+  let current;
+  try {
+    current = fs.lstatSync(resolvedPath, { bigint: true });
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return relation('absent', `${subject}-already-absent`, { filePath: resolvedPath });
+    }
+    return filesystemFailure(`${subject}-cleanup-inspection-failed`, error, {
+      filePath: resolvedPath,
+    });
+  }
+  if (!current.isFile()
+    || current.ino === 0n
+    || current.dev !== identity?.device
+    || current.ino !== identity?.inode) {
+    return relation('preserved', `${subject}-identity-changed`, { filePath: resolvedPath });
+  }
+  try {
+    fs.unlinkSync(resolvedPath);
+    return relation('removed', `${subject}-removed`, { filePath: resolvedPath });
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return relation('absent', `${subject}-already-absent`, { filePath: resolvedPath });
+    }
+    return filesystemFailure(`${subject}-cleanup-failed`, error, { filePath: resolvedPath });
+  }
+}
+
+function captureWriteSlot(requestedPath) {
+  let commitPath;
+  try {
+    commitPath = canonicalFuturePath(requestedPath);
+  } catch (error) {
+    const diagnostic = error?.archifyDiagnostics?.[0];
+    return relation('unknown', 'canonicalization-failed', {
+      ...(diagnostic?.code ? { diagnosticCode: diagnostic.code } : {}),
+      ...(diagnostic?.evidence?.relation ? { relation: diagnostic.evidence.relation } : {}),
+    });
+  }
+
+  const parentPath = path.dirname(commitPath);
+  let parent;
+  try {
+    parent = fs.statSync(parentPath, { bigint: true });
+  } catch (error) {
+    return filesystemFailure('parent-inspection-failed', error, { commitPath, parentPath });
+  }
+  if (!parent.isDirectory()) {
+    return relation('unknown', 'parent-not-directory', { commitPath, parentPath });
+  }
+  if (parent.ino === 0n) {
+    return relation('unknown', 'parent-identity-unavailable', { commitPath, parentPath });
+  }
+  return {
+    status: 'captured',
+    slot: {
+      commitPath,
+      parentPath,
+      name: path.basename(commitPath),
+      parentDevice: parent.dev,
+      parentInode: parent.ino,
+    },
+  };
+}
+
+function captureTarget(commitPath) {
+  let metadata;
+  try {
+    // The canonical commit path names the directory entry that rename will
+    // replace. Never follow a link introduced after canonicalization.
+    metadata = fs.lstatSync(commitPath, { bigint: true });
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return { status: 'captured', target: { kind: 'absent' }, mode: null };
+    }
+    return filesystemFailure('target-inspection-failed', error, { commitPath });
+  }
+
+  const type = entryType(metadata);
+  if (type !== 'file') {
+    return relation('unsupported', 'target-not-regular-file', { commitPath, entryType: type });
+  }
+  const inspected = captureRegularFileHandle(commitPath, metadata, 'target');
+  if (inspected.status !== 'captured') return inspected;
+  metadata = inspected.metadata;
+  return {
+    status: 'captured',
+    target: {
+      kind: 'file',
+      device: metadata.dev,
+      inode: metadata.ino,
+      mode: Number(metadata.mode & 0o777n),
+    },
+    mode: Number(metadata.mode & 0o777n),
+  };
+}
+
+function captureRequestedEntry(requestedPath, policy) {
+  let metadata;
+  try {
+    metadata = fs.lstatSync(requestedPath, { bigint: true });
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return { status: 'captured', entry: { kind: 'absent' } };
+    }
+    return filesystemFailure('requested-entry-inspection-failed', error, { requestedPath });
+  }
+  const type = entryType(metadata);
+  if (policy === 'regular-or-absent' && type !== 'file') {
+    return relation('unsupported', type === 'symbolic-link'
+      ? 'requested-entry-symbolic-link'
+      : 'requested-entry-not-regular-file', {
+      requestedPath,
+      entryType: type,
+    });
+  }
+  if (metadata.ino === 0n) {
+    return relation('unknown', 'requested-entry-identity-unavailable', { requestedPath });
+  }
+  if (policy === 'regular-or-absent') {
+    const inspected = captureRegularFileHandle(requestedPath, metadata, 'requested-entry');
+    if (inspected.status !== 'captured') return inspected;
+    metadata = inspected.metadata;
+  }
+  return {
+    status: 'captured',
+    entry: {
+      kind: 'existing',
+      entryType: type,
+      device: metadata.dev,
+      inode: metadata.ino,
+    },
+  };
+}
+
+function requestedEntryMatches(left, right) {
+  if (left.kind !== right.kind) return false;
+  return left.kind === 'absent'
+    || (left.entryType === right.entryType
+      && left.device === right.device
+      && left.inode === right.inode);
+}
+
+/**
+ * Capture the physical directory-entry slot and target identity used by an
+ * atomic rename. Hard links are intentionally unsupported: replacing one name
+ * cannot update its other names while retaining crash-atomic publication.
+ * `regular-or-absent` additionally rejects requested-entry symlinks and special
+ * nodes for sidecars whose public name itself must never be followed.
+ */
+export function captureAtomicOutput(outputPath, { requestedEntryPolicy = 'followable-alias' } = {}) {
+  if (!['followable-alias', 'regular-or-absent'].includes(requestedEntryPolicy)) {
+    return relation('unknown', 'invalid-requested-entry-policy', { requestedEntryPolicy });
+  }
+  const requestedPath = path.resolve(outputPath);
+  const requestedEntry = captureRequestedEntry(requestedPath, requestedEntryPolicy);
+  if (requestedEntry.status !== 'captured') return requestedEntry;
+  const slot = captureWriteSlot(requestedPath);
+  if (slot.status !== 'captured') return slot;
+  const target = captureTarget(slot.slot.commitPath);
+  if (target.status !== 'captured') return target;
+  const confirmedRequestedEntry = captureRequestedEntry(requestedPath, requestedEntryPolicy);
+  if (confirmedRequestedEntry.status !== 'captured') return confirmedRequestedEntry;
+  if (!requestedEntryMatches(confirmedRequestedEntry.entry, requestedEntry.entry)) {
+    return relation('unknown', 'requested-entry-changed-during-inspection', { requestedPath });
+  }
+  return {
+    status: 'captured',
+    commitPath: slot.slot.commitPath,
+    mode: target.mode,
+    snapshot: {
+      requestedPath,
+      requestedEntryPolicy,
+      requestedEntry: requestedEntry.entry,
+      slot: slot.slot,
+      target: target.target,
+    },
+  };
+}
+
+/** Re-resolve and verify the exact write slot plus its absent/file identity. */
+export function verifyAtomicOutput(snapshot) {
+  const currentRequestedEntry = captureRequestedEntry(
+    snapshot.requestedPath,
+    snapshot.requestedEntryPolicy || 'followable-alias',
+  );
+  if (currentRequestedEntry.status !== 'captured') return currentRequestedEntry;
+  if (!requestedEntryMatches(currentRequestedEntry.entry, snapshot.requestedEntry)) {
+    return relation('different', 'requested-entry-changed', {
+      requestedPath: snapshot.requestedPath,
+      previousKind: snapshot.requestedEntry.kind === 'absent'
+        ? 'absent'
+        : snapshot.requestedEntry.entryType,
+      currentKind: currentRequestedEntry.entry.kind === 'absent'
+        ? 'absent'
+        : currentRequestedEntry.entry.entryType,
+    });
+  }
+  const currentSlot = captureWriteSlot(snapshot.requestedPath);
+  if (currentSlot.status !== 'captured') return currentSlot;
+  const previousSlot = snapshot.slot;
+  if (currentSlot.slot.parentDevice !== previousSlot.parentDevice
+    || currentSlot.slot.parentInode !== previousSlot.parentInode
+    || currentSlot.slot.name !== previousSlot.name) {
+    return relation('different', 'write-slot-changed', {
+      previousCommitPath: previousSlot.commitPath,
+      currentCommitPath: currentSlot.slot.commitPath,
+    });
+  }
+
+  const currentTarget = captureTarget(previousSlot.commitPath);
+  if (currentTarget.status !== 'captured') return currentTarget;
+  const previousTarget = snapshot.target;
+  if (currentTarget.target.kind !== previousTarget.kind) {
+    return relation('different', 'target-existence-changed', {
+      commitPath: previousSlot.commitPath,
+      previousKind: previousTarget.kind,
+      currentKind: currentTarget.target.kind,
+    });
+  }
+  if (previousTarget.kind === 'file'
+    && (currentTarget.target.device !== previousTarget.device
+      || currentTarget.target.inode !== previousTarget.inode)) {
+    return relation('different', 'target-identity-changed', {
+      commitPath: previousSlot.commitPath,
+    });
+  }
+  if (previousTarget.kind === 'file'
+    && currentTarget.target.mode !== previousTarget.mode) {
+    return relation('different', 'target-mode-changed', {
+      commitPath: previousSlot.commitPath,
+      previousMode: previousTarget.mode,
+      currentMode: currentTarget.target.mode,
+    });
+  }
+  return relation('match', 'atomic-output-match', { commitPath: previousSlot.commitPath });
+}

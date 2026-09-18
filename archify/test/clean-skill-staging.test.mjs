@@ -6,7 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { stageCleanSkill } from '../../scripts/stage-clean-skill.mjs';
+import { isMainModule, stageCleanSkill } from '../../scripts/stage-clean-skill.mjs';
 
 const stagerPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/stage-clean-skill.mjs');
 const canonicalNotices = fs.readFileSync(
@@ -42,11 +42,34 @@ function repositoryFixture() {
   write(root, 'archify/scripts/check-update.mjs', 'export {};\n');
   write(root, 'archify/scripts/update-contract.mjs', 'export {};\n');
   write(root, 'archify/renderers/shared/generated-validators.mjs', 'export {};\n');
+  write(root, 'archify/renderers/shared/path-semantics.mjs', 'export {};\n');
+  write(root, 'archify/renderers/shared/portable-path.mjs', 'export {};\n');
   write(root, 'archify/test/repository-only.test.mjs', 'throw new Error();\n');
   git(root, ['init']);
   git(root, ['add', 'THIRD_PARTY_NOTICES.md']);
   return root;
 }
+
+test('clean staging entry detection accepts a physical alias and fails closed when identity is unknown', (t) => {
+  const aliasRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-stage-entry-alias-'));
+  t.after(() => fs.rmSync(aliasRoot, { recursive: true, force: true }));
+  const aliasPath = path.join(aliasRoot, 'stage-clean-alias.mjs');
+  try {
+    fs.linkSync(stagerPath, aliasPath);
+  } catch (error) {
+    if (['EPERM', 'EACCES', 'ENOTSUP', 'EXDEV'].includes(error?.code)) {
+      t.skip(`hard-link aliases unavailable: ${error.code}`);
+      return;
+    }
+    throw error;
+  }
+
+  assert.equal(isMainModule({ argvPath: aliasPath, modulePath: stagerPath }), true);
+  assert.equal(isMainModule({
+    argvPath: path.join(aliasRoot, 'missing-entry.mjs'),
+    modulePath: stagerPath,
+  }), false);
+});
 
 test('clean staging rejects a packaged notice that diverges from the repository notice', () => {
   const root = repositoryFixture();
@@ -61,6 +84,27 @@ test('clean staging rejects a packaged notice that diverges from the repository 
     assert.throws(
       () => stageCleanSkill({ repoRoot: root, destination }),
       /must byte-match the repository notice/,
+    );
+    assert.equal(fs.existsSync(destination), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('clean staging requires shared path runtimes only when packaged code imports them', () => {
+  const root = repositoryFixture();
+  const destination = path.join(root, 'staged-skill');
+  try {
+    fs.writeFileSync(
+      path.join(root, 'archify', 'renderers', 'shared', 'generated-validators.mjs'),
+      "const runtime = import /* keep release dependencies complete */ (`./portable-path.mjs`);\nexport { runtime };\n",
+    );
+    git(root, ['add', '.']);
+    git(root, ['rm', '--cached', '-f', 'archify/renderers/shared/portable-path.mjs']);
+
+    assert.throws(
+      () => stageCleanSkill({ repoRoot: root, destination }),
+      /required package input is not tracked by Git: archify\/renderers\/shared\/portable-path[.]mjs/,
     );
     assert.equal(fs.existsSync(destination), false);
   } finally {

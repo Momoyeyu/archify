@@ -36,7 +36,7 @@
           "type": "string"
         },
         "output": {
-          "type": "string"
+          "$ref": "common.schema.json#/$defs/portableOutputPath"
         },
         "animation": {
           "$ref": "common.schema.json#/$defs/animation"
