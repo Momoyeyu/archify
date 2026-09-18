@@ -27,7 +27,8 @@ function expectResult(value, expectedStatus) {
 function mockWindowsFilesystem(t, {
   entriesExist = true,
   preserveExtendedRealpaths = false,
-  extendedDriveRootRealpathIsDirectory = false,
+  extendedRootRealpathIsDirectory = false,
+  extendedRootStatIsDirectory = false,
   symbolicLinks = [],
 } = {}) {
   const platform = Object.getOwnPropertyDescriptor(process, 'platform');
@@ -36,6 +37,7 @@ function mockWindowsFilesystem(t, {
 
   const realpathCalls = [];
   const lstatCalls = [];
+  const statCalls = [];
   const identities = new Map();
   let nextIdentity = 1n;
   const canonicalPath = (targetPath) => {
@@ -55,6 +57,13 @@ function mockWindowsFilesystem(t, {
     return path.win32.normalize(canonical);
   };
   const statFor = (targetPath) => {
+    statCalls.push(String(targetPath));
+    if (extendedRootStatIsDirectory
+      && /^\\\\\?\\(?:[A-Za-z]:\\|UNC\\[^\\]+\\[^\\]+\\)$/iu.test(String(targetPath))) {
+      const error = new Error(`virtual Windows extended root is a directory: ${targetPath}`);
+      error.code = 'EISDIR';
+      throw error;
+    }
     const key = canonicalPath(targetPath).toLocaleLowerCase('en-US');
     if (!identities.has(key)) {
       identities.set(key, nextIdentity);
@@ -73,9 +82,9 @@ function mockWindowsFilesystem(t, {
 
   t.mock.method(fs.realpathSync, 'native', (targetPath) => {
     realpathCalls.push(String(targetPath));
-    if (extendedDriveRootRealpathIsDirectory
-      && /^\\\\\?\\[A-Za-z]:\\$/u.test(String(targetPath))) {
-      const error = new Error(`virtual Windows extended drive root is a directory: ${targetPath}`);
+    if (extendedRootRealpathIsDirectory
+      && /^\\\\\?\\(?:[A-Za-z]:\\|UNC\\[^\\]+\\[^\\]+\\)$/iu.test(String(targetPath))) {
+      const error = new Error(`virtual Windows extended root is a directory: ${targetPath}`);
       error.code = 'EISDIR';
       throw error;
     }
@@ -107,7 +116,7 @@ function mockWindowsFilesystem(t, {
     error.code = 'EINVAL';
     throw error;
   });
-  return { lstatCalls, realpathCalls };
+  return { lstatCalls, realpathCalls, statCalls };
 }
 
 test('Windows drive and share roots reach native resolution as complete filesystem roots', (t) => {
@@ -139,7 +148,10 @@ test('Windows drive and share roots reach native resolution as complete filesyst
 });
 
 test('Windows extended drive roots retain stable identity when native realpath reports EISDIR', (t) => {
-  mockWindowsFilesystem(t, { extendedDriveRootRealpathIsDirectory: true });
+  const { statCalls } = mockWindowsFilesystem(t, {
+    extendedRootRealpathIsDirectory: true,
+    extendedRootStatIsDirectory: true,
+  });
   expectResult(
     sameLocation(
       String.raw`\\?\C:\reports\diagram.html`,
@@ -147,6 +159,37 @@ test('Windows extended drive roots retain stable identity when native realpath r
     ),
     'match',
   );
+  assert.ok(statCalls.includes('C:\\'));
+});
+
+test('Windows extended drive roots retain traversal spelling when root stat reports EISDIR', (t) => {
+  const { statCalls } = mockWindowsFilesystem(t, {
+    preserveExtendedRealpaths: true,
+    extendedRootStatIsDirectory: true,
+  });
+  expectResult(
+    sameLocation(
+      String.raw`\\?\C:\reports\diagram.html`,
+      String.raw`C:\reports\diagram.html`,
+    ),
+    'match',
+  );
+  assert.ok(statCalls.includes('C:\\'));
+});
+
+test('Windows extended UNC roots use ordinary share identity when root APIs report EISDIR', (t) => {
+  const { statCalls } = mockWindowsFilesystem(t, {
+    extendedRootRealpathIsDirectory: true,
+    extendedRootStatIsDirectory: true,
+  });
+  expectResult(
+    sameLocation(
+      String.raw`\\?\UNC\server\share\reports\diagram.html`,
+      String.raw`\\server\share\reports\diagram.html`,
+    ),
+    'match',
+  );
+  assert.ok(statCalls.includes(`${String.raw`\\server\share`}\\`));
 });
 
 test('Windows device and malformed extended namespaces fail closed before filesystem access', (t) => {

@@ -199,6 +199,14 @@ function statBigInt(targetPath) {
   return fs.statSync(targetPath, { bigint: true });
 }
 
+function ordinaryWindowsRoot(extendedRoot) {
+  const drive = extendedRoot.match(/^\\\\\?\\([A-Za-z]:\\)$/u);
+  if (drive) return drive[1];
+
+  const unc = extendedRoot.match(/^\\\\\?\\UNC\\([^\\]+)\\([^\\]+)\\$/iu);
+  return unc ? `\\\\${unc[1]}\\${unc[2]}\\` : null;
+}
+
 function hasStableIdentity(stat) {
   return typeof stat?.dev === 'bigint'
     && typeof stat?.ino === 'bigint'
@@ -327,19 +335,36 @@ function resolvePlan({ root, segments }, side, depth) {
   let currentStat;
   try {
     current = fs.realpathSync.native(root);
-    currentStat = statBigInt(current);
   } catch (error) {
     // Node on Windows can report EISDIR while resolving a valid extended
-    // drive root (for example \\?\C:\). The namespace was already validated by
-    // splitWindowsAbsolute, so retain its exact spelling and bind traversal to
-    // the root's stable filesystem identity instead of discarding long-path
-    // semantics by converting it back to an ordinary drive path.
+    // filesystem root (for example \\?\C:\). The namespace was already
+    // validated by splitWindowsAbsolute, so retain its exact spelling for
+    // traversal.
     if (process.platform === 'win32'
       && error?.code === 'EISDIR'
-      && root.startsWith('\\\\?\\')) {
+      && ordinaryWindowsRoot(root)) {
+      current = root;
+    } else {
+      return {
+        ok: false,
+        failure: systemFailure('root-resolution-failed', error, { side }),
+      };
+    }
+  }
+
+  try {
+    currentStat = statBigInt(current);
+  } catch (error) {
+    // The same Node/Windows edge can occur during stat after realpath succeeds.
+    // A drive or share root is short enough for its ordinary spelling, while
+    // `current` remains namespaced so descendants keep long-path semantics.
+    const ordinaryRoot = process.platform === 'win32'
+      && error?.code === 'EISDIR'
+      ? ordinaryWindowsRoot(root)
+      : null;
+    if (ordinaryRoot && ordinaryRoot !== current) {
       try {
-        current = root;
-        currentStat = statBigInt(current);
+        currentStat = statBigInt(ordinaryRoot);
       } catch (statError) {
         return {
           ok: false,
