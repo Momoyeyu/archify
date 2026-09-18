@@ -345,9 +345,7 @@ console.log(JSON.stringify({
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
   assert.equal(fs.existsSync(marker), true, `renderer did not start; stderr=${stderr}`);
-  const candidatePath = fs.readFileSync(marker, 'utf8');
-  const candidateRelative = path.relative(linkedDirectory, candidatePath);
-  fs.mkdirSync(path.dirname(path.join(inputDirectory, candidateRelative)), { recursive: true });
+  // Staging stays in the physical output directory when this alias is retargeted.
   fs.unlinkSync(linkedDirectory);
   fs.symlinkSync(inputDirectory, linkedDirectory, 'dir');
 
@@ -1087,9 +1085,7 @@ export const validateArchitectureDeltaHtml = () => ({ checksPassed: 1, checkCoun
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
   assert.equal(fs.existsSync(marker), true, `renderer did not start; stderr=${stderr}`);
-  const candidatePath = fs.readFileSync(marker, 'utf8');
-  const candidateRelative = path.relative(linkedDirectory, candidatePath);
-  fs.mkdirSync(path.dirname(path.join(inputDirectory, candidateRelative)), { recursive: true });
+  // Staging stays in the physical output directory when this alias is retargeted.
   fs.unlinkSync(linkedDirectory);
   fs.symlinkSync(inputDirectory, linkedDirectory, 'dir');
 

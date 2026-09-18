@@ -616,6 +616,5 @@ for (const args of groups) {
   }
   if (result.status !== 0) {
     process.exitCode = result.status ?? 1;
-    break;
   }
 }

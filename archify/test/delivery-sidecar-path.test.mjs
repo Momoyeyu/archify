@@ -1110,11 +1110,25 @@ test('Windows delivery accepts an existing 8.3 artifact alias and keeps strict p
 
   const redelivered = run(['deliver', 'workflow', input, shortOutput, '--json'], cwd);
   assert.equal(redelivered.status, 0, redelivered.stderr || redelivered.stdout);
-  for (const artifact of [output, shortOutput]) {
-    const checked = run(['check', artifact, '--require-provenance'], cwd);
-    assert.equal(checked.status, 0, checked.stderr || checked.stdout);
-    assert.equal(JSON.parse(checked.stdout).provenance, 'current');
-  }
+  const checkedOutput = run(['check', output, '--require-provenance'], cwd);
+  assert.equal(checkedOutput.status, 0, checkedOutput.stderr || checkedOutput.stdout);
+  assert.equal(JSON.parse(checkedOutput.stdout).provenance, 'current');
+
+  // Publication replaces the directory entry. NTFS need not transfer an
+  // explicitly assigned short name from the retired entry to its successor.
+  // Exercise the current artifact's alias, not the old entry's cached name.
+  const currentShortOutput = controlledRoot
+    ? assignWindowsShortName(output, 'ARCHDL~2.HTM')
+    : windowsShortPath(output);
+  assert.ok(currentShortOutput, 'the current artifact must expose a distinct 8.3 alias');
+  assert.equal(path.win32.extname(currentShortOutput).toLowerCase(), '.htm');
+  const checkedAlias = run(['check', currentShortOutput, '--require-provenance'], cwd);
+  assert.equal(checkedAlias.status, 0, checkedAlias.stderr || checkedAlias.stdout);
+  assert.equal(JSON.parse(checkedAlias.stdout).provenance, 'current');
+  assert.deepEqual(fs.readdirSync(directory).sort(), [
+    path.basename(output),
+    path.basename(output).replace(/\.html$/u, '.delivery.json'),
+  ].sort(), 'redelivery through an alias must keep one canonical artifact and provenance pair');
 });
 
 test('normalization aliases contend for one future long-stem delivery lock', async (t) => {

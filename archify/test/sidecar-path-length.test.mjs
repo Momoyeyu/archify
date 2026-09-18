@@ -81,10 +81,12 @@ function controlledWindowsShortRoot(required) {
   return { root, shortRoot };
 }
 
-test('visual-check deterministically bounds every derived sidecar component', () => {
+test('visual-check deterministically bounds every derived sidecar component', (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-visual-sidecar-bounded-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const stem = 'é'.repeat(120);
-  const first = sidecarPaths(`/tmp/${stem}.html`);
-  const second = sidecarPaths(`/tmp/${stem}.html`);
+  const first = sidecarPaths(path.join(directory, `${stem}.html`));
+  const second = sidecarPaths(path.join(directory, `${stem}.html`));
   const files = [first.receipt, first.contactSheet, ...first.screenshots.map(({ path: file }) => file)];
 
   assert.deepEqual(first, second);
@@ -92,15 +94,19 @@ test('visual-check deterministically bounds every derived sidecar component', ()
   assert.match(path.basename(first.receipt), /\.~archify-[0-9a-f]{64}\.visual-check\.json$/);
 });
 
-test('different overlong artifact stems do not collapse to one visual-check sidecar name', () => {
-  const left = sidecarPaths(`/tmp/${'x'.repeat(260)}-left.html`);
-  const right = sidecarPaths(`/tmp/${'x'.repeat(260)}-right.html`);
+test('different overlong artifact stems do not collapse to one visual-check sidecar name', (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-visual-sidecar-distinct-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const left = sidecarPaths(path.join(directory, `${'x'.repeat(260)}-left.html`));
+  const right = sidecarPaths(path.join(directory, `${'x'.repeat(260)}-right.html`));
   assert.notEqual(path.basename(left.receipt), path.basename(right.receipt));
 });
 
-test('html and htm artifacts use distinct visual-check sidecar namespaces', () => {
-  const html = sidecarPaths('/tmp/diagram.html');
-  const htm = sidecarPaths('/tmp/diagram.htm');
+test('html and htm artifacts use distinct visual-check sidecar namespaces', (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-visual-sidecar-extensions-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const html = sidecarPaths(path.join(directory, 'diagram.html'));
+  const htm = sidecarPaths(path.join(directory, 'diagram.htm'));
 
   assert.notEqual(html.receipt, htm.receipt);
   assert.equal(path.basename(html.receipt), 'diagram.visual-check.json');
@@ -130,20 +136,24 @@ test('HTML extension case follows the containing filesystem semantics', (t) => {
   }
 });
 
-test('bounded html and htm artifacts retain distinct hash namespaces', () => {
+test('bounded html and htm artifacts retain distinct hash namespaces', (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-visual-sidecar-bounded-extensions-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const stem = 'x'.repeat(225);
-  const html = sidecarPaths(`/tmp/${stem}.html`);
-  const htm = sidecarPaths(`/tmp/${stem}.htm`);
+  const html = sidecarPaths(path.join(directory, `${stem}.html`));
+  const htm = sidecarPaths(path.join(directory, `${stem}.htm`));
 
   assert.notEqual(html.receipt, htm.receipt);
   assert.match(path.basename(html.receipt), /\.~archify-[0-9a-f]{64}\.visual-check\.json$/u);
   assert.match(path.basename(htm.receipt), /\.~archify-[0-9a-f]{64}\.visual-check\.json$/u);
 });
 
-test('a crafted bounded stem cannot enter another artifact visual-check namespace', () => {
-  const long = sidecarPaths(`/tmp/${'x'.repeat(245)}.html`);
+test('a crafted bounded stem cannot enter another artifact visual-check namespace', (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-visual-sidecar-crafted-stem-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const long = sidecarPaths(path.join(directory, `${'x'.repeat(245)}.html`));
   const encodedStem = path.basename(long.base).replace(/\.visual-check$/u, '');
-  const crafted = sidecarPaths(`/tmp/${encodedStem}.html`);
+  const crafted = sidecarPaths(path.join(directory, `${encodedStem}.html`));
   const allPaths = (value) => [
     value.receipt,
     value.contactSheet,

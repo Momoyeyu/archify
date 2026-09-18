@@ -20,20 +20,34 @@ const canonicalZipTest = (name, fn) => test(name, {
 
 function spawnBuildZip(outputPath, options = {}) {
   const script = path.join(repoRoot, 'scripts', 'build-zip.sh');
-  const { cwd = repoRoot, ...rest } = options;
-  if (process.platform === 'win32') {
-    const bashCandidates = [
+  const { cwd = repoRoot, env = process.env, ...rest } = options;
+  const bashCandidates = process.platform === 'win32'
+    ? [
       process.env.BASH,
       'C:\\Program Files\\Git\\bin\\bash.exe',
       'bash',
-    ].filter(Boolean);
-    for (const bash of bashCandidates) {
-      if (bash.includes('\\') && !fs.existsSync(bash)) continue;
-      const result = spawnSync(bash, [script, outputPath], { cwd, encoding: 'utf8', ...rest });
-      if (result.status !== 127) return result;
-    }
+    ].filter(Boolean)
+    : ['bash'];
+  for (const bash of bashCandidates) {
+    if (bash.includes('\\') && !fs.existsSync(bash)) continue;
+    // Native Windows argv decoding and MSYS path conversion must not alter
+    // the deliberately unsafe raw spelling before the validator sees it.
+    const result = spawnSync(bash, [
+      '-c', 'exec bash "$ARCHIFY_ZIP_BUILD_SCRIPT" "$ARCHIFY_ZIP_BUILD_OUTPUT"',
+    ], {
+      cwd,
+      encoding: 'utf8',
+      ...rest,
+      env: {
+        ...env,
+        ARCHIFY_ZIP_BUILD_SCRIPT: script,
+        ARCHIFY_ZIP_BUILD_OUTPUT: outputPath,
+        MSYS2_ARG_CONV_EXCL: outputPath,
+      },
+    });
+    if (result.status !== 127) return result;
   }
-  return spawnSync(script, [outputPath], { cwd, encoding: 'utf8', ...rest });
+  return spawnSync(script, [outputPath], { cwd, env, encoding: 'utf8', ...rest });
 }
 
 function preparePackageIndex(indexPath, extraPaths) {
@@ -497,6 +511,8 @@ test('archive build rejects unsafe native output paths before creating files', (
       assert.equal(build.status, 2, `${build.stdout}\n${build.stderr}`);
       assert.match(build.stderr, /archive output is not a valid native filesystem path/);
       assert.match(build.stderr, expectedReason);
+      assert.ok(build.stderr.includes(JSON.stringify(output)),
+        'the archive validator must receive the exact raw output spelling');
       assert.deepEqual(fs.readdirSync(fixture), [], 'a rejected output spelling must not create files');
     }
   } finally {
