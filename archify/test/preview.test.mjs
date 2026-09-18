@@ -987,7 +987,7 @@ test('preview: publishing through a dangling output symlink creates its target w
   }
 });
 
-test('preview: recreating an output symlink to the same target fails the commit', { timeout: 10000 }, async (t) => {
+test('preview: recreating an output symlink to the same target fails the commit even when its inode is reused', { timeout: 10000 }, async (t) => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-preview-output-recreated-symlink-'));
   t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
   const input = path.join(tmp, 'diagram.json');
@@ -1007,6 +1007,17 @@ test('preview: recreating an output symlink to the same target fails the commit'
     }
     throw error;
   }
+  // Filesystems can immediately reuse an unlinked symlink's inode. Preserve
+  // that behavior deterministically instead of depending on the host allocator.
+  const lstatSync = fs.lstatSync.bind(fs);
+  const originalLink = lstatSync(output, { bigint: true });
+  t.mock.method(fs, 'lstatSync', (filePath, ...args) => {
+    const metadata = lstatSync(filePath, ...args);
+    if (String(filePath) === output && metadata.isSymbolicLink()) {
+      metadata.ino = typeof metadata.ino === 'bigint' ? originalLink.ino : Number(originalLink.ino);
+    }
+    return metadata;
+  });
   writeDelayedDeliveryCli(deliveryCli, marker, 'Must not publish');
 
   const preview = await startPreview({
@@ -1016,7 +1027,12 @@ test('preview: recreating an output symlink to the same target fails the commit'
     await waitForPath(marker, 'fake delivery did not start');
     fs.unlinkSync(output);
     fs.symlinkSync(target, output, process.platform === 'win32' ? 'file' : undefined);
-    const state = await waitForState(preview.url, (candidate) => candidate.status === 'needs-fix', 'recreated symlink did not fail preview');
+    const state = await waitForState(
+      preview.url,
+      (candidate) => ['needs-fix', 'verified'].includes(candidate.status),
+      'recreated symlink did not finish preview',
+    );
+    assert.equal(state.status, 'needs-fix', 'a recreated output symlink must prevent publication');
     assert.equal(state.failure.stage, 'commit');
     assert.equal(state.failure.code, 'output/target-changed');
     assert.equal(state.failure.evidence.relation.code, 'requested-entry-changed');

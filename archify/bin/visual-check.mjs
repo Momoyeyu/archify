@@ -541,7 +541,7 @@ function publishedRemovalError(file, result) {
 function cleanupStagedEvidence(ownership, { removeDirectory = false } = {}) {
   const errors = [];
   for (const [finalPath, entry] of [...ownership.stagedEntries]) {
-    const result = unlinkOwnedEntry(entry.path, entry.identity);
+    const result = unlinkOwnedEntry(entry.path, entry.identity, { evidence: entry.evidence });
     if (result.status === 'removed' || result.status === 'absent') {
       ownership.stagedEntries.delete(finalPath);
     } else {

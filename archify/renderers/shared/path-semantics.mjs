@@ -630,8 +630,6 @@ function probeNameAlias(directoryPath, leftName, rightName) {
     const lookupPath = path.join(directoryPath, lookupName);
     descriptor = fs.openSync(probePath, 'wx', 0o600);
     probeStat = fs.fstatSync(descriptor, { bigint: true });
-    fs.closeSync(descriptor);
-    descriptor = undefined;
 
     let authoredStat;
     let lookupStat;
@@ -663,14 +661,16 @@ function probeNameAlias(directoryPath, leftName, rightName) {
   } catch (error) {
     comparison = systemFailure('future-name-probe-failed', error, { method: 'filesystem-probe' });
   } finally {
+    // Pin the inode until cleanup finishes. Once the final handle is closed,
+    // an unlinked probe's inode can be reused by a replacement at the same name.
+    if (probeStat) cleanupError = removeOwnedProbe(probePath, probeStat);
     if (descriptor !== undefined) {
       try {
         fs.closeSync(descriptor);
       } catch (error) {
-        cleanupError = error;
+        cleanupError = cleanupError ?? error;
       }
     }
-    if (probeStat) cleanupError = cleanupError ?? removeOwnedProbe(probePath, probeStat);
   }
 
   if (cleanupError) {

@@ -267,7 +267,10 @@ test('an existing output with no stable file identity fails closed before stagin
   assert.throws(
     () => writeWorkflow(loaded),
     (error) => error.archifyDiagnostics?.[0]?.code === 'output/target-indeterminate'
-      && error.archifyDiagnostics[0].evidence.relation.code === 'target-identity-unavailable',
+      // Without a directory alias, the requested-entry inspection encounters
+      // the unavailable identity before the resolved-target inspection does.
+      && ['requested-entry-identity-unavailable', 'target-identity-unavailable']
+        .includes(error.archifyDiagnostics[0].evidence.relation.code),
   );
   assert.match(fs.readFileSync(output, 'utf8'), /original/);
   assert.deepEqual(renderCandidates(root), []);
@@ -396,6 +399,9 @@ test('an existing output whose handle cannot be inspected fails closed before st
       && error.archifyDiagnostics[0].evidence.relation.systemCode === 'EBUSY',
   );
   assert.equal(writes, 0);
+  // Node 18 readFileSync calls the public openSync; stop injecting the fault
+  // before inspecting the original bytes preserved by the failed render.
+  fs.openSync.mock.restore();
   assert.match(fs.readFileSync(output, 'utf8'), /original/);
   assert.deepEqual(renderCandidates(root), []);
 });
@@ -1331,6 +1337,56 @@ test('quarantine removal defers remote ENOTEMPTY until its binding handle closes
     );
   } finally {
     if (!released) releaseRegularFileBinding(captured.binding);
+  }
+});
+
+test('remote quarantine cleanup waits for every binding of the published inode to close', (t) => {
+  const root = workspace(t, 'archify-quarantine-remove-duplicate-handles-');
+  const candidate = path.join(root, 'candidate.html');
+  const published = path.join(root, 'published.html');
+  fs.writeFileSync(candidate, 'owned artifact\n');
+  const staging = captureRegularFileBinding(candidate, { subject: 'staging-entry' });
+  const transaction = captureRegularFileBinding(candidate, { subject: 'transaction-entry' });
+  assert.equal(staging.status, 'captured');
+  assert.equal(transaction.status, 'captured');
+  fs.linkSync(candidate, published);
+  const closeSync = fs.closeSync.bind(fs);
+  const rmdirSync = fs.rmdirSync.bind(fs);
+  let closedBindings = 0;
+  t.mock.method(fs, 'closeSync', (descriptor) => {
+    const result = closeSync(descriptor);
+    closedBindings += 1;
+    return result;
+  });
+  t.mock.method(fs, 'rmdirSync', (directory) => {
+    if (path.basename(String(directory)).startsWith('.archify-remove-')
+      && closedBindings < 2) {
+      throw Object.assign(new Error('remote deletion is pending on another binding handle'), { code: 'ENOTEMPTY' });
+    }
+    return rmdirSync(directory);
+  });
+  let transactionReleased = false;
+  let stagingReleased = false;
+  try {
+    const removed = quarantineRemoveRegularFileBinding(transaction.binding, candidate, {
+      expectedLinks: 2,
+    });
+    assert.equal(removed.status, 'removed');
+    const releasedTransaction = releaseRegularFileBinding(transaction.binding);
+    transactionReleased = true;
+    assert.equal(releasedTransaction.status, 'released');
+    assert.equal(fs.existsSync(candidate), false);
+    assert.equal(fs.readFileSync(published, 'utf8'), 'owned artifact\n');
+
+    const retiredStaging = quarantineRemoveRegularFileBinding(staging.binding, candidate);
+    assert.equal(retiredStaging.reason.systemCode, 'ENOENT');
+    const releasedStaging = releaseRegularFileBinding(staging.binding);
+    stagingReleased = true;
+    assert.equal(releasedStaging.status, 'released');
+    assert.deepEqual(fs.readdirSync(root), ['published.html']);
+  } finally {
+    if (!transactionReleased) releaseRegularFileBinding(transaction.binding);
+    if (!stagingReleased) releaseRegularFileBinding(staging.binding);
   }
 });
 

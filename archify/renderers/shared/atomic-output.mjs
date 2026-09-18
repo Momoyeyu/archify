@@ -91,6 +91,7 @@ function captureRegularFileHandle(filePath, initial, subject) {
 }
 
 const regularFileBindings = new WeakMap();
+const regularFileBindingGroups = new Map();
 const digestChunkBytes = 64 * 1024;
 const removalCleanupSignal = new Int32Array(new SharedArrayBuffer(4));
 const removalCleanupAttempts = 10;
@@ -384,13 +385,20 @@ export function captureRegularFileBinding(filePath, {
     });
   }
 
+  const identityKey = `${identity.device}:${identity.inode}`;
+  let cleanupGroup = regularFileBindingGroups.get(identityKey);
+  if (!cleanupGroup) {
+    cleanupGroup = { identityKey, bindings: 0, deferredCleanupDirectories: new Set() };
+    regularFileBindingGroups.set(identityKey, cleanupGroup);
+  }
+  cleanupGroup.bindings += 1;
   const binding = Object.freeze({});
   regularFileBindings.set(binding, {
     descriptor,
     filePath: resolvedPath,
     subject,
     expectedLinks,
-    deferredCleanupDirectories: new Set(),
+    cleanupGroup,
     identity,
     mode,
     sha256: inspected.content.sha256,
@@ -461,11 +469,20 @@ export function releaseRegularFileBinding(binding) {
     captured.subject,
     captured.filePath,
   );
-  if (failure) return failure;
-  for (const directory of captured.deferredCleanupDirectories) {
-    const cleanup = removeEmptyQuarantine(directory, { retry: true });
-    if (cleanup) return cleanup;
+  const { cleanupGroup } = captured;
+  cleanupGroup.bindings -= 1;
+  let cleanupFailure;
+  if (cleanupGroup.bindings === 0) {
+    regularFileBindingGroups.delete(cleanupGroup.identityKey);
+    // A staging registry and its publication transaction can bind the same
+    // inode independently. SMB may keep a retired name visible until every
+    // descriptor closes, so cleanup belongs to the inode's last binding.
+    for (const directory of cleanupGroup.deferredCleanupDirectories) {
+      const cleanup = removeEmptyQuarantine(directory, { retry: true });
+      cleanupFailure ||= cleanup;
+    }
   }
+  if (failure || cleanupFailure) return failure || cleanupFailure;
   return relation('released', `${captured.subject}-binding-released`, {
     filePath: captured.filePath,
   });
@@ -509,7 +526,7 @@ function deferEmptyQuarantineCleanup(binding, cleanup) {
     || cleanup.reason.systemCode !== 'ENOTEMPTY') return false;
   const captured = regularFileBindings.get(binding);
   if (!captured) return false;
-  captured.deferredCleanupDirectories.add(cleanup.reason.recoveryDirectory);
+  captured.cleanupGroup.deferredCleanupDirectories.add(cleanup.reason.recoveryDirectory);
   return true;
 }
 
@@ -544,6 +561,12 @@ export function quarantineRemoveRegularFileBinding(binding, filePath, {
     return relation('unknown', 'invalid-regular-file-binding-expectation');
   }
   const resolvedPath = path.resolve(filePath);
+  const beforeMove = verifyRegularFileBinding(binding, {
+    filePath: resolvedPath,
+    expectedLinks,
+  });
+  if (beforeMove.status !== 'match') return beforeMove;
+
   const quarantine = createRemovalQuarantine(path.dirname(resolvedPath));
   if (quarantine.status !== 'created') return quarantine;
   const quarantineFile = path.join(quarantine.directory, path.basename(resolvedPath));
@@ -552,15 +575,6 @@ export function quarantineRemoveRegularFileBinding(binding, filePath, {
     const cleanup = removeEmpty();
     return cleanup && deferEmptyQuarantineCleanup(binding, cleanup) ? null : cleanup;
   };
-
-  const beforeMove = verifyRegularFileBinding(binding, {
-    filePath: resolvedPath,
-    expectedLinks,
-  });
-  if (beforeMove.status !== 'match') {
-    const cleanup = removeEmpty();
-    return cleanup || beforeMove;
-  }
 
   try {
     fs.renameSync(resolvedPath, quarantineFile);
@@ -1248,6 +1262,14 @@ function captureRequestedEntry(requestedPath, policy) {
       entryType: type,
       device: metadata.dev,
       inode: metadata.ino,
+      // An unlinked symlink's inode can be reused immediately. Its target can
+      // stay the same while the requested directory entry is a new object.
+      // Reading the link only changes atime, so these no-follow timestamps
+      // distinguish that replacement without tracking target-file writes.
+      ...(type === 'symbolic-link' ? {
+        changedAtNs: metadata.ctimeNs,
+        createdAtNs: metadata.birthtimeNs,
+      } : {}),
     },
   };
 }
@@ -1257,7 +1279,10 @@ function requestedEntryMatches(left, right) {
   return left.kind === 'absent'
     || (left.entryType === right.entryType
       && left.device === right.device
-      && left.inode === right.inode);
+      && left.inode === right.inode
+      && (left.entryType !== 'symbolic-link'
+        || (left.changedAtNs === right.changedAtNs
+          && left.createdAtNs === right.createdAtNs)));
 }
 
 /**

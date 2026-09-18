@@ -1545,7 +1545,11 @@ test('CI and tagged releases share the maintained Windows path contract on Node 
   assert.match(runner, /let extendedLongDirectory = extendedUncRoot/);
   assert.match(runner, /extended UNC delivery beyond traditional MAX_PATH/);
   assert.match(runner, /path\.win32\.join\(ordinaryLongDirectory, `\$\{token\}-preview[.]html`\)/);
-  assert.match(runner, /assertNoPrivateStaging\(ordinaryLongDirectory, '[.]archify-delivery-'\)/);
+  assert.match(
+    runner,
+    /assertNoPrivateStaging\(ordinaryLongDirectory, '[.]archify-delivery-', ordinaryLongDelivery\)/,
+  );
+  assert.match(runner, /fs[.]lstatSync\(path[.]toNamespacedPath\(path[.]join\(directory, entry\)\)\)/);
   assert.match(runner, /assertNoPrivateStaging\(evidenceDirectory, '[.]archify-visual-check-'\)/);
   assert.match(runner, /assertNoPrivateStaging\(ordinaryLongDirectory, '[.]archify-preview-'\)/);
   assert.match(runner, /case-sensitive upper artifact visual-check to shared UNC/);

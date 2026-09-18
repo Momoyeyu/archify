@@ -338,38 +338,50 @@ test('visual-check inspects a private snapshot even if the public artifact is re
   assert.deepEqual(fs.readFileSync(input), original);
 });
 
-test('visual-check preserves a regular screenshot claimant swapped before registration', async (t) => {
-  const input = artifact('staged-screenshot-regular-claimant.html');
-  const outputs = sidecarPaths(input);
-  const browser = fakeBrowser();
-  const inspect = browser.inspect.bind(browser);
-  const sentinel = Buffer.from('external regular screenshot claimant\n');
-  let claimantPath;
-  browser.inspect = async (args) => {
-    const metrics = await inspect(args);
-    if (!claimantPath && args.screenshotPath) {
-      claimantPath = args.screenshotPath;
-      fs.unlinkSync(claimantPath);
-      fs.writeFileSync(claimantPath, sentinel, { flag: 'wx' });
-    }
-    return metrics;
-  };
-  t.after(() => {
-    for (const directory of stagingDirectories(path.dirname(outputs.receipt))) {
-      fs.rmSync(path.join(path.dirname(outputs.receipt), directory), { recursive: true, force: true });
-    }
-  });
+for (const scenario of [
+  { name: 'a regular screenshot claimant swapped before registration', replace: true },
+  { name: 'screenshot bytes changed after capture without an identity change', replace: false },
+]) {
+  test(`visual-check preserves ${scenario.name}`, async (t) => {
+    const input = artifact(`staged-screenshot-regular-claimant-${scenario.replace}.html`);
+    const outputs = sidecarPaths(input);
+    const browser = fakeBrowser();
+    const inspect = browser.inspect.bind(browser);
+    const sentinel = Buffer.from('external regular screenshot claimant\n');
+    const stagingBefore = new Set(stagingDirectories(path.dirname(outputs.receipt)));
+    let claimantPath;
+    browser.inspect = async (args) => {
+      const metrics = await inspect(args);
+      if (!claimantPath && args.screenshotPath) {
+        claimantPath = args.screenshotPath;
+        const before = entryIdentity(claimantPath);
+        if (scenario.replace) fs.unlinkSync(claimantPath);
+        fs.writeFileSync(claimantPath, sentinel, { flag: scenario.replace ? 'wx' : 'w' });
+        if (!scenario.replace) assert.deepEqual(entryIdentity(claimantPath), before);
+      }
+      return metrics;
+    };
+    t.after(() => {
+      for (const directory of stagingDirectories(path.dirname(outputs.receipt))) {
+        if (!stagingBefore.has(directory)) {
+          fs.rmSync(path.join(path.dirname(outputs.receipt), directory), { recursive: true, force: true });
+        }
+      }
+    });
 
-  const result = await runVisualCheck({
-    artifactPath: input,
-    chromePath: '/fake/chrome',
-    browserFactory: async () => browser,
-  });
+    const result = await runVisualCheck({
+      artifactPath: input,
+      chromePath: '/fake/chrome',
+      browserFactory: async () => browser,
+    });
 
-  assert.equal(result.exitCode, 1);
-  assert.deepEqual(fs.readFileSync(claimantPath), sentinel);
-  assert.equal(fs.existsSync(outputs.receipt), false);
-});
+    assert.equal(result.exitCode, 1);
+    assert.deepEqual(fs.readFileSync(claimantPath), sentinel);
+    assert.equal(fs.existsSync(outputs.receipt), false);
+    const cleanupErrors = result.receipt.diagnostics.at(-1)?.evidence?.errors;
+    assert.ok(cleanupErrors.some((entry) => entry.file === claimantPath && /preserved/.test(entry.reason)));
+  });
+}
 
 test('visual-check cleanup preserves a successor swapped at its final removal boundary', async (t) => {
   const input = artifact('staged-cleanup-successor.html');
@@ -2085,13 +2097,23 @@ test('visual-check rolls back when staged evidence changes after receipt binding
   const outputs = sidecarPaths(input);
   const sentinel = Buffer.from('mutated staged screenshot bytes\n');
   const linkSync = fs.linkSync.bind(fs);
+  const stagingBefore = new Set(stagingDirectories(path.dirname(outputs.receipt)));
+  let changedPath;
+  t.after(() => {
+    for (const directory of stagingDirectories(path.dirname(outputs.receipt))) {
+      if (!stagingBefore.has(directory)) {
+        fs.rmSync(path.join(path.dirname(outputs.receipt), directory), { recursive: true, force: true });
+      }
+    }
+  });
   let injected = false;
   t.mock.method(fs, 'linkSync', (source, target) => {
     const result = linkSync(source, target);
     if (!injected
       && path.basename(String(source)) === 'contact-sheet.html'
       && path.basename(path.dirname(String(source))).startsWith('.archify-visual-check-')) {
-      fs.writeFileSync(path.join(path.dirname(String(source)), 'capture-0.png'), sentinel);
+      changedPath = path.join(path.dirname(String(source)), 'capture-0.png');
+      fs.writeFileSync(changedPath, sentinel);
       injected = true;
     }
     return result;
@@ -2113,7 +2135,9 @@ test('visual-check rolls back when staged evidence changes after receipt binding
   assert.equal(fs.existsSync(outputs.receipt), false);
   assert.equal(fs.existsSync(outputs.contactSheet), false);
   assert.equal(outputs.screenshots.every((entry) => !fs.existsSync(entry.path)), true);
-  assert.deepEqual(stagingDirectories(path.dirname(outputs.receipt)), []);
+  assert.deepEqual(fs.readFileSync(changedPath), sentinel);
+  const rollbackErrors = result.receipt.diagnostics.at(-1)?.evidence?.rollbackErrors;
+  assert.ok(rollbackErrors.some((entry) => entry.file === changedPath && /content changed; it was preserved/.test(entry.reason)));
 });
 
 test('visual-check preserves digest-mismatched evidence instead of treating its receipt as ownership', async () => {

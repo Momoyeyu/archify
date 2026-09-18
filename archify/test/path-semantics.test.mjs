@@ -560,7 +560,8 @@ test('sameLocation proves distinct safe-ASCII names without writing to the direc
 
 test('sameLocation proves a long Unicode artifact distinct from a bounded hash sidecar', (t) => {
   const root = scratchDirectory(t);
-  const longNfd = `${'e\u0301'.repeat(100)}-architecture.html`;
+  // Valid on byte-limited filesystems, but too long to prepend a probe name.
+  const longNfd = `${'e\u0301'.repeat(76)}-architecture.html`;
   const hashSidecar = '.archify-delivery-a3f5712c9e19.json';
   t.mock.method(fs, 'openSync', () => {
     throw new Error('a distinct-name proof must not write a probe');
@@ -623,27 +624,58 @@ test('sameLocation fails closed when a direct probe would exceed the component l
   }
 });
 
-test('probe cleanup never deletes a replacement entry', (t) => {
+test('probe cleanup never deletes a replacement entry even when released inodes are reused', (t) => {
   const root = scratchDirectory(t);
   const openSync = fs.openSync.bind(fs);
   const closeSync = fs.closeSync.bind(fs);
+  const fstatSync = fs.fstatSync.bind(fs);
+  const statSync = fs.statSync.bind(fs);
+  const lstatSync = fs.lstatSync.bind(fs);
   let probePath;
+  let probeDescriptor;
+  let probeIdentity;
+  let replacementIdentity;
+  let descriptorOpen = false;
   let replaced = false;
   t.mock.method(fs, 'openSync', (targetPath, ...args) => {
     const descriptor = openSync(targetPath, ...args);
-    if (path.basename(targetPath).startsWith('.archify-path-semantics-')) {
+    if (args[0] === 'wx' && path.basename(targetPath).startsWith('.archify-path-semantics-')) {
       probePath = targetPath;
+      probeDescriptor = descriptor;
+      descriptorOpen = true;
     }
     return descriptor;
   });
+  t.mock.method(fs, 'fstatSync', (descriptor, ...args) => {
+    const stat = fstatSync(descriptor, ...args);
+    if (descriptor === probeDescriptor) probeIdentity = stat;
+    return stat;
+  });
   t.mock.method(fs, 'closeSync', (descriptor) => {
     closeSync(descriptor);
-    if (probePath && !replaced) {
+    if (descriptor === probeDescriptor) descriptorOpen = false;
+  });
+  // Linux may immediately reuse an unlinked inode once its final handle closes.
+  // Emulate that allocation policy so the safety assertion is portable.
+  const reuseReleasedInode = (stat) => {
+    if (!descriptorOpen && replacementIdentity
+      && stat.dev === replacementIdentity.dev && stat.ino === replacementIdentity.ino) {
+      stat.dev = probeIdentity.dev;
+      stat.ino = probeIdentity.ino;
+    }
+    return stat;
+  };
+  t.mock.method(fs, 'statSync', (targetPath, ...args) => {
+    if (targetPath === probePath && !replaced) {
       replaced = true;
       fs.unlinkSync(probePath);
       fs.writeFileSync(probePath, 'replacement sentinel');
+      replacementIdentity = statSync(probePath, { bigint: true });
     }
+    return reuseReleasedInode(statSync(targetPath, ...args));
   });
+  t.mock.method(fs, 'lstatSync', (targetPath, ...args) =>
+    reuseReleasedInode(lstatSync(targetPath, ...args)));
 
   const comparison = sameLocation(
     path.join(root, 'Future.HTML'),

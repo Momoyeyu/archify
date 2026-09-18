@@ -2489,12 +2489,10 @@ await import(${JSON.stringify(pathToFileURL(cli).href)});
 
 test('cli: delivery staging cleanup retries transient remote ENOTEMPTY', () => {
   const input = path.join(skillRoot, 'examples/agent-tool-call.workflow.json');
-  const out = path.join(tmp, 'delivery-staging-transient-enotempty.html');
-  const observation = path.join(tmp, 'delivery-staging-transient-enotempty.json');
-  const wrapper = path.join(tmp, 'delivery-staging-transient-enotempty.mjs');
-  const quarantineBefore = new Set(
-    fs.readdirSync(path.dirname(out)).filter((entry) => entry.startsWith('.archify-staging-remove-')),
-  );
+  const directory = fs.mkdtempSync(path.join(tmp, 'delivery-staging-transient-enotempty-'));
+  const out = path.join(directory, 'diagram.html');
+  const observation = path.join(directory, 'observation.json');
+  const wrapper = path.join(directory, 'inject-enotempty.mjs');
   fs.writeFileSync(wrapper, `
 import fs from 'node:fs';
 import path from 'node:path';
@@ -2523,17 +2521,17 @@ fs.writeFileSync(${JSON.stringify(observation)}, JSON.stringify({ injected }));
   assert.deepEqual(deliveryStagingEntries(path.dirname(out)), []);
   assert.deepEqual(
     fs.readdirSync(path.dirname(out))
-      .filter((entry) => entry.startsWith('.archify-staging-remove-'))
-      .filter((entry) => !quarantineBefore.has(entry)),
+      .filter((entry) => entry.startsWith('.archify-staging-remove-')),
     [],
   );
 });
 
 test('cli: delivery staging cleanup retries a stale remote directory listing', () => {
   const input = path.join(skillRoot, 'examples/agent-tool-call.workflow.json');
-  const out = path.join(tmp, 'delivery-staging-stale-listing.html');
-  const observation = path.join(tmp, 'delivery-staging-stale-listing.json');
-  const wrapper = path.join(tmp, 'delivery-staging-stale-listing.mjs');
+  const directory = fs.mkdtempSync(path.join(tmp, 'delivery-staging-stale-listing-'));
+  const out = path.join(directory, 'diagram.html');
+  const observation = path.join(directory, 'observation.json');
+  const wrapper = path.join(directory, 'inject-stale-listing.mjs');
   fs.writeFileSync(wrapper, `
 import fs from 'node:fs';
 import path from 'node:path';
@@ -2558,6 +2556,82 @@ fs.writeFileSync(${JSON.stringify(observation)}, JSON.stringify({ injected }));
   assert.equal(JSON.parse(fs.readFileSync(observation, 'utf8')).injected, true);
   assert.doesNotMatch(delivered.stderr, /Warning: could not remove delivery staging directory/);
   assert.deepEqual(deliveryStagingEntries(path.dirname(out)), []);
+});
+
+test('cli: delivery closes every candidate handle before cleaning delete-pending remote entries', () => {
+  const input = path.join(skillRoot, 'examples/agent-tool-call.workflow.json');
+  const directory = fs.mkdtempSync(path.join(tmp, 'delivery-remote-open-handles-'));
+  const out = path.join(directory, 'diagram.html');
+  const observation = path.join(directory, 'observation.json');
+  const wrapper = path.join(directory, 'simulate-delete-pending.mjs');
+  fs.writeFileSync(wrapper, `
+import fs from 'node:fs';
+import path from 'node:path';
+const openSync = fs.openSync.bind(fs);
+const fstatSync = fs.fstatSync.bind(fs);
+const closeSync = fs.closeSync.bind(fs);
+const unlinkSync = fs.unlinkSync.bind(fs);
+const rmdirSync = fs.rmdirSync.bind(fs);
+const handles = new Map();
+const pendingDirectories = new Map();
+const multiplyBoundFiles = new Set();
+const identity = (metadata) => String(metadata.dev) + ':' + String(metadata.ino);
+let blockedRemovals = 0;
+fs.openSync = (file, ...args) => {
+  const descriptor = openSync(file, ...args);
+  const metadata = fstatSync(descriptor, { bigint: true });
+  if (metadata.isFile()) handles.set(descriptor, {
+    identity: identity(metadata), file: path.basename(String(file)),
+  });
+  return descriptor;
+};
+fs.closeSync = (descriptor) => {
+  const result = closeSync(descriptor);
+  handles.delete(descriptor);
+  return result;
+};
+fs.unlinkSync = (file) => {
+  const parent = path.dirname(String(file));
+  if (path.basename(parent).startsWith('.archify-remove-')) {
+    const key = identity(fs.lstatSync(file, { bigint: true }));
+    pendingDirectories.set(parent, key);
+    const owners = [...handles.values()].filter((owner) => owner.identity === key);
+    if (owners.length > 1) owners.forEach((owner) => multiplyBoundFiles.add(owner.file));
+  }
+  return unlinkSync(file);
+};
+fs.rmdirSync = (directory, ...args) => {
+  const key = pendingDirectories.get(String(directory));
+  if (key && [...handles.values()].some((owner) => owner.identity === key)) {
+    blockedRemovals += 1;
+    throw Object.assign(new Error('remote child deletion waits for all open handles'), { code: 'ENOTEMPTY' });
+  }
+  const result = rmdirSync(directory, ...args);
+  pendingDirectories.delete(String(directory));
+  return result;
+};
+process.argv = [process.execPath, ${JSON.stringify(cli)}, 'deliver', 'workflow', ${JSON.stringify(input)}, ${JSON.stringify(out)}, '--json'];
+await import(${JSON.stringify(pathToFileURL(cli).href)});
+fs.writeFileSync(${JSON.stringify(observation)}, JSON.stringify({
+  blockedRemovals,
+  multiplyBoundFiles: [...multiplyBoundFiles],
+  remainingHandles: handles.size,
+  pendingDirectories: [...pendingDirectories.keys()],
+}));
+`);
+
+  const delivered = spawnSync(process.execPath, [wrapper], { cwd: skillRoot, encoding: 'utf8' });
+
+  assert.equal(delivered.status, 0, delivered.stderr || delivered.stdout);
+  assert.equal(JSON.parse(delivered.stdout).ok, true);
+  const observed = JSON.parse(fs.readFileSync(observation, 'utf8'));
+  assert.ok(observed.blockedRemovals > 0, JSON.stringify(observed));
+  assert.ok(observed.multiplyBoundFiles.includes('diagram.html'), JSON.stringify(observed));
+  assert.ok(observed.multiplyBoundFiles.includes('delivery-provenance.json'), JSON.stringify(observed));
+  assert.equal(observed.remainingHandles, 0);
+  assert.deepEqual(observed.pendingDirectories, []);
+  assert.equal(delivered.stderr, '');
+  assert.deepEqual(fs.readdirSync(directory).filter((name) => name.startsWith('.archify-')), []);
 });
 
 test('cli: repeated lock handle identity failures close the descriptor, remove only the owned lock, and permit retry', () => {
