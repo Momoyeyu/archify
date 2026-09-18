@@ -1285,38 +1285,81 @@ test('quarantine removal deletes only the public entry still owned by its bindin
   }
 });
 
-test('quarantine removal retries transient remote ENOTEMPTY after deleting the owned entry', (t) => {
+test('quarantine removal defers remote ENOTEMPTY until its binding handle closes', (t) => {
   const root = workspace(t, 'archify-quarantine-remove-remote-delay-');
   const target = path.join(root, 'public.lock');
   fs.writeFileSync(target, 'owned\n');
   const captured = captureRegularFileBinding(target, { subject: 'test-owned-entry' });
   assert.equal(captured.status, 'captured');
+  const closeSync = fs.closeSync.bind(fs);
   const rmdirSync = fs.rmdirSync.bind(fs);
+  let bindingClosed = false;
   let delayedAttempts = 0;
+  let postCloseDelays = 0;
+  t.mock.method(fs, 'closeSync', (descriptor) => {
+    bindingClosed = true;
+    return closeSync(descriptor);
+  });
   t.mock.method(fs, 'rmdirSync', (directory) => {
-    if (path.basename(String(directory)).startsWith('.archify-remove-')
-      && delayedAttempts < 2) {
-      delayedAttempts += 1;
-      throw Object.assign(new Error('injected remote deletion visibility delay'), {
-        code: 'ENOTEMPTY',
-      });
+    if (path.basename(String(directory)).startsWith('.archify-remove-')) {
+      if (!bindingClosed) delayedAttempts += 1;
+      else if (postCloseDelays < 1) postCloseDelays += 1;
+      else return rmdirSync(directory);
+      throw Object.assign(new Error('injected remote deletion visibility delay'), { code: 'ENOTEMPTY' });
     }
     return rmdirSync(directory);
   });
+  let released = false;
   try {
     const removed = quarantineRemoveRegularFileBinding(captured.binding, target, {
       subject: 'test-owned-entry',
     });
     assert.equal(removed.status, 'removed');
-    assert.equal(delayedAttempts, 2);
+    assert.equal(delayedAttempts, 1);
     assert.equal(fs.existsSync(target), false);
+    assert.equal(
+      fs.readdirSync(root).some((entry) => entry.startsWith('.archify-remove-')),
+      true,
+    );
+    const release = releaseRegularFileBinding(captured.binding);
+    released = true;
+    assert.equal(release.status, 'released');
+    assert.equal(postCloseDelays, 1);
     assert.deepEqual(
       fs.readdirSync(root).filter((entry) => entry.startsWith('.archify-remove-')),
       [],
     );
   } finally {
-    releaseRegularFileBinding(captured.binding);
+    if (!released) releaseRegularFileBinding(captured.binding);
   }
+});
+
+test('deferred quarantine cleanup preserves a real claimant and fails closed', (t) => {
+  const root = workspace(t, 'archify-quarantine-remove-deferred-claimant-');
+  const target = path.join(root, 'public.lock');
+  fs.writeFileSync(target, 'owned\n');
+  const captured = captureRegularFileBinding(target, { subject: 'test-owned-entry' });
+  assert.equal(captured.status, 'captured');
+  const rmdirSync = fs.rmdirSync.bind(fs);
+  let claimant;
+  t.mock.method(fs, 'rmdirSync', (directory) => {
+    if (!claimant && path.basename(String(directory)).startsWith('.archify-remove-')) {
+      claimant = path.join(String(directory), 'claimant');
+      fs.writeFileSync(claimant, 'external claimant\n', { flag: 'wx' });
+    }
+    return rmdirSync(directory);
+  });
+
+  const removed = quarantineRemoveRegularFileBinding(captured.binding, target, {
+    subject: 'test-owned-entry',
+  });
+  assert.equal(removed.status, 'removed');
+  assert.ok(claimant);
+  const release = releaseRegularFileBinding(captured.binding);
+  assert.equal(release.status, 'unknown');
+  assert.equal(release.reason.code, 'removal-quarantine-cleanup-failed');
+  assert.equal(release.reason.systemCode, 'ENOTEMPTY');
+  assert.equal(fs.readFileSync(claimant, 'utf8'), 'external claimant\n');
 });
 
 test('owned-file cleanup preserves a successor swapped at the unlink boundary', (t) => {

@@ -366,6 +366,7 @@ export function captureRegularFileBinding(filePath, {
     filePath: resolvedPath,
     subject,
     expectedLinks,
+    deferredCleanupDirectories: new Set(),
     identity,
     mode,
     sha256: inspected.content.sha256,
@@ -436,7 +437,12 @@ export function releaseRegularFileBinding(binding) {
     captured.subject,
     captured.filePath,
   );
-  return failure || relation('released', `${captured.subject}-binding-released`, {
+  if (failure) return failure;
+  for (const directory of captured.deferredCleanupDirectories) {
+    const cleanup = removeEmptyQuarantine(directory, { retry: true });
+    if (cleanup) return cleanup;
+  }
+  return relation('released', `${captured.subject}-binding-released`, {
     filePath: captured.filePath,
   });
 }
@@ -461,9 +467,10 @@ function createRemovalQuarantine(parentPath) {
   return relation('unknown', 'removal-quarantine-name-exhausted', { parentPath });
 }
 
-function removeEmptyQuarantine(directory) {
+function removeEmptyQuarantine(directory, { retry = false } = {}) {
+  const attempts = retry ? removalCleanupAttempts : 1;
   let failure;
-  for (let attempt = 0; attempt < removalCleanupAttempts; attempt += 1) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
       fs.rmdirSync(directory);
       return null;
@@ -472,7 +479,7 @@ function removeEmptyQuarantine(directory) {
       // SMB can acknowledge unlink before a following directory removal sees
       // the deleted entry disappear. Retrying rmdir is claimant-safe: a real
       // entry keeps the directory non-empty and is never removed recursively.
-      if (error?.code !== 'ENOTEMPTY' || attempt === removalCleanupAttempts - 1) break;
+      if (error?.code !== 'ENOTEMPTY' || attempt === attempts - 1) break;
       Atomics.wait(
         removalCleanupSignal,
         0,
@@ -484,6 +491,15 @@ function removeEmptyQuarantine(directory) {
   return filesystemFailure('removal-quarantine-cleanup-failed', failure, {
     recoveryDirectory: directory,
   });
+}
+
+function deferEmptyQuarantineCleanup(binding, cleanup) {
+  if (cleanup?.reason?.code !== 'removal-quarantine-cleanup-failed'
+    || cleanup.reason.systemCode !== 'ENOTEMPTY') return false;
+  const captured = regularFileBindings.get(binding);
+  if (!captured) return false;
+  captured.deferredCleanupDirectories.add(cleanup.reason.recoveryDirectory);
+  return true;
 }
 
 function removalRecovery(subject, code, filePath, quarantineDirectory, quarantineFile, error) {
@@ -521,6 +537,10 @@ export function quarantineRemoveRegularFileBinding(binding, filePath, {
   if (quarantine.status !== 'created') return quarantine;
   const quarantineFile = path.join(quarantine.directory, path.basename(resolvedPath));
   const removeEmpty = () => removeEmptyQuarantine(quarantine.directory);
+  const removeEmptyAfterFileRemoval = () => {
+    const cleanup = removeEmpty();
+    return cleanup && deferEmptyQuarantineCleanup(binding, cleanup) ? null : cleanup;
+  };
 
   const beforeMove = verifyRegularFileBinding(binding, {
     filePath: resolvedPath,
@@ -557,7 +577,7 @@ export function quarantineRemoveRegularFileBinding(binding, filePath, {
         error,
       );
     }
-    const cleanup = removeEmpty();
+    const cleanup = removeEmptyAfterFileRemoval();
     return cleanup || relation('removed', `${subject}-removed`, { filePath: resolvedPath });
   }
 
@@ -638,7 +658,7 @@ export function quarantineRemoveRegularFileBinding(binding, filePath, {
   try {
     restored = fs.lstatSync(resolvedPath, { bigint: true });
   } catch (error) {
-    const cleanup = removeEmpty();
+    const cleanup = removeEmptyAfterFileRemoval();
     return cleanup || filesystemFailure(
       `${subject}-replacement-final-verification-failed`,
       error,
@@ -647,12 +667,12 @@ export function quarantineRemoveRegularFileBinding(binding, filePath, {
   }
   if (restored.dev !== displaced.dev || restored.ino !== displaced.ino
     || restored.nlink !== displaced.nlink) {
-    const cleanup = removeEmpty();
+    const cleanup = removeEmptyAfterFileRemoval();
     return cleanup || relation('different', `${subject}-replacement-final-identity-changed`, {
       filePath: resolvedPath,
     });
   }
-  const cleanup = removeEmpty();
+  const cleanup = removeEmptyAfterFileRemoval();
   return cleanup || relation('preserved', `${subject}-replacement-restored`, {
     filePath: resolvedPath,
     priorState: moved.reason,
