@@ -21,15 +21,6 @@ function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
 }
 
-// Resolve the directory we will watch to its real on-disk path. On Windows,
-// `path.resolve` keeps 8.3 short names intact, but libuv can abort when the
-// watched short name and the long path reported by ReadDirectoryChangesW do
-// not share the same prefix. The native realpath also resolves junctions, so
-// fs.watch receives the same path form that the operating system reports.
-export function resolveWatchTarget(targetPath) {
-  return fs.realpathSync.native(targetPath);
-}
-
 function sourceDigest(inputPath) {
   try {
     const bytes = fs.readFileSync(inputPath);
@@ -597,7 +588,10 @@ export async function startPreview(options) {
 
   if (options.watch !== false) {
     try {
-      const watchedDirectory = resolveWatchTarget(path.dirname(inputPath));
+      // `path.resolve` keeps Windows 8.3 names intact. Canonicalize short names
+      // and junctions before libuv opens the directory so its callback path has
+      // the same prefix as the watched path.
+      const watchedDirectory = fs.realpathSync.native(path.dirname(inputPath));
       const inputBasename = path.basename(inputPath);
       watcher = fs.watch(watchedDirectory, (event, filename) => {
         // On Windows the watcher hands us just the basename; on POSIX it can be
