@@ -2487,6 +2487,79 @@ await import(${JSON.stringify(pathToFileURL(cli).href)});
   );
 });
 
+test('cli: delivery staging cleanup retries transient remote ENOTEMPTY', () => {
+  const input = path.join(skillRoot, 'examples/agent-tool-call.workflow.json');
+  const out = path.join(tmp, 'delivery-staging-transient-enotempty.html');
+  const observation = path.join(tmp, 'delivery-staging-transient-enotempty.json');
+  const wrapper = path.join(tmp, 'delivery-staging-transient-enotempty.mjs');
+  const quarantineBefore = new Set(
+    fs.readdirSync(path.dirname(out)).filter((entry) => entry.startsWith('.archify-staging-remove-')),
+  );
+  fs.writeFileSync(wrapper, `
+import fs from 'node:fs';
+import path from 'node:path';
+const rmdirSync = fs.rmdirSync.bind(fs);
+let injected = false;
+fs.rmdirSync = (directory, ...args) => {
+  if (!injected
+      && path.basename(path.dirname(String(directory))).startsWith('.archify-staging-remove-')
+      && path.basename(String(directory)).startsWith('.archify-delivery-')) {
+    injected = true;
+    throw Object.assign(new Error('simulated remote deletion visibility delay'), { code: 'ENOTEMPTY' });
+  }
+  return rmdirSync(directory, ...args);
+};
+process.argv = [process.execPath, ${JSON.stringify(cli)}, 'deliver', 'workflow', ${JSON.stringify(input)}, ${JSON.stringify(out)}, '--json'];
+await import(${JSON.stringify(pathToFileURL(cli).href)});
+fs.writeFileSync(${JSON.stringify(observation)}, JSON.stringify({ injected }));
+`);
+
+  const delivered = spawnSync(process.execPath, [wrapper], { cwd: skillRoot, encoding: 'utf8' });
+
+  assert.equal(delivered.status, 0, delivered.stderr || delivered.stdout);
+  assert.equal(JSON.parse(delivered.stdout).ok, true);
+  assert.equal(JSON.parse(fs.readFileSync(observation, 'utf8')).injected, true);
+  assert.doesNotMatch(delivered.stderr, /Warning: could not remove delivery staging directory/);
+  assert.deepEqual(deliveryStagingEntries(path.dirname(out)), []);
+  assert.deepEqual(
+    fs.readdirSync(path.dirname(out))
+      .filter((entry) => entry.startsWith('.archify-staging-remove-'))
+      .filter((entry) => !quarantineBefore.has(entry)),
+    [],
+  );
+});
+
+test('cli: delivery staging cleanup retries a stale remote directory listing', () => {
+  const input = path.join(skillRoot, 'examples/agent-tool-call.workflow.json');
+  const out = path.join(tmp, 'delivery-staging-stale-listing.html');
+  const observation = path.join(tmp, 'delivery-staging-stale-listing.json');
+  const wrapper = path.join(tmp, 'delivery-staging-stale-listing.mjs');
+  fs.writeFileSync(wrapper, `
+import fs from 'node:fs';
+import path from 'node:path';
+const readdirSync = fs.readdirSync.bind(fs);
+let injected = false;
+fs.readdirSync = (directory, ...args) => {
+  if (!injected && path.basename(String(directory)).startsWith('.archify-delivery-')) {
+    injected = true;
+    return ['recently-deleted-entry.tmp'];
+  }
+  return readdirSync(directory, ...args);
+};
+process.argv = [process.execPath, ${JSON.stringify(cli)}, 'deliver', 'workflow', ${JSON.stringify(input)}, ${JSON.stringify(out)}, '--json'];
+await import(${JSON.stringify(pathToFileURL(cli).href)});
+fs.writeFileSync(${JSON.stringify(observation)}, JSON.stringify({ injected }));
+`);
+
+  const delivered = spawnSync(process.execPath, [wrapper], { cwd: skillRoot, encoding: 'utf8' });
+
+  assert.equal(delivered.status, 0, delivered.stderr || delivered.stdout);
+  assert.equal(JSON.parse(delivered.stdout).ok, true);
+  assert.equal(JSON.parse(fs.readFileSync(observation, 'utf8')).injected, true);
+  assert.doesNotMatch(delivered.stderr, /Warning: could not remove delivery staging directory/);
+  assert.deepEqual(deliveryStagingEntries(path.dirname(out)), []);
+});
+
 test('cli: repeated lock handle identity failures close the descriptor, remove only the owned lock, and permit retry', () => {
   const input = path.join(skillRoot, 'examples/agent-tool-call.workflow.json');
   const out = path.join(tmp, 'delivery-lock-first-fstat.html');

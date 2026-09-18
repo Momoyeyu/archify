@@ -65,11 +65,26 @@ function removeChildren(directory) {
   }
 }
 
+const remoteVisibilitySignal = new Int32Array(new SharedArrayBuffer(4));
+
 function assertNoPrivateStaging(directory, prefix) {
+  let remaining = [];
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    remaining = fs.readdirSync(directory).filter((entry) => entry.startsWith(prefix));
+    if (remaining.length === 0) return;
+    if (attempt < 9) {
+      Atomics.wait(
+        remoteVisibilitySignal,
+        0,
+        0,
+        Math.min(5 * (2 ** attempt), 250),
+      );
+    }
+  }
   assert.deepEqual(
-    fs.readdirSync(directory).filter((entry) => entry.startsWith(prefix)),
+    remaining,
     [],
-    `${prefix} staging must be removed from ${directory}`,
+    `${prefix} staging must disappear after bounded remote visibility convergence in ${directory}`,
   );
 }
 

@@ -928,6 +928,33 @@ test('preview: cleanup stays bound to the physical output parent after a directo
   assert.equal(fs.readFileSync(sentinel, 'utf8'), 'preserve claimant');
 });
 
+test('preview: cleanup retries transient remote ENOTEMPTY', { timeout: 10000 }, async (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-preview-cleanup-enotempty-'));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  const input = path.join(skillRoot, 'examples', 'web-app.architecture.json');
+  const output = path.join(tmp, 'diagram.html');
+  const preview = await startPreview({
+    type: 'architecture', input, output, open: false, watch: false, pollMs: 60_000,
+  });
+  const rmdirSync = fs.rmdirSync.bind(fs);
+  let injected = false;
+  t.mock.method(fs, 'rmdirSync', (directory, ...args) => {
+    if (!injected && path.basename(String(directory)).startsWith('.archify-preview-')) {
+      injected = true;
+      throw Object.assign(new Error('simulated remote deletion visibility delay'), { code: 'ENOTEMPTY' });
+    }
+    return rmdirSync(directory, ...args);
+  });
+
+  await preview.stop();
+
+  assert.equal(injected, true);
+  assert.deepEqual(
+    fs.readdirSync(tmp).filter((entry) => entry.startsWith('.archify-preview-')),
+    [],
+  );
+});
+
 test('preview: publishing through a dangling output symlink creates its target without replacing the link', { timeout: 10000 }, async (t) => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-preview-output-dangling-'));
   t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));

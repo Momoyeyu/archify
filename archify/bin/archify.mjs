@@ -877,6 +877,50 @@ function createStagingRetirementQuarantine(parent) {
   return undefined;
 }
 
+const stagingRemovalSignal = new Int32Array(new SharedArrayBuffer(4));
+const stagingRemovalAttempts = 10;
+
+function removeEmptyStagingDirectoryWithRetry(directory) {
+  let failure;
+  for (let attempt = 0; attempt < stagingRemovalAttempts; attempt += 1) {
+    try {
+      fs.rmdirSync(directory);
+      return;
+    } catch (error) {
+      failure = error;
+      // SMB can acknowledge the last file removal before the directory view
+      // catches up. Retrying an empty-directory removal is claimant-safe: any
+      // real entry keeps returning ENOTEMPTY and is never removed recursively.
+      if (error?.code !== 'ENOTEMPTY' || attempt === stagingRemovalAttempts - 1) break;
+      Atomics.wait(
+        stagingRemovalSignal,
+        0,
+        0,
+        Math.min(5 * (2 ** attempt), 250),
+      );
+    }
+  }
+  throw failure;
+}
+
+function stagingDirectoryAppearsEmpty(directory) {
+  for (let attempt = 0; attempt < stagingRemovalAttempts; attempt += 1) {
+    try {
+      if (fs.readdirSync(directory).length === 0) return true;
+    } catch {
+      return false;
+    }
+    if (attempt === stagingRemovalAttempts - 1) break;
+    Atomics.wait(
+      stagingRemovalSignal,
+      0,
+      0,
+      Math.min(5 * (2 ** attempt), 250),
+    );
+  }
+  return false;
+}
+
 function removeOwnedEmptyStagingDirectory(directory, identity, { throwOnFailure = false } = {}) {
   let current;
   try {
@@ -890,11 +934,7 @@ function removeOwnedEmptyStagingDirectory(directory, identity, { throwOnFailure 
     || current.ino === 0n
     || current.dev !== identity.device
     || current.ino !== identity.inode) return false;
-  try {
-    if (fs.readdirSync(directory).length !== 0) return false;
-  } catch {
-    return false;
-  }
+  if (!stagingDirectoryAppearsEmpty(directory)) return false;
   const quarantine = createStagingRetirementQuarantine(path.dirname(directory));
   if (!quarantine) return false;
   const movedPath = path.join(quarantine, path.basename(directory));
@@ -922,8 +962,8 @@ function removeOwnedEmptyStagingDirectory(directory, identity, { throwOnFailure 
   try {
     // The unpredictable 0700 quarantine closes the public replacement race.
     // Never recurse: unexpected contents remain available for recovery.
-    fs.rmdirSync(movedPath);
-    fs.rmdirSync(quarantine);
+    removeEmptyStagingDirectoryWithRetry(movedPath);
+    removeEmptyStagingDirectoryWithRetry(quarantine);
     return true;
   } catch (error) {
     if (throwOnFailure) throw error;

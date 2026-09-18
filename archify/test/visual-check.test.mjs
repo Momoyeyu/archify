@@ -2055,6 +2055,31 @@ test('public visual-check CLI reports a committed cleanup warning', (t) => {
   assert.equal(JSON.parse(fs.readFileSync(outputs.receipt, 'utf8')).status, 'skipped');
 });
 
+test('visual-check retries transient remote ENOTEMPTY during staging cleanup', async (t) => {
+  const input = artifact('transient-staging-enotempty.html');
+  const outputDirectory = path.dirname(input);
+  const rmdirSync = fs.rmdirSync.bind(fs);
+  let injected = false;
+  t.mock.method(fs, 'rmdirSync', (directory, ...args) => {
+    if (!injected && path.basename(String(directory)).startsWith('.archify-visual-check-')) {
+      injected = true;
+      throw Object.assign(new Error('simulated remote deletion visibility delay'), { code: 'ENOTEMPTY' });
+    }
+    return rmdirSync(directory, ...args);
+  });
+
+  const result = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser(),
+  });
+
+  assert.equal(injected, true);
+  assert.equal(result.exitCode, 0);
+  assert.deepEqual(result.receipt.diagnostics, []);
+  assert.deepEqual(stagingDirectories(outputDirectory), []);
+});
+
 test('visual-check rolls back when staged evidence changes after receipt binding', async (t) => {
   const input = artifact('staged-content-changed-after-receipt-binding.html');
   const outputs = sidecarPaths(input);

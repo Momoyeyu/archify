@@ -13,6 +13,7 @@ import {
   captureRegularFileBinding,
   publishRegularFileBinding,
   releaseRegularFileBinding,
+  removeEmptyDirectoryWithRetry,
   removeOwnedRegularFile,
   verifyAtomicOutput,
 } from '../renderers/shared/atomic-output.mjs';
@@ -296,7 +297,7 @@ function cleanupOwnedDirectory(directoryPath, identity) {
     || current.dev !== identity.device
     || current.ino !== identity.inode) return;
   try {
-    fs.rmdirSync(directoryPath);
+    removeEmptyDirectoryWithRetry(directoryPath);
   } catch (error) {
     // An entry whose identity was never bound to this preview may be an
     // external claimant. Preserve the private directory as recovery material

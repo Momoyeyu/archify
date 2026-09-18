@@ -15,6 +15,7 @@ import {
   quarantineRemoveLinkedRegularFileAlias,
   quarantineRemoveRegularFileBinding,
   releaseRegularFileBinding,
+  removeEmptyDirectoryWithRetry,
   verifyAtomicOutput,
   verifyRegularFileBinding,
 } from '../renderers/shared/atomic-output.mjs';
@@ -563,7 +564,7 @@ function cleanupStagedEvidence(ownership, { removeDirectory = false } = {}) {
           reason: 'staging directory identity changed; it was preserved',
         });
       } else {
-        fs.rmdirSync(ownership.stagingDirectory);
+        removeEmptyDirectoryWithRetry(ownership.stagingDirectory);
       }
     } catch (error) {
       if (error?.code !== 'ENOENT') {
