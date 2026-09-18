@@ -528,3 +528,71 @@ test('preview: polling continues after an asynchronous watcher error', { timeout
   assert.equal(closeCount, 1, 'shutdown must not close the failed watcher again');
   await assert.rejects(fetch(preview.url));
 });
+
+test('preview: canonical watch target observes edits through a directory alias', { timeout: 30000 }, async (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-preview-watch-alias-'));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  const realDirectory = path.join(tmp, 'real input directory');
+  const aliasDirectory = path.join(tmp, 'input-alias');
+  fs.mkdirSync(realDirectory);
+  fs.symlinkSync(realDirectory, aliasDirectory, process.platform === 'win32' ? 'junction' : 'dir');
+  const realInput = path.join(realDirectory, 'diagram.architecture.json');
+  const aliasedInput = path.join(aliasDirectory, 'diagram.architecture.json');
+  const output = path.join(tmp, 'diagram.html');
+  const source = JSON.parse(fs.readFileSync(path.join(skillRoot, 'examples/web-app.architecture.json'), 'utf8'));
+  source.meta.title = 'Watched through alias';
+  fs.writeFileSync(realInput, JSON.stringify(source));
+
+  const preview = await startPreview({
+    type: 'architecture',
+    input: aliasedInput,
+    output,
+    open: false,
+    debounceMs: 20,
+    pollMs: 60_000,
+  });
+  try {
+    await waitForState(preview.url, (state) => state.status === 'verified' && state.revision === 1, 'aliased input did not verify');
+    source.meta.title = 'Watcher observed canonical target';
+    fs.writeFileSync(realInput, JSON.stringify(source));
+    await waitForState(preview.url, (state) => state.status === 'verified' && state.revision === 2, 'watcher did not observe the edited canonical target');
+    const artifact = await (await fetch(new URL('/artifact.html', preview.url))).text();
+    assert.match(artifact, /Watcher observed canonical target/);
+  } finally {
+    await preview.stop();
+  }
+  await assert.rejects(fetch(preview.url));
+});
+
+test('preview: native watch-target resolution failure closes startup resources', async (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-preview-watch-cleanup-'));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  const input = path.join(tmp, 'diagram.architecture.json');
+  const output = path.join(tmp, 'diagram.html');
+  fs.copyFileSync(path.join(skillRoot, 'examples/web-app.architecture.json'), input);
+
+  const createServer = http.createServer.bind(http);
+  const realpathNative = fs.realpathSync.native.bind(fs.realpathSync);
+  let server;
+  t.mock.method(http, 'createServer', (...args) => {
+    server = createServer(...args);
+    return server;
+  });
+  t.mock.method(fs.realpathSync, 'native', (...args) => {
+    if (server?.listening) {
+      throw Object.assign(new Error('not a directory'), { code: 'ENOTDIR' });
+    }
+    return realpathNative(...args);
+  });
+
+  await assert.rejects(
+    startPreview({ type: 'architecture', input, output, open: false }),
+    /Could not watch the input directory: not a directory/,
+  );
+  assert.equal(server?.listening, false, 'failed startup left the preview server listening');
+  assert.deepEqual(
+    fs.readdirSync(tmp).filter((name) => name.startsWith('.archify-preview-')),
+    [],
+    'failed startup left its staging directory behind',
+  );
+});

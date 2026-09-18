@@ -7,35 +7,35 @@
   "fps": 10,
   "frameCount": 54,
   "durationSeconds": 5.4,
-  "bytes": 1681740,
-  "sha256": "58a57dc5e1e8fa377d67fd0501ed35b868f22c2778c2563c78fc272f077842cb",
+  "bytes": 1668210,
+  "sha256": "6fa7924a9dd1b3d7a2d32ccb060544fbb61631370e3cb2ee0c8a5f1fc01a1cce",
   "scenes": [
     {
       "id": "signal-flow",
       "artifact": "docs/gallery/artifacts/agent-tool-call.workflow.html",
-      "artifactSha256": "30cfe23afa4bfa18c941e643d9e3a015f77113d706e22fd9fbf3ff3cca15889a",
+      "artifactSha256": "59b0736cf66456cec937ce33cc2d8702fc973459a09bd07bbe7fdadc5ea78ef3",
       "view": "happy-path",
-      "eyebrow": "WORKFLOW \u00b7 SIGNAL FLOW",
+      "eyebrow": "WORKFLOW · SIGNAL FLOW",
       "title": "Agent Tool Call",
-      "receipt": "12 nodes \u00b7 11 edges \u00b7 9/9 checks"
+      "receipt": "12 nodes · 11 edges · 9/9 checks"
     },
     {
       "id": "blueprint",
       "artifact": "docs/gallery/artifacts/production-deployment.architecture.html",
-      "artifactSha256": "2f7ed9009ec158232317646506bc3d018dd70aa9ecd23a4da8914e8fe975b7ef",
+      "artifactSha256": "66156f04b6a048feb0d0d7c63a3dfa3afa8daddff883679a5d0d082e8a0b48ca",
       "view": "request-boundary",
-      "eyebrow": "ARCHITECTURE \u00b7 BLUEPRINT",
+      "eyebrow": "ARCHITECTURE · BLUEPRINT",
       "title": "Production Deployment",
-      "receipt": "12 nodes \u00b7 12 edges \u00b7 9/9 checks"
+      "receipt": "12 nodes · 12 edges · 9/9 checks"
     },
     {
       "id": "classic",
       "artifact": "docs/gallery/artifacts/cache-miss.sequence.html",
-      "artifactSha256": "375b1a0a76688a4a4235f0e4b3c11cf8b22361a20d96fab002a95ee3ec05dd4d",
+      "artifactSha256": "ff09c5d5b7aad90651b27cc7e59d356ff3a3986b2c457224cc5848004f3298fa",
       "view": "cache-fallback",
-      "eyebrow": "SEQUENCE \u00b7 CLASSIC",
+      "eyebrow": "SEQUENCE · CLASSIC",
       "title": "Cache Miss Request",
-      "receipt": "7 participants \u00b7 12 messages \u00b7 9/9 checks"
+      "receipt": "7 participants · 12 messages · 9/9 checks"
     }
   ]
 }

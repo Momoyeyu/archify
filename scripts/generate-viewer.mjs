@@ -7,26 +7,25 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'archify/assets/template.html');
 // Each fragment maps a marker in `viewer/template.source.html` to a file in
-// `viewer/`. `indent` re-prefixes every non-empty source line with N spaces so
+// `viewer/`. The optional indent re-prefixes every non-empty source line so
 // the inlined block sits inside the surrounding `<style>` / `<script>` tags at
-// the same depth the marker occupies. JS fragments use 0 (the marker is at
-// column 0 in `<script>` blocks already); the standalone CSS file is authored
-// at column 0 and needs the same 4-space indent the original CSS had.
+// the same depth the marker occupies. JS fragments need no indent because their
+// markers are already at column 0; the standalone CSS file needs four spaces.
 const fragments = [
-  { marker: '/* ARCHIFY:TOKENS */', file: 'tokens.css', indent: 4 },
-  { marker: '/* ARCHIFY:EXPORT */', file: 'export.js', indent: 0 },
-  { marker: '/* ARCHIFY:READER_LAYOUT */', file: 'reader-layout.js', indent: 0 },
-  { marker: '/* ARCHIFY:CHROME_LAYOUT */', file: 'viewer-chrome-layout.js', indent: 0 },
-  { marker: '/* ARCHIFY:CAMERA */', file: 'viewer-camera.js', indent: 0 },
-  { marker: '/* ARCHIFY:RADAR */', file: 'semantic-radar.js', indent: 0 },
-  { marker: '/* ARCHIFY:MOTION_GOVERNOR */', file: 'motion-governor.js', indent: 0 },
-  { marker: '/* ARCHIFY:NODE_FINDER */', file: 'node-finder.js', indent: 0 },
-  { marker: '/* ARCHIFY:FOCUS */', file: 'focus.js', indent: 0 },
-  { marker: '/* ARCHIFY:INTENT_TRACE */', file: 'intent-trace.js', indent: 0 },
-  { marker: '/* ARCHIFY:SEMANTIC_LENS */', file: 'semantic-lens.js', indent: 0 },
-  { marker: '/* ARCHIFY:ROUTE_PROBE */', file: 'route-probe.js', indent: 0 },
-  { marker: '/* ARCHIFY:GUIDED_VIEWS */', file: 'guided-views.js', indent: 0 },
-  { marker: '/* ARCHIFY:EXPORT_CLEANUP */', file: 'export-cleanup.js', indent: 0 },
+  ['/* ARCHIFY:TOKENS */', 'tokens.css', 4],
+  ['/* ARCHIFY:EXPORT */', 'export.js'],
+  ['/* ARCHIFY:READER_LAYOUT */', 'reader-layout.js'],
+  ['/* ARCHIFY:CHROME_LAYOUT */', 'viewer-chrome-layout.js'],
+  ['/* ARCHIFY:CAMERA */', 'viewer-camera.js'],
+  ['/* ARCHIFY:RADAR */', 'semantic-radar.js'],
+  ['/* ARCHIFY:MOTION_GOVERNOR */', 'motion-governor.js'],
+  ['/* ARCHIFY:NODE_FINDER */', 'node-finder.js'],
+  ['/* ARCHIFY:FOCUS */', 'focus.js'],
+  ['/* ARCHIFY:INTENT_TRACE */', 'intent-trace.js'],
+  ['/* ARCHIFY:SEMANTIC_LENS */', 'semantic-lens.js'],
+  ['/* ARCHIFY:ROUTE_PROBE */', 'route-probe.js'],
+  ['/* ARCHIFY:GUIDED_VIEWS */', 'guided-views.js'],
+  ['/* ARCHIFY:EXPORT_CLEANUP */', 'export-cleanup.js'],
 ];
 const childMarker = '/* ARCHIFY:EXPORT_CLEANUP */';
 const childOwner = 'export.js';
@@ -46,15 +45,14 @@ try {
     throw new Error('Usage: node scripts/generate-viewer.mjs [--check]');
   }
   let generated = fs.readFileSync(path.join(root, 'viewer/template.source.html'), 'utf8');
-  for (const fragment of fragments) {
-    const { marker, file, indent } = fragment;
+  for (const [marker, file, indent = 0] of fragments) {
     const source = fs.readFileSync(path.join(root, 'viewer', file), 'utf8');
     const parts = generated.split(marker);
     if (parts.length !== 2) throw new Error(`Viewer source must contain exactly one ${file} marker.`);
     // Export owns the sole nested fragment; expand it before Cleanup.
     const expectedChild = file === childOwner ? childMarker : null;
     if (!source.trim() || (expectedChild && source.split(expectedChild).length !== 2) ||
-        fragments.some(({ marker: slot }) => source.includes(slot) && slot !== expectedChild)) {
+        fragments.some(([slot]) => source.includes(slot) && slot !== expectedChild)) {
       throw new Error(`${file} source is empty or contains an unresolved marker.`);
     }
     // For indented fragments the marker line in the template ends with `\n`;

@@ -378,8 +378,11 @@
         clone.insertBefore(style, clone.firstChild);
         clone.insertBefore(bgRect, style.nextSibling);
 
+        // The XML declaration pins UTF-8: without it, consumers that guess an
+        // encoding instead of defaulting to UTF-8 mangle non-ASCII text.
         return {
-          svgString: new XMLSerializer().serializeToString(clone),
+          svgString: '<?xml version="1.0" encoding="UTF-8"?>\n' +
+            new XMLSerializer().serializeToString(clone),
           width: vb.width * scale,
           height: vb.height * scale,
           canonicalStateClean: canonicalStateClean,
@@ -463,16 +466,7 @@
       function fitCanvasText(ctx, text, maxWidth, startSize, minSize, weight) {
         var value = String(text || '').trim();
         var size = startSize;
-        // If the embedded JetBrains Mono face has not finished loading (e.g.
-        // the user opens the artifact offline before the data: URLs decode,
-        // or a CSP blocks font decoding), `ctx.measureText` would otherwise
-        // fall back to the browser's default monospace — which produces
-        // measurements that do not match what the SVG renders side by side
-        // and silently overflows labels. Detect that and force the fallback
-        // font that the SVG layer already uses so the two stay in lockstep.
-        var family = fontsLoaded()
-          ? "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
-          : 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+        var family = "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
         while (size > minSize) {
           ctx.font = (weight || '600') + ' ' + size + 'px ' + family;
           if (ctx.measureText(value).width <= maxWidth) return value;
@@ -485,22 +479,6 @@
           value = value.slice(0, -1);
         }
         return value + suffix;
-      }
-
-      // Returns true once every face of the bundled JetBrains Mono family has
-      // actually decoded and is usable for measurement. `document.fonts.check`
-      // is the only reliable way to know this — the @font-face `src` is a
-      // data: URL that never fires a network request, so any earlier check
-      // (e.g. CSS parsing or `document.fonts.ready`) can resolve while the
-      // decoder is still working through the base64 payload.
-      function fontsLoaded() {
-        var fonts = typeof document !== 'undefined' && document.fonts;
-        if (!fonts || typeof fonts.check !== 'function') return true;
-        try {
-          return fonts.check('700 16px "JetBrains Mono"');
-        } catch (_) {
-          return true;
-        }
       }
 
       function canvas2dOrThrow(canvas, label) {

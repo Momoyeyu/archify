@@ -22,24 +22,12 @@ function sha256(value) {
 }
 
 // Resolve the directory we will watch to its real on-disk path. On Windows,
-// `path.resolve` keeps 8.3 short names intact, but libuv rejects them with
-// EINVAL when opening the directory handle. `realpathSync.native` follows
-// junctions and expands short names to their NT form, which is what
-// `fs.watch` (backed by `ReadDirectoryChangesW`) requires. The native
-// variant is identical to `realpathSync` on POSIX, so this is safe on every
-// platform the CLI ships to. If the directory is missing or unreadable we
-// fall back to `path.resolve` so the polling timer (set up below) still
-// detects changes — surfacing a thrown error here would prevent the preview
-// from running at all on a read-only checkout.
+// `path.resolve` keeps 8.3 short names intact, but libuv can abort when the
+// watched short name and the long path reported by ReadDirectoryChangesW do
+// not share the same prefix. The native realpath also resolves junctions, so
+// fs.watch receives the same path form that the operating system reports.
 export function resolveWatchTarget(targetPath) {
-  try {
-    return fs.realpathSync.native(targetPath);
-  } catch (error) {
-    if (error && (error.code === 'ENOENT' || error.code === 'EACCES' || error.code === 'EPERM')) {
-      return path.resolve(targetPath);
-    }
-    throw error;
-  }
+  return fs.realpathSync.native(targetPath);
 }
 
 function sourceDigest(inputPath) {
@@ -608,9 +596,9 @@ export async function startPreview(options) {
   }
 
   if (options.watch !== false) {
-    const watchedDirectory = resolveWatchTarget(path.dirname(inputPath));
-    const inputBasename = path.basename(inputPath);
     try {
+      const watchedDirectory = resolveWatchTarget(path.dirname(inputPath));
+      const inputBasename = path.basename(inputPath);
       watcher = fs.watch(watchedDirectory, (event, filename) => {
         // On Windows the watcher hands us just the basename; on POSIX it can be
         // null. Accept either empty signals or a basename match so editors that

@@ -9,15 +9,18 @@ and legend previews, `route-probe.js` for directed paths and Route Journey,
 `guided-views.js` for authored chapters and Story playback,
 `focus.js` for semantic selection, relationships, reachability and shared flow tokens,
 `export.js` for export menus, serialization, images, cards, clipboard and WebM,
-`export-cleanup.js` for its private SVG clone cleanup, and
-`template.source.html` for the rest of the Viewer.
+`export-cleanup.js` for its private SVG clone cleanup, `tokens.css` for the
+main Viewer stylesheet, and `template.source.html` for the remaining shell.
 `archify/assets/template.html` is the committed
 generated artifact, consumed unchanged by all five renderers and the installed
 Skill. These maintainer sources live outside the packaged `archify/` directory.
 
 From `archify/`, run `npm run generate:viewer` after editing any source.
 `npm run check:viewer` verifies freshness without writing; `npm test` includes
-that check. Assembly inserts each fragment verbatim at its fixed marker.
+that check. Assembly inserts JavaScript fragments verbatim at fixed markers.
+The CSS fragment is authored at column zero and reindented four spaces when it
+is inserted into the shell's `<style>` block; this preserves the delivered
+template bytes while keeping the standalone source easy to edit.
 Reader, Chrome Layout, Camera, Radar, Motion Governor, Finder, Intent Trace, Semantic Lens, Route Probe, Guided Views, Focus and Export
 extractions preserve delivered HTML bytes. Export cleanup adds a
 private function and a call, changing script bytes but preserving cleanup order
