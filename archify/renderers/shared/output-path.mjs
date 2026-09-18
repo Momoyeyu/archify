@@ -1,5 +1,11 @@
 import path from 'node:path';
-import { containedBy, resolvePhysicalLocation, sameLocation } from './path-semantics.mjs';
+import {
+  containedBy,
+  isValidWindowsSmbShareName,
+  isWindowsIpcShare,
+  resolvePhysicalLocation,
+  sameLocation,
+} from './path-semantics.mjs';
 import { PortablePathError, validatePortablePath } from './portable-path.mjs';
 
 export function canonicalFuturePath(targetPath) {
@@ -115,18 +121,24 @@ function windowsExtendedTailComponents(rawOutput, tail) {
 }
 
 function rejectWindowsIpcShare(rawOutput, share) {
-  if (/^(?:pipe|mailslot)$/iu.test(share)) {
+  if (isWindowsIpcShare(share)) {
     throwNativeOutputDiagnostic(rawOutput, 'windows-ipc-namespace', { share });
   }
 }
 
-function validateWindowsNativeComponent(rawOutput, component, componentIndex) {
+function validateWindowsNativeComponent(
+  rawOutput,
+  component,
+  componentIndex,
+  { allowReservedName = false } = {},
+) {
   try {
     // Prefix the component so a colon is classified as an ADS separator,
     // rather than allowing the generic URI detector to claim it first.
     validatePortablePath(`native/${component}`, { profile: 'output' });
   } catch (error) {
     if (!(error instanceof PortablePathError)) throw error;
+    if (allowReservedName && error.reason === 'windows-reserved-name') return;
     // Native Windows arguments may intentionally name an existing 8.3 alias.
     // Portable authored/archive paths reject that ambiguous spelling, while
     // native resolution lets the filesystem prove the existing target.
@@ -153,6 +165,20 @@ function validateWindowsNativeComponent(rawOutput, component, componentIndex) {
   }
 }
 
+function validateWindowsUncRootComponents(rawOutput, server, share) {
+  rejectWindowsIpcShare(rawOutput, share);
+  if (!isValidWindowsSmbShareName(share)) {
+    throwNativeOutputDiagnostic(rawOutput, 'windows-unc-share-name', {
+      share,
+      utf16CodeUnits: share.length,
+      limit: 80,
+    });
+  }
+  // UNC servers and shares are root components, not DOS file names. Keep the
+  // server's ordinary native syntax checks while allowing names such as CON.
+  validateWindowsNativeComponent(rawOutput, server, 0, { allowReservedName: true });
+}
+
 function windowsExtendedPathComponents(rawOutput) {
   // The extended-length namespace deliberately bypasses Win32 normalization.
   // Inspect its original spelling so a dot segment cannot retarget a UNC share.
@@ -175,8 +201,8 @@ function windowsExtendedPathComponents(rawOutput) {
     if (components.length < 2 || components[0].length === 0 || components[1].length === 0) {
       throwNativeOutputDiagnostic(rawOutput, 'windows-extended-root');
     }
-    rejectWindowsIpcShare(rawOutput, components[1]);
-    return windowsExtendedTailComponents(rawOutput, authoredTail);
+    validateWindowsUncRootComponents(rawOutput, components[0], components[1]);
+    return windowsExtendedTailComponents(rawOutput, components.slice(2).join('\\'));
   }
 
   throwNativeOutputDiagnostic(rawOutput, 'windows-extended-root');
@@ -186,9 +212,11 @@ function validateWindowsRawUncRoot(rawOutput) {
   if (!/^[\\/]{2}/u.test(rawOutput) || /^[\\/]{2}[.?][\\/]/u.test(rawOutput)) return;
   // Validate the raw server/share boundary before win32.normalize can collapse
   // an empty share or mix the two UNC separator spellings.
-  if (!/^([\\/])\1[^\\/]+\1[^\\/]+(?:[\\/]|$)/u.test(rawOutput)) {
+  const unc = rawOutput.match(/^([\\/])\1([^\\/]+)\1([^\\/]+)(?:[\\/]|$)/u);
+  if (!unc) {
     throwNativeOutputDiagnostic(rawOutput, 'windows-unc-root');
   }
+  validateWindowsUncRootComponents(rawOutput, unc[2], unc[3]);
 }
 
 function windowsPathComponents(rawOutput, normalized) {
@@ -202,9 +230,6 @@ function windowsPathComponents(rawOutput, normalized) {
   if (normalized.startsWith('\\\\')) {
     const unc = normalized.match(/^\\\\([^\\]+)\\([^\\]+)(?:\\|$)/u);
     if (!unc) throwNativeOutputDiagnostic(rawOutput, 'windows-unc-root');
-    rejectWindowsIpcShare(rawOutput, unc[2]);
-    validateWindowsNativeComponent(rawOutput, unc[1], 0);
-    validateWindowsNativeComponent(rawOutput, unc[2], 1);
     return normalized.slice(unc[0].length).split('\\').filter(Boolean);
   }
   if (authoredUncPrefix) throwNativeOutputDiagnostic(rawOutput, 'windows-unc-root');
@@ -295,7 +320,7 @@ export function resolveNativeOutputDirectory(
   return pathApi.resolve(cwd, rawDirectory);
 }
 
-export function validateAuthoredOutputPath(rawOutput) {
+export function validateAuthoredOutputPath(rawOutput, { cwd = process.cwd() } = {}) {
   try {
     validatePortablePath(rawOutput, { profile: 'output' });
   } catch (error) {
@@ -309,6 +334,23 @@ export function validateAuthoredOutputPath(rawOutput) {
       message: 'meta.output must target an .html file.',
       subject: { output: rawOutput, path: '/meta/output' },
       supportedFixes: ['change meta.output to a portable path ending in .html'],
+    });
+  }
+  const outputPath = path.resolve(cwd, rawOutput);
+  if (path.extname(canonicalFuturePath(outputPath)).toLowerCase() !== '.html') {
+    throw new OutputPathError('meta.output must resolve to an .html file.', {
+      code: 'output/meta-resolved-extension',
+      message: 'meta.output must resolve to an .html file after symbolic links are followed.',
+      subject: { output: rawOutput },
+      supportedFixes: ['remove the symbolic-link alias or point it to an .html target inside the current working directory'],
+    });
+  }
+  if (!pathIsInside(cwd, outputPath)) {
+    throw new OutputPathError('meta.output must stay inside the current working directory.', {
+      code: 'output/meta-outside-cwd',
+      message: 'meta.output must stay inside the current working directory after symbolic links are resolved.',
+      subject: { output: rawOutput, cwd: path.resolve(cwd) },
+      supportedFixes: ['set meta.output to a relative .html path inside the current working directory'],
     });
   }
   return rawOutput;
@@ -339,7 +381,7 @@ export function resolveOutputPath({
   requiredExtension = '.html',
   platform = process.platform,
 }) {
-  if (authoredOutput !== undefined) validateAuthoredOutputPath(authoredOutput);
+  if (authoredOutput !== undefined) validateAuthoredOutputPath(authoredOutput, { cwd });
   const source = requestedOutput !== undefined
     ? 'cli'
     : (authoredOutput !== undefined ? 'meta' : 'default');
@@ -348,23 +390,6 @@ export function resolveOutputPath({
     : (source === 'meta' ? authoredOutput : defaultOutput);
   if (source !== 'meta') validateNativeOutputPath(rawOutput, { platform, kind: 'file' });
   const outputPath = path.resolve(cwd, rawOutput);
-  if (source === 'meta' && path.extname(canonicalFuturePath(outputPath)).toLowerCase() !== '.html') {
-    throw new OutputPathError('meta.output must resolve to an .html file.', {
-      code: 'output/meta-resolved-extension',
-      message: 'meta.output must resolve to an .html file after symbolic links are followed.',
-      subject: { output: rawOutput },
-      supportedFixes: ['remove the symbolic-link alias or point it to an .html target inside the current working directory'],
-    });
-  }
-  if (source === 'meta' && !pathIsInside(cwd, outputPath)) {
-    throw new OutputPathError('meta.output must stay inside the current working directory.', {
-      code: 'output/meta-outside-cwd',
-      message: 'meta.output must stay inside the current working directory after symbolic links are resolved.',
-      subject: { output: rawOutput, cwd: path.resolve(cwd) },
-      supportedFixes: ['set meta.output to a relative .html path inside the current working directory'],
-    });
-  }
-
   for (const inputPath of inputPaths) {
     if (!pathsAlias(outputPath, inputPath)) continue;
     throw new OutputPathError(`Output must not replace ${inputDescription}.`, {

@@ -13,10 +13,10 @@ import {
 import {
   captureAtomicOutput,
   captureRegularFileBinding,
+  publishRegularFileBinding,
   releaseRegularFileBinding,
   removeOwnedRegularFile,
   verifyAtomicOutput,
-  verifyRegularFileBinding,
 } from './atomic-output.mjs';
 import { prepareDiagramBrandMarks } from './brand-marks.mjs';
 import { resolveLocale, translateMessage } from './i18n.mjs';
@@ -62,9 +62,6 @@ export function loadDiagram({ rendererDir, diagramType, defaultExample, argv = p
   const authoredOutput = diagram?.meta?.output;
   if (authoredOutput !== undefined) validateAuthoredOutputPath(authoredOutput);
   validateSchema(diagramType, diagram);
-  if (authoredOutput === undefined && process.env.ARCHIFY_REQUIRE_META_OUTPUT === '1') {
-    validateAuthoredOutputPath(authoredOutput);
-  }
   validateGuidedViews(diagramType, diagram);
   validateRelationshipIds(diagramType, diagram);
   validateEngineeringProfile(diagramType, diagram);
@@ -259,12 +256,18 @@ export function writeDiagram({ outPath, template, diagramType, meta, svg, cards,
     candidateBinding = candidateCapture.binding;
     const beforeCommit = verifyAtomicOutput(outputCapture.snapshot);
     if (beforeCommit.status !== 'match') throwAtomicOutputFailure(beforeCommit, outPath);
-    const verifiedCandidate = verifyRegularFileBinding(candidateBinding);
-    if (verifiedCandidate.status !== 'match') throwAtomicOutputFailure(verifiedCandidate, outPath);
+    const publication = publishRegularFileBinding(
+      candidateBinding,
+      candidatePath,
+      outputCapture.snapshot,
+      { subject: 'candidate' },
+    );
+    if (!['committed', 'committed-with-warning'].includes(publication.status)) {
+      throwAtomicOutputFailure(publication, outPath);
+    }
     const releasedCandidate = releaseRegularFileBinding(candidateBinding);
     candidateBinding = undefined;
     if (releasedCandidate.status !== 'released') throwAtomicOutputFailure(releasedCandidate, outPath);
-    fs.renameSync(candidatePath, outputCapture.commitPath);
     candidatePath = undefined;
     candidateIdentity = undefined;
   } catch (error) {

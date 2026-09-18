@@ -6,8 +6,10 @@ import { createHash, randomBytes } from 'node:crypto';
 import { constants as zlibConstants, deflateRawSync } from 'node:zlib';
 
 import {
+  backupPublicRegularFileBinding,
   captureAtomicOutput,
   captureRegularFileBinding,
+  quarantineRemoveRegularFileBinding,
   releaseRegularFileBinding,
   removeOwnedRegularFile,
   verifyAtomicOutput,
@@ -255,13 +257,62 @@ end.writeUInt16LE(0, 20);
 
 const archive = Buffer.concat([...localParts, ...centralParts, end]);
 const archiveSha256 = createHash('sha256').update(archive).digest('hex');
+const outputNamespace = createHash('sha256')
+  .update(path.basename(outputCapture.commitPath))
+  .digest('hex')
+  .slice(0, 16);
 const temporary = path.join(
   path.dirname(outputCapture.commitPath),
-  `.${path.basename(outputCapture.commitPath)}.${randomBytes(16).toString('hex')}.tmp`,
+  `.archify-zip-${outputNamespace}-${randomBytes(16).toString('hex')}.tmp`,
+);
+const previousOutput = path.join(
+  path.dirname(outputCapture.commitPath),
+  `.archify-zip-backup-${outputNamespace}-${randomBytes(16).toString('hex')}.tmp`,
 );
 let descriptor;
 let candidateIdentity;
 let candidateBinding;
+let previousBinding;
+let candidatePresent = false;
+let targetCommitted = false;
+let backupPresent = false;
+let publicationFailure;
+
+function archivePublicationError(message, result, filePath = output) {
+  const reason = result?.reason || result || {};
+  return new Error(
+    `${message} (${reason.code || 'verification-failed'}): ${filePath}`,
+    { cause: reason },
+  );
+}
+
+function removeBoundArchiveCandidate(expectedLinks) {
+  const removed = quarantineRemoveRegularFileBinding(
+    candidateBinding,
+    temporary,
+    { subject: 'archive-candidate', expectedLinks },
+  );
+  if (removed.status === 'removed' || removed.status === 'preserved') return removed;
+
+  // If the owned inode was modified in place, bind its current state before
+  // quarantine removal. An entry replaced by another inode is never claimed.
+  const rebound = captureRegularFileBinding(temporary, {
+    subject: 'mutated-archive-candidate',
+    expectedIdentity: candidateIdentity,
+    expectedLinks,
+  });
+  if (rebound.status !== 'captured') return removed;
+  try {
+    return quarantineRemoveRegularFileBinding(
+      rebound.binding,
+      temporary,
+      { subject: 'mutated-archive-candidate', expectedLinks },
+    );
+  } finally {
+    releaseRegularFileBinding(rebound.binding);
+  }
+}
+
 try {
   const noFollow = process.platform === 'win32' ? 0 : (fs.constants.O_NOFOLLOW || 0);
   descriptor = fs.openSync(
@@ -288,6 +339,7 @@ try {
     device: candidateMetadata.dev,
     inode: candidateMetadata.ino,
   };
+  candidatePresent = true;
   fs.writeFileSync(descriptor, archive);
   if (outputCapture.mode !== null) fs.fchmodSync(descriptor, outputCapture.mode);
   fs.fsyncSync(descriptor);
@@ -308,9 +360,7 @@ try {
   candidateBinding = candidate.binding;
   const verifiedOutput = verifyAtomicOutput(outputCapture.snapshot);
   if (verifiedOutput.status !== 'match') {
-    throw new Error(
-      `archive output changed before publication (${verifiedOutput.reason?.code || 'verification-failed'}): ${output}`,
-    );
+    throw archivePublicationError('archive output changed before publication', verifiedOutput);
   }
   const verifiedCandidate = verifyRegularFileBinding(candidateBinding);
   if (verifiedCandidate.status !== 'match') {
@@ -318,27 +368,164 @@ try {
       `archive candidate changed before publication (${verifiedCandidate.reason?.code || 'verification-failed'}): ${temporary}`,
     );
   }
-  const releasedCandidate = releaseRegularFileBinding(candidateBinding);
-  candidateBinding = undefined;
-  if (releasedCandidate.status !== 'released') {
-    throw new Error(
-      `archive candidate handle could not be released (${releasedCandidate.reason?.code || 'release-failed'}): ${temporary}`,
+  if (outputCapture.snapshot.target.kind === 'file') {
+    const expected = outputCapture.snapshot.target;
+    const previous = captureRegularFileBinding(outputCapture.commitPath, {
+      subject: 'previous-archive-output',
+      expectedIdentity: { device: expected.device, inode: expected.inode },
+      expectedMode: expected.mode,
+      expectedLinks: 1,
+    });
+    if (previous.status !== 'captured') {
+      throw archivePublicationError('previous archive output cannot be bound safely', previous);
+    }
+    previousBinding = previous.binding;
+    const backup = backupPublicRegularFileBinding(
+      previousBinding,
+      outputCapture.commitPath,
+      previousOutput,
+      { subject: 'previous-archive-output' },
+    );
+    backupPresent = backup.backupCreated === true;
+    if (backup.status !== 'backed-up') {
+      throw archivePublicationError('previous archive output cannot be backed up safely', backup);
+    }
+  }
+
+  const ready = verifyRegularFileBinding(candidateBinding, {
+    filePath: temporary,
+    expectedLinks: 1,
+  });
+  if (ready.status !== 'match') {
+    throw archivePublicationError('archive candidate changed before commit', ready, temporary);
+  }
+  try {
+    // linkSync is a no-clobber commit: a writer that claims the public name
+    // after preflight is preserved. The candidate descriptor stays open and
+    // identity-bound until the linked public inode has been verified.
+    fs.linkSync(temporary, outputCapture.commitPath);
+  } catch (error) {
+    throw archivePublicationError('archive output cannot be committed safely', {
+      code: error?.code === 'EEXIST'
+        ? 'archive-output-claimed-during-publish'
+        : 'archive-output-publish-failed',
+      systemCode: error?.code,
+    });
+  }
+  targetCommitted = true;
+  const linked = verifyRegularFileBinding(candidateBinding, {
+    filePath: outputCapture.commitPath,
+    expectedLinks: 2,
+  });
+  if (linked.status !== 'match') {
+    throw archivePublicationError('published archive identity cannot be verified', linked);
+  }
+
+  const removedCandidate = removeBoundArchiveCandidate(2);
+  if (removedCandidate.status !== 'removed') {
+    throw archivePublicationError('archive candidate cannot be finalized safely', removedCandidate, temporary);
+  }
+  candidatePresent = false;
+  const finalized = verifyRegularFileBinding(candidateBinding, {
+    filePath: outputCapture.commitPath,
+    expectedLinks: 1,
+  });
+  if (finalized.status !== 'match') {
+    throw archivePublicationError('published archive changed during finalization', finalized);
+  }
+
+  if (backupPresent) {
+    const removedBackup = quarantineRemoveRegularFileBinding(
+      previousBinding,
+      previousOutput,
+      { subject: 'previous-archive-output', expectedLinks: 1 },
+    );
+    if (removedBackup.status !== 'removed') {
+      throw archivePublicationError('previous archive backup cannot be finalized safely', removedBackup, previousOutput);
+    }
+    backupPresent = false;
+  }
+  candidateIdentity = undefined;
+} catch (error) {
+  publicationFailure = error;
+  const rollbackErrors = [];
+  if (targetCommitted && candidateBinding) {
+    const removed = quarantineRemoveRegularFileBinding(
+      candidateBinding,
+      outputCapture.commitPath,
+      { subject: 'published-archive-output', expectedLinks: candidatePresent ? 2 : 1 },
+    );
+    if (removed.status === 'removed') {
+      targetCommitted = false;
+    } else {
+      rollbackErrors.push(`published archive removal failed (${removed.reason?.code || removed.status})`);
+    }
+  }
+  if (backupPresent && previousBinding && !targetCommitted) {
+    const backup = verifyRegularFileBinding(previousBinding, {
+      filePath: previousOutput,
+      expectedLinks: 1,
+    });
+    if (backup.status !== 'match') {
+      rollbackErrors.push(`previous archive backup changed (${backup.reason?.code || backup.status})`);
+    } else {
+      try {
+        fs.linkSync(previousOutput, outputCapture.commitPath);
+        const restored = verifyRegularFileBinding(previousBinding, {
+          filePath: outputCapture.commitPath,
+          expectedLinks: 2,
+        });
+        if (restored.status !== 'match') {
+          rollbackErrors.push(`previous archive restore changed (${restored.reason?.code || restored.status})`);
+        } else {
+          const removedBackup = quarantineRemoveRegularFileBinding(
+            previousBinding,
+            previousOutput,
+            { subject: 'previous-archive-output', expectedLinks: 2 },
+          );
+          if (removedBackup.status === 'removed') {
+            backupPresent = false;
+          } else {
+            rollbackErrors.push(`previous archive backup cleanup failed (${removedBackup.reason?.code || removedBackup.status})`);
+          }
+        }
+      } catch (restoreError) {
+        rollbackErrors.push(`previous archive restore failed (${restoreError.code || restoreError.message})`);
+      }
+    }
+  }
+  if (rollbackErrors.length) {
+    throw new AggregateError(
+      [error],
+      `Archive publication requires recovery: ${rollbackErrors.join('; ')}`,
     );
   }
-  fs.renameSync(temporary, outputCapture.commitPath);
-  candidateIdentity = undefined;
+  throw error;
 } finally {
   if (descriptor !== undefined) fs.closeSync(descriptor);
-  if (candidateBinding) releaseRegularFileBinding(candidateBinding);
-  if (candidateIdentity) {
+  if (candidateBinding && candidatePresent) {
+    const cleanup = removeBoundArchiveCandidate(targetCommitted ? 2 : 1);
+    if (!publicationFailure && !['removed', 'preserved'].includes(cleanup.status)) {
+      publicationFailure = archivePublicationError(
+        'archive candidate could not be cleaned safely',
+        cleanup,
+        temporary,
+      );
+    }
+  } else if (candidateIdentity) {
     const cleanup = removeOwnedRegularFile(temporary, candidateIdentity, {
       subject: 'archive-candidate',
     });
-    if (!['removed', 'absent', 'preserved'].includes(cleanup.status)) {
-      throw new Error(
-        `archive candidate could not be cleaned safely (${cleanup.reason?.code || 'cleanup-failed'}): ${temporary}`,
+    if (!publicationFailure && !['removed', 'absent', 'preserved'].includes(cleanup.status)) {
+      publicationFailure = archivePublicationError(
+        'archive candidate could not be cleaned safely',
+        cleanup,
+        temporary,
       );
     }
   }
+  if (candidateBinding) releaseRegularFileBinding(candidateBinding);
+  if (previousBinding) releaseRegularFileBinding(previousBinding);
 }
+if (publicationFailure) throw publicationFailure;
 console.log(`built ${output} (${entryCount} files)`);

@@ -371,6 +371,54 @@ test('visual-check preserves a regular screenshot claimant swapped before regist
   assert.equal(fs.existsSync(outputs.receipt), false);
 });
 
+test('visual-check cleanup preserves a successor swapped at its final removal boundary', async (t) => {
+  const input = artifact('staged-cleanup-successor.html');
+  const outputs = sidecarPaths(input);
+  const detached = path.join(tmp, 'detached-owned-artifact-snapshot.html');
+  const successor = Buffer.from('external artifact snapshot cleanup successor\n');
+  const unlinkSync = fs.unlinkSync.bind(fs);
+  const renameSync = fs.renameSync.bind(fs);
+  let stagedPath;
+  let injected = false;
+  const inject = (source) => {
+    injected = true;
+    stagedPath = String(source);
+    renameSync(stagedPath, detached);
+    fs.writeFileSync(stagedPath, successor, { flag: 'wx' });
+  };
+  t.mock.method(fs, 'unlinkSync', (file) => {
+    if (!injected && path.basename(String(file)) === 'artifact-snapshot.html') inject(file);
+    return unlinkSync(file);
+  });
+  t.mock.method(fs, 'renameSync', (source, destination) => {
+    if (!injected
+      && path.basename(String(source)) === 'artifact-snapshot.html'
+      && path.basename(path.dirname(String(destination))).startsWith('.archify-remove-')) {
+      inject(source);
+    }
+    return renameSync(source, destination);
+  });
+  t.after(() => {
+    fs.rmSync(detached, { force: true });
+    for (const directory of stagingDirectories(path.dirname(outputs.receipt))) {
+      fs.rmSync(path.join(path.dirname(outputs.receipt), directory), { recursive: true, force: true });
+    }
+  });
+
+  const result = await runVisualCheck({
+    artifactPath: input,
+    verifyArtifact() {
+      throw new Error('synthetic failure after private snapshot staging');
+    },
+  });
+
+  assert.equal(result.exitCode, 1);
+  assert.equal(injected, true);
+  assert.equal(fs.existsSync(stagedPath), true);
+  assert.deepEqual(fs.readFileSync(stagedPath), successor);
+  assert.equal(fs.existsSync(detached), true);
+});
+
 test('sidecarPaths places outputs in outDir instead of beside the artifact', () => {
   const input = artifact('outdir-source.html');
   const separateDir = path.join(tmp, 'evidence-nested', 'deeper');
@@ -387,6 +435,107 @@ test('sidecarPaths places outputs in outDir instead of beside the artifact', () 
   // Omitting outDir keeps evidence beside the physical artifact.
   const defaultOutputs = sidecarPaths(input);
   assert.equal(path.dirname(defaultOutputs.receipt), path.dirname(fs.realpathSync.native(input)));
+});
+
+test('sidecarPaths keeps source-distinct case and Unicode names distinct under target semantics', (t) => {
+  const sourceDir = path.join(tmp, 'semantic-source-directory');
+  const outDir = path.join(tmp, 'semantic-target-directory');
+  fs.mkdirSync(sourceDir, { recursive: true });
+  fs.mkdirSync(outDir, { recursive: true });
+  const artifactNames = ['Report.html', 'report.html', 'Caf\u00e9.html', 'Cafe\u0301.html'];
+  const artifacts = artifactNames.map((name) => path.join(sourceDir, name));
+
+  const targetSemanticKey = (name) => name
+    .normalize('NFC')
+    .toLocaleUpperCase('en-US')
+    .toLocaleLowerCase('en-US')
+    .normalize('NFC');
+  const simulatedEntries = new Map();
+  const originalOpen = fs.openSync;
+  const originalStat = fs.statSync;
+  const originalRealpath = fs.realpathSync.native;
+  const sourcePhysical = originalRealpath(sourceDir);
+  const outPhysical = originalRealpath(outDir);
+  const sourceProbes = new Set();
+  fs.openSync = function simulateTargetSemantics(file, ...args) {
+    const descriptor = originalOpen.call(this, file, ...args);
+    if (path.basename(String(file)).startsWith('.archify-path-semantics-')) {
+      if (path.dirname(String(file)) === outPhysical) {
+        simulatedEntries.set(targetSemanticKey(path.basename(String(file))), String(file));
+      } else if (path.dirname(String(file)) === sourcePhysical) {
+        sourceProbes.add(String(file));
+      }
+    }
+    return descriptor;
+  };
+  fs.statSync = function resolveSimulatedAlias(file, ...args) {
+    if (path.dirname(String(file)) === sourcePhysical
+      && path.basename(String(file)).startsWith('.archify-path-semantics-')
+      && !sourceProbes.has(String(file))) {
+      const error = new Error('simulated case- and normalization-sensitive lookup');
+      error.code = 'ENOENT';
+      throw error;
+    }
+    const alias = path.dirname(String(file)) === outPhysical
+      ? simulatedEntries.get(targetSemanticKey(path.basename(String(file))))
+      : undefined;
+    return originalStat.call(this, alias || file, ...args);
+  };
+  fs.realpathSync.native = function resolveSimulatedAlias(file, ...args) {
+    if (path.dirname(String(file)) === sourceDir
+      && !path.basename(String(file)).startsWith('.archify-path-semantics-')) {
+      return path.join(sourcePhysical, path.basename(String(file)));
+    }
+    const alias = path.dirname(String(file)) === outPhysical
+      ? simulatedEntries.get(targetSemanticKey(path.basename(String(file))))
+      : undefined;
+    return originalRealpath.call(this, alias || file, ...args);
+  };
+  t.after(() => {
+    fs.openSync = originalOpen;
+    fs.statSync = originalStat;
+    fs.realpathSync.native = originalRealpath;
+  });
+
+  const calculateOutputs = () => artifacts.map((file) => {
+    fs.writeFileSync(file, '<!doctype html>', { flag: 'wx' });
+    try {
+      return sidecarPaths(file, { outDir });
+    } finally {
+      fs.unlinkSync(file);
+    }
+  });
+  const outputs = calculateOutputs();
+  const outputNames = outputs.map(({ receipt }) => path.basename(receipt));
+  assert.notEqual(
+    targetSemanticKey(outputNames[0]),
+    targetSemanticKey(outputNames[1]),
+    `case-distinct source artifacts must not claim one case-insensitive target name: ${outputNames.join(', ')}`,
+  );
+  assert.notEqual(
+    targetSemanticKey(outputNames[2]),
+    targetSemanticKey(outputNames[3]),
+    'normalization-distinct source artifacts must not claim one normalization-insensitive target name',
+  );
+  assert.deepEqual(
+    calculateOutputs().map(({ receipt }) => receipt),
+    outputs.map(({ receipt }) => receipt),
+    'the namespace must be deterministic',
+  );
+  const futureOutDir = path.join(tmp, 'future-semantic-target-directory');
+  fs.writeFileSync(artifacts[0], '<!doctype html>', { flag: 'wx' });
+  try {
+    const beforeCreation = sidecarPaths(artifacts[0], { outDir: futureOutDir });
+    fs.mkdirSync(futureOutDir);
+    const afterCreation = sidecarPaths(artifacts[0], { outDir: futureOutDir });
+    assert.deepEqual(afterCreation, beforeCreation, 'creating --out-dir must not rename its sidecars');
+  } finally {
+    fs.unlinkSync(artifacts[0]);
+  }
+  for (const [{ receipt }, file] of outputs.map((entry, index) => [entry, artifacts[index]])) {
+    assert.match(path.basename(receipt), new RegExp(`^${path.basename(file, '.html')}.*\\.visual-check\\.json$`, 'u'));
+    assert.ok(Buffer.byteLength(path.basename(receipt), 'utf8') <= 255);
+  }
 });
 
 test('visual-check writes all sidecars into --out-dir end-to-end, none beside the artifact', async () => {
@@ -1364,6 +1513,64 @@ for (const candidate of [
   });
 }
 
+test('visual-check keeps staged evidence identity-bound across public link creation', async (t) => {
+  const input = artifact('staged-publication-binding.html');
+  const outputs = sidecarPaths(input);
+  const first = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser(),
+  });
+  assert.equal(first.exitCode, 0);
+  const targets = [
+    outputs.receipt,
+    outputs.contactSheet,
+    ...outputs.screenshots.map((entry) => entry.path),
+  ];
+  const before = new Map(targets.map((target) => [target, fs.readFileSync(target)]));
+  const stagingBefore = new Set(stagingDirectories(path.dirname(outputs.receipt)));
+  const detached = path.join(tmp, 'detached-bound-contact-sheet.html');
+  const claimant = Buffer.from('external staged contact-sheet claimant\n');
+  const linkSync = fs.linkSync.bind(fs);
+  let stagedClaimant;
+  let injected = false;
+  t.mock.method(fs, 'linkSync', (source, target) => {
+    const sourcePath = String(source);
+    const targetPath = String(target);
+    if (!injected
+      && path.basename(sourcePath) === 'contact-sheet.html'
+      && path.basename(path.dirname(sourcePath)).startsWith('.archify-visual-check-')
+      && path.resolve(targetPath) === path.resolve(outputs.contactSheet)) {
+      injected = true;
+      stagedClaimant = sourcePath;
+      fs.renameSync(sourcePath, detached);
+      fs.writeFileSync(sourcePath, claimant, { flag: 'wx' });
+    }
+    return linkSync(sourcePath, targetPath);
+  });
+  t.after(() => {
+    fs.rmSync(detached, { force: true });
+    for (const directory of stagingDirectories(path.dirname(outputs.receipt))) {
+      if (!stagingBefore.has(directory)) {
+        fs.rmSync(path.join(path.dirname(outputs.receipt), directory), { recursive: true, force: true });
+      }
+    }
+  });
+
+  const result = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser(),
+  });
+
+  assert.equal(injected, true);
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.receipt.diagnostics.at(-1)?.code, 'viewer/evidence-path-conflict');
+  for (const target of targets) assert.deepEqual(fs.readFileSync(target), before.get(target), target);
+  assert.deepEqual(fs.readFileSync(stagedClaimant), claimant);
+  assert.equal(fs.existsSync(detached), true);
+});
+
 for (const scenario of [
   {
     name: 'contact sheet',
@@ -1713,7 +1920,7 @@ for (const scenario of [
         const candidate = String(file);
         if (!injected
           && path.basename(candidate) === 'previous-1'
-          && path.basename(path.dirname(candidate)).startsWith('.archify-visual-check-')) {
+          && path.basename(path.dirname(candidate)).startsWith('.archify-remove-')) {
           injected = true;
           retainedPath = candidate;
           const error = new Error('synthetic backup unlink failure');
@@ -1753,16 +1960,19 @@ for (const scenario of [
     assert.equal(result.receipt.ok, false);
     assert.equal(result.receipt.status, 'fail');
     assert.equal(result.receipt.publication?.status, 'committed-with-warning');
-    assert.equal(result.receipt.publication?.recoveryDirectory, path.dirname(retainedPath));
+    const expectedRecovery = scenario.fault === 'unlink'
+      ? path.dirname(path.dirname(retainedPath))
+      : path.dirname(retainedPath);
+    assert.equal(result.receipt.publication?.recoveryDirectory, expectedRecovery);
     assert.ok(result.receipt.publication?.cleanupErrors?.length > 0);
     assert.match(result.receipt.error, /cleanup is incomplete/i);
-    assert.ok(result.receipt.error.includes(path.dirname(retainedPath)));
+    assert.ok(result.receipt.error.includes(expectedRecovery));
     const cleanupDiagnostic = result.receipt.diagnostics.at(-1);
     assert.equal(cleanupDiagnostic?.code, 'viewer/evidence-cleanup-incomplete');
     assert.equal(cleanupDiagnostic?.severity, 'warning');
     assert.equal(
       cleanupDiagnostic?.evidence?.recoveryDirectory,
-      path.dirname(retainedPath),
+      expectedRecovery,
     );
     assert.equal(fs.existsSync(retainedPath), true);
     assert.deepEqual(
@@ -1802,7 +2012,7 @@ test('public visual-check CLI reports a committed cleanup warning', (t) => {
       const candidate = String(file);
       if (!injected
         && path.basename(candidate) === 'previous-0'
-        && path.basename(path.dirname(candidate)).startsWith('.archify-visual-check-')) {
+        && path.basename(path.dirname(candidate)).startsWith('.archify-remove-')) {
         injected = true;
         const error = new Error('synthetic public CLI backup unlink failure');
         error.code = 'EACCES';
@@ -1837,7 +2047,10 @@ test('public visual-check CLI reports a committed cleanup warning', (t) => {
   assert.equal(receipt.diagnostics.at(-1)?.severity, 'warning');
   const recoveryDirectory = receipt.publication?.recoveryDirectory;
   assert.equal(typeof recoveryDirectory, 'string');
-  const retained = path.join(recoveryDirectory, 'previous-0');
+  const quarantine = fs.readdirSync(recoveryDirectory)
+    .find((entry) => entry.startsWith('.archify-remove-'));
+  assert.equal(typeof quarantine, 'string');
+  const retained = path.join(recoveryDirectory, quarantine, 'previous-0');
   assert.deepEqual(fs.readFileSync(retained), oldReceipt);
   assert.equal(JSON.parse(fs.readFileSync(outputs.receipt, 'utf8')).status, 'skipped');
 });

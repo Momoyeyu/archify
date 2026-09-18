@@ -1054,8 +1054,12 @@ import path from 'node:path';
 const unlinkSync = fs.unlinkSync;
 fs.unlinkSync = (target, ...args) => {
   const result = unlinkSync(target, ...args);
+  const parent = path.dirname(String(target));
+  const retirementDirectory = path.basename(parent).startsWith('.archify-provenance-')
+    || (path.basename(parent).startsWith('.archify-remove-')
+      && path.basename(path.dirname(parent)).startsWith('.archify-provenance-'));
   if (path.basename(String(target)) === ${JSON.stringify(path.basename(pendingPath))}
-      && path.basename(path.dirname(String(target))).startsWith('.archify-provenance-')) {
+      && retirementDirectory) {
     process.exit(86);
   }
   return result;
@@ -1614,6 +1618,72 @@ await import(${JSON.stringify(pathToFileURL(cli).href)});
       .sort(),
     priorJournalStaging,
   );
+});
+
+test('cli: portable delivery lock: journal candidate retirement preserves a replacement claimant', () => {
+  const input = path.join(skillRoot, 'examples/agent-tool-call.workflow.json');
+  const out = path.join(tmp, 'journal-candidate-retirement-claimant.html');
+  assert.equal(run(['deliver', 'workflow', input, out, '--json']).status, 0);
+  const pendingPath = deliveryPendingPath(out);
+  const candidateName = path.basename(pendingPath);
+  const claimant = '{"claimant":"journal candidate retirement"}\n';
+  const claimantIdentityFile = path.join(tmp, 'journal-candidate-retirement-identity.json');
+  const displacedCandidate = path.join(tmp, 'journal-candidate-retirement-displaced');
+  const priorStaging = fs.readdirSync(path.dirname(out))
+    .filter((name) => name.startsWith('.archify-provenance-'))
+    .sort();
+  const wrapper = path.join(tmp, 'replace-journal-candidate-at-retirement.mjs');
+  fs.writeFileSync(wrapper, `
+import fs from 'node:fs';
+import path from 'node:path';
+const unlinkSync = fs.unlinkSync;
+const renameSync = fs.renameSync;
+const writeFileSync = fs.writeFileSync;
+let replaced = false;
+const isCandidate = (file) => (
+  path.basename(String(file)) === ${JSON.stringify(candidateName)}
+  && path.basename(path.dirname(String(file))).startsWith('.archify-provenance-')
+);
+const replaceCandidate = (file) => {
+  replaced = true;
+  renameSync(file, ${JSON.stringify(displacedCandidate)});
+  writeFileSync(file, ${JSON.stringify(claimant)}, { flag: 'wx' });
+  const stat = fs.lstatSync(file, { bigint: true });
+  writeFileSync(${JSON.stringify(claimantIdentityFile)}, JSON.stringify({
+    dev: String(stat.dev),
+    ino: String(stat.ino),
+  }));
+};
+fs.unlinkSync = (file, ...args) => {
+  if (!replaced && isCandidate(file)) replaceCandidate(file);
+  return unlinkSync(file, ...args);
+};
+fs.renameSync = (source, target, ...args) => {
+  if (!replaced
+      && isCandidate(source)
+      && path.basename(path.dirname(String(target))).startsWith('.archify-remove-')) {
+    replaceCandidate(source);
+  }
+  return renameSync(source, target, ...args);
+};
+process.argv = [process.execPath, ${JSON.stringify(cli)}, 'deliver', 'workflow', ${JSON.stringify(input)}, ${JSON.stringify(out)}, '--json'];
+await import(${JSON.stringify(pathToFileURL(cli).href)});
+`);
+
+  const failed = spawnSync(process.execPath, [wrapper], { cwd: skillRoot, encoding: 'utf8' });
+  assert.equal(failed.status, 1, failed.stderr || failed.stdout);
+  const staging = fs.readdirSync(path.dirname(out))
+    .filter((name) => name.startsWith('.archify-provenance-'))
+    .filter((name) => !priorStaging.includes(name));
+  assert.equal(staging.length, 1, failed.stderr || failed.stdout);
+  const candidate = path.join(path.dirname(out), staging[0], candidateName);
+  assert.equal(fs.readFileSync(candidate, 'utf8'), claimant);
+  const claimantIdentity = fs.lstatSync(candidate, { bigint: true });
+  assert.deepEqual(
+    { dev: String(claimantIdentity.dev), ino: String(claimantIdentity.ino) },
+    JSON.parse(fs.readFileSync(claimantIdentityFile, 'utf8')),
+  );
+  assert.equal(fs.existsSync(displacedCandidate), true);
 });
 
 test('cli: portable delivery lock: failed journal restore retains the previous journal and claimant', () => {
@@ -2374,17 +2444,63 @@ await import(${JSON.stringify(pathToFileURL(cli).href)});
   assert.equal(fs.existsSync(fake.log), false);
 });
 
-test('cli: a first lock handle identity failure leaves no public lock and permits retry', () => {
+test('cli: delivery cleanup preserves an unexpected claimant in private staging', () => {
+  const input = path.join(skillRoot, 'examples/agent-tool-call.workflow.json');
+  const out = path.join(tmp, 'delivery-staging-claimant.html');
+  const stagingBefore = new Set(deliveryStagingEntries(path.dirname(out)));
+  const wrapper = path.join(tmp, 'delivery-staging-claimant.mjs');
+  fs.writeFileSync(wrapper, `
+import fs from 'node:fs';
+import path from 'node:path';
+const rmdirSync = fs.rmdirSync.bind(fs);
+let claimed = false;
+fs.rmdirSync = (directory, ...args) => {
+  if (!claimed && path.basename(String(directory)).startsWith('.archify-delivery-')) {
+    claimed = true;
+    fs.writeFileSync(path.join(directory, 'unknown-claimant.txt'), 'preserve delivery claimant');
+  }
+  return rmdirSync(directory, ...args);
+};
+process.argv = [process.execPath, ${JSON.stringify(cli)}, 'deliver', 'workflow', ${JSON.stringify(input)}, ${JSON.stringify(out)}, '--json'];
+await import(${JSON.stringify(pathToFileURL(cli).href)});
+`);
+
+  const delivered = spawnSync(process.execPath, [wrapper], { cwd: skillRoot, encoding: 'utf8' });
+
+  assert.equal(delivered.status, 0, delivered.stderr || delivered.stdout);
+  assert.equal(JSON.parse(delivered.stdout).ok, true);
+  assert.match(delivered.stderr, /Warning: could not remove delivery staging directory/);
+  const recoveryRoot = fs.readdirSync(path.dirname(out), { withFileTypes: true })
+    .find((entry) => entry.isDirectory() && entry.name.startsWith('.archify-staging-remove-'));
+  assert.ok(recoveryRoot);
+  const staging = deliveryStagingEntries(path.join(path.dirname(out), recoveryRoot.name))
+    .find((entry) => !stagingBefore.has(entry));
+  assert.ok(staging);
+  assert.equal(
+    fs.readFileSync(path.join(
+      path.dirname(out),
+      recoveryRoot.name,
+      staging,
+      'unknown-claimant.txt',
+    ), 'utf8'),
+    'preserve delivery claimant',
+  );
+});
+
+test('cli: repeated lock handle identity failures close the descriptor, remove only the owned lock, and permit retry', () => {
   const input = path.join(skillRoot, 'examples/agent-tool-call.workflow.json');
   const out = path.join(tmp, 'delivery-lock-first-fstat.html');
   const lockPath = deliveryLockPath(out);
+  const closeEvidence = path.join(tmp, 'delivery-lock-first-fstat-close.json');
   const wrapper = path.join(tmp, 'delivery-lock-first-fstat.mjs');
   fs.writeFileSync(wrapper, `
 import fs from 'node:fs';
 const openSync = fs.openSync;
 const fstatSync = fs.fstatSync;
+const closeSync = fs.closeSync;
 let lockDescriptor;
-let injected = false;
+let injected = 0;
+let lockClosed = false;
 fs.openSync = (file, ...args) => {
   const descriptor = openSync(file, ...args);
   if (lockDescriptor === undefined && String(file) === ${JSON.stringify(lockPath)}) {
@@ -2393,12 +2509,17 @@ fs.openSync = (file, ...args) => {
   return descriptor;
 };
 fs.fstatSync = (descriptor, ...args) => {
-  if (descriptor === lockDescriptor && !injected) {
-    injected = true;
-    throw Object.assign(new Error('injected first lock fstat failure'), { code: 'EIO' });
+  if (descriptor === lockDescriptor && injected < 2) {
+    injected += 1;
+    throw Object.assign(new Error('injected repeated lock fstat failure'), { code: 'EIO' });
   }
   return fstatSync(descriptor, ...args);
 };
+fs.closeSync = (descriptor, ...args) => {
+  if (descriptor === lockDescriptor) lockClosed = true;
+  return closeSync(descriptor, ...args);
+};
+process.on('exit', () => fs.writeFileSync(${JSON.stringify(closeEvidence)}, JSON.stringify({ lockClosed, injected })));
 process.argv = [process.execPath, ${JSON.stringify(cli)}, 'deliver', 'workflow', ${JSON.stringify(input)}, ${JSON.stringify(out)}, '--json'];
 await import(${JSON.stringify(pathToFileURL(cli).href)});
 `);
@@ -2406,9 +2527,73 @@ await import(${JSON.stringify(pathToFileURL(cli).href)});
   const failed = spawnSync(process.execPath, [wrapper], { cwd: skillRoot, encoding: 'utf8' });
   assert.equal(failed.status, 1, failed.stderr || failed.stdout);
   assert.equal(JSON.parse(failed.stdout).diagnostics[0].code, 'delivery/lock-acquire');
+  assert.deepEqual(JSON.parse(fs.readFileSync(closeEvidence, 'utf8')), {
+    lockClosed: true,
+    injected: 2,
+  });
   assert.equal(fs.existsSync(lockPath), false, 'failed identity capture leaked the public lock');
   const retry = run(['deliver', 'workflow', input, out, '--json']);
   assert.equal(retry.status, 0, retry.stderr || retry.stdout);
+});
+
+test('cli: repeated lock handle identity failures preserve a claimant that replaces the owned entry', () => {
+  const input = path.join(skillRoot, 'examples/agent-tool-call.workflow.json');
+  const out = path.join(tmp, 'delivery-lock-repeated-fstat-claimant.html');
+  const lockPath = deliveryLockPath(out);
+  const detachedOwnedLock = `${lockPath}.detached-double-fstat`;
+  const closeEvidence = path.join(tmp, 'delivery-lock-repeated-fstat-claimant-close.json');
+  const claimant = 'unrelated lock claimant\n';
+  const wrapper = path.join(tmp, 'delivery-lock-repeated-fstat-claimant.mjs');
+  fs.writeFileSync(wrapper, `
+import fs from 'node:fs';
+const openSync = fs.openSync.bind(fs);
+const fstatSync = fs.fstatSync.bind(fs);
+const closeSync = fs.closeSync.bind(fs);
+const writeFileSync = fs.writeFileSync.bind(fs);
+let lockDescriptor;
+let injected = 0;
+let replaced = false;
+let lockClosed = false;
+fs.openSync = (file, ...args) => {
+  const descriptor = openSync(file, ...args);
+  if (lockDescriptor === undefined && String(file) === ${JSON.stringify(lockPath)}) lockDescriptor = descriptor;
+  return descriptor;
+};
+fs.fstatSync = (descriptor, ...args) => {
+  if (descriptor === lockDescriptor && injected < 2) {
+    injected += 1;
+    throw Object.assign(new Error('injected repeated lock fstat failure'), { code: 'EIO' });
+  }
+  return fstatSync(descriptor, ...args);
+};
+fs.writeFileSync = (file, ...args) => {
+  const result = writeFileSync(file, ...args);
+  if (!replaced && file === lockDescriptor) {
+    replaced = true;
+    fs.renameSync(${JSON.stringify(lockPath)}, ${JSON.stringify(detachedOwnedLock)});
+    writeFileSync(${JSON.stringify(lockPath)}, ${JSON.stringify(claimant)}, { flag: 'wx' });
+  }
+  return result;
+};
+fs.closeSync = (descriptor, ...args) => {
+  if (descriptor === lockDescriptor) lockClosed = true;
+  return closeSync(descriptor, ...args);
+};
+process.on('exit', () => writeFileSync(${JSON.stringify(closeEvidence)}, JSON.stringify({ lockClosed, injected, replaced })));
+process.argv = [process.execPath, ${JSON.stringify(cli)}, 'deliver', 'workflow', ${JSON.stringify(input)}, ${JSON.stringify(out)}, '--json'];
+await import(${JSON.stringify(pathToFileURL(cli).href)});
+`);
+
+  const failed = spawnSync(process.execPath, [wrapper], { cwd: skillRoot, encoding: 'utf8' });
+
+  assert.equal(failed.status, 1, failed.stderr || failed.stdout);
+  assert.deepEqual(JSON.parse(fs.readFileSync(closeEvidence, 'utf8')), {
+    lockClosed: true,
+    injected: 2,
+    replaced: true,
+  });
+  assert.equal(fs.readFileSync(lockPath, 'utf8'), claimant);
+  assert.equal(fs.existsSync(detachedOwnedLock), true);
 });
 
 for (const failureMode of ['empty-write', 'partial-write', 'close', 'replacement', 'cleanup-failure']) {
@@ -2984,6 +3169,187 @@ await import(${JSON.stringify(pathToFileURL(cli).href)});
     out,
     /^delivery\/provenance-failed$/,
   );
+});
+
+test('cli: failed-provenance candidate retirement preserves a replacement claimant', () => {
+  const validInput = path.join(skillRoot, 'examples/agent-tool-call.workflow.json');
+  const invalidInput = path.join(tmp, 'failed-provenance-retirement.workflow.json');
+  const invalid = JSON.parse(fs.readFileSync(validInput, 'utf8'));
+  invalid.nodes[0].unexpected = true;
+  fs.writeFileSync(invalidInput, JSON.stringify(invalid));
+  const out = path.join(tmp, 'failed-provenance-retirement.html');
+  assert.equal(run(['deliver', 'workflow', validInput, out, '--json']).status, 0);
+  const provenancePath = deliveryProvenancePath(out);
+  const candidateName = path.basename(provenancePath);
+  const claimant = '{"claimant":"failed provenance candidate retirement"}\n';
+  const claimantIdentityFile = path.join(tmp, 'failed-provenance-retirement-identity.json');
+  const displacedCandidate = path.join(tmp, 'failed-provenance-retirement-displaced');
+  const priorStaging = fs.readdirSync(path.dirname(out))
+    .filter((name) => name.startsWith('.archify-provenance-'))
+    .sort();
+  const wrapper = path.join(tmp, 'replace-failed-provenance-candidate-at-retirement.mjs');
+  fs.writeFileSync(wrapper, `
+import fs from 'node:fs';
+import path from 'node:path';
+const unlinkSync = fs.unlinkSync;
+const renameSync = fs.renameSync;
+const writeFileSync = fs.writeFileSync;
+let replaced = false;
+const isCandidate = (file) => (
+  path.basename(String(file)) === ${JSON.stringify(candidateName)}
+  && path.basename(path.dirname(String(file))).startsWith('.archify-provenance-')
+);
+const replaceCandidate = (file) => {
+  replaced = true;
+  renameSync(file, ${JSON.stringify(displacedCandidate)});
+  writeFileSync(file, ${JSON.stringify(claimant)}, { flag: 'wx' });
+  const stat = fs.lstatSync(file, { bigint: true });
+  writeFileSync(${JSON.stringify(claimantIdentityFile)}, JSON.stringify({
+    dev: String(stat.dev),
+    ino: String(stat.ino),
+  }));
+};
+fs.unlinkSync = (file, ...args) => {
+  if (!replaced && isCandidate(file)) replaceCandidate(file);
+  return unlinkSync(file, ...args);
+};
+fs.renameSync = (source, target, ...args) => {
+  if (!replaced
+      && isCandidate(source)
+      && path.basename(path.dirname(String(target))).startsWith('.archify-remove-')) {
+    replaceCandidate(source);
+  }
+  return renameSync(source, target, ...args);
+};
+process.argv = [process.execPath, ${JSON.stringify(cli)}, 'deliver', 'workflow', ${JSON.stringify(invalidInput)}, ${JSON.stringify(out)}, '--json'];
+await import(${JSON.stringify(pathToFileURL(cli).href)});
+`);
+
+  const failed = spawnSync(process.execPath, [wrapper], { cwd: skillRoot, encoding: 'utf8' });
+  assert.equal(failed.status, 1, failed.stderr || failed.stdout);
+  const staging = fs.readdirSync(path.dirname(out))
+    .filter((name) => name.startsWith('.archify-provenance-'))
+    .filter((name) => !priorStaging.includes(name));
+  assert.equal(staging.length, 1, failed.stderr || failed.stdout);
+  const candidate = path.join(path.dirname(out), staging[0], candidateName);
+  assert.equal(fs.readFileSync(candidate, 'utf8'), claimant);
+  const claimantIdentity = fs.lstatSync(candidate, { bigint: true });
+  assert.deepEqual(
+    { dev: String(claimantIdentity.dev), ino: String(claimantIdentity.ino) },
+    JSON.parse(fs.readFileSync(claimantIdentityFile, 'utf8')),
+  );
+  assert.equal(fs.existsSync(displacedCandidate), true);
+});
+
+test('cli: provenance staging cleanup preserves a directory claimant at the removal boundary', () => {
+  const input = path.join(skillRoot, 'examples/agent-tool-call.workflow.json');
+  const out = path.join(tmp, 'provenance-cleanup-claimant.html');
+  const observation = path.join(tmp, 'provenance-cleanup-claimant.json');
+  const wrapper = path.join(tmp, 'claim-provenance-staging-cleanup.mjs');
+  fs.writeFileSync(wrapper, `
+import fs from 'node:fs';
+import path from 'node:path';
+const rmSync = fs.rmSync.bind(fs);
+const rmdirSync = fs.rmdirSync.bind(fs);
+let injected = false;
+let stagingDirectory;
+let claimant;
+function inject(target) {
+  if (injected || !path.basename(String(target)).startsWith('.archify-provenance-')) return;
+  injected = true;
+  stagingDirectory = String(target);
+  fs.renameSync(stagingDirectory, stagingDirectory + '.owned');
+  fs.mkdirSync(stagingDirectory);
+  claimant = path.join(stagingDirectory, 'claimant.txt');
+  fs.writeFileSync(claimant, 'claimant-owned\\n');
+}
+fs.rmSync = (target, ...args) => {
+  inject(target);
+  return rmSync(target, ...args);
+};
+fs.rmdirSync = (target, ...args) => {
+  inject(target);
+  return rmdirSync(target, ...args);
+};
+process.argv = [process.execPath, ${JSON.stringify(cli)}, 'deliver', 'workflow', ${JSON.stringify(input)}, ${JSON.stringify(out)}, '--json'];
+await import(${JSON.stringify(pathToFileURL(cli).href)});
+fs.writeFileSync(${JSON.stringify(observation)}, JSON.stringify({
+  injected,
+  stagingDirectory,
+  claimantSurvived: claimant ? fs.existsSync(claimant) : false,
+  claimantBytes: claimant && fs.existsSync(claimant) ? fs.readFileSync(claimant, 'utf8') : null,
+}));
+`);
+
+  const result = spawnSync(process.execPath, [wrapper], { cwd: skillRoot, encoding: 'utf8' });
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const state = JSON.parse(fs.readFileSync(observation, 'utf8'));
+  assert.equal(state.injected, true, 'the cleanup-boundary claimant must be installed');
+  assert.equal(state.claimantSurvived, true, 'cleanup must not recursively delete claimant contents');
+  assert.equal(state.claimantBytes, 'claimant-owned\n');
+  assert.equal(fs.existsSync(out), true);
+});
+
+test('cli: delivery staging cleanup preserves an empty directory claimant at the removal boundary', () => {
+  const input = path.join(skillRoot, 'examples/agent-tool-call.workflow.json');
+  const out = path.join(tmp, 'delivery-cleanup-empty-claimant.html');
+  const observation = path.join(tmp, 'delivery-cleanup-empty-claimant.json');
+  const wrapper = path.join(tmp, 'claim-delivery-staging-cleanup.mjs');
+  fs.writeFileSync(wrapper, `
+import fs from 'node:fs';
+import path from 'node:path';
+const renameSync = fs.renameSync.bind(fs);
+const rmdirSync = fs.rmdirSync.bind(fs);
+let injected = false;
+let claimantIdentity;
+function inject(target) {
+  if (injected || !path.basename(String(target)).startsWith('.archify-delivery-')) return;
+  injected = true;
+  const stagingDirectory = String(target);
+  renameSync(stagingDirectory, stagingDirectory + '.owned');
+  fs.mkdirSync(stagingDirectory);
+  const metadata = fs.lstatSync(stagingDirectory, { bigint: true });
+  claimantIdentity = { dev: metadata.dev, ino: metadata.ino };
+}
+fs.rmdirSync = (target, ...args) => {
+  inject(target);
+  return rmdirSync(target, ...args);
+};
+fs.renameSync = (source, target, ...args) => {
+  if (path.basename(path.dirname(String(target))).startsWith('.archify-staging-remove-')) {
+    inject(source);
+  }
+  return renameSync(source, target, ...args);
+};
+function claimantSurvives(directory) {
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    if (entry.isSymbolicLink()) continue;
+    const absolute = path.join(directory, entry.name);
+    if (!entry.isDirectory()) continue;
+    const metadata = fs.lstatSync(absolute, { bigint: true });
+    if (claimantIdentity
+      && metadata.dev === claimantIdentity.dev
+      && metadata.ino === claimantIdentity.ino) return true;
+    if (claimantSurvives(absolute)) return true;
+  }
+  return false;
+}
+process.argv = [process.execPath, ${JSON.stringify(cli)}, 'deliver', 'workflow', ${JSON.stringify(input)}, ${JSON.stringify(out)}, '--json'];
+await import(${JSON.stringify(pathToFileURL(cli).href)});
+fs.writeFileSync(${JSON.stringify(observation)}, JSON.stringify({
+  injected,
+  claimantSurvived: claimantSurvives(${JSON.stringify(tmp)}),
+}));
+`);
+
+  const result = spawnSync(process.execPath, [wrapper], { cwd: skillRoot, encoding: 'utf8' });
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const state = JSON.parse(fs.readFileSync(observation, 'utf8'));
+  assert.equal(state.injected, true, 'the cleanup-boundary claimant must be installed');
+  assert.equal(state.claimantSurvived, true, 'cleanup must preserve the empty claimant inode');
+  assert.equal(fs.existsSync(out), true);
 });
 
 test('cli: using the existing receipt as input fails before invalidating the previous delivery', () => {

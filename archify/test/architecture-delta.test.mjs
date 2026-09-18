@@ -556,6 +556,13 @@ test('compare CLI writes a deterministic three-state artifact and complete sidec
   assert.equal(result.status, 0, result.stderr);
   const repeat = run(['compare', 'architecture', baseFixture, headFixture, second, '--json']);
   assert.equal(repeat.status, 0, repeat.stderr);
+  const replacement = run(['compare', 'architecture', baseFixture, headFixture, first, '--json']);
+  assert.equal(replacement.status, 0, replacement.stderr);
+  assert.equal(
+    fs.readdirSync(tmp).some((entry) => entry.startsWith('.archify-compare-')),
+    false,
+    'successful replacement must remove only its identity-bound staging entries',
+  );
 
   const firstHtml = fs.readFileSync(first, 'utf8');
   const secondHtml = fs.readFileSync(second, 'utf8');
@@ -614,6 +621,37 @@ test('compare CLI writes a deterministic three-state artifact and complete sidec
   assert.equal(receipt.completeness, 'complete');
   assert.equal(JSON.stringify(receipt).includes(tmp), false);
   assert.deepEqual(validateArchitectureDeltaHtml(firstHtml, receipt), { ok: true, checksPassed: 10, checkCount: 10 });
+});
+
+test('compare cleanup preserves an unexpected claimant in private staging', () => {
+  const caseRoot = fs.mkdtempSync(path.join(tmp, 'compare-staging-claimant-'));
+  const output = path.join(caseRoot, 'delta.html');
+  const wrapper = path.join(caseRoot, 'claim-compare-staging.mjs');
+  fs.writeFileSync(wrapper, `
+import fs from 'node:fs';
+import path from 'node:path';
+const rmdirSync = fs.rmdirSync.bind(fs);
+let claimed = false;
+fs.rmdirSync = (directory, ...args) => {
+  if (!claimed && path.basename(String(directory)).startsWith('.archify-compare-')) {
+    claimed = true;
+    fs.writeFileSync(path.join(directory, 'unknown-claimant.txt'), 'preserve compare claimant');
+  }
+  return rmdirSync(directory, ...args);
+};
+process.argv = [process.execPath, ${JSON.stringify(cli)}, 'compare', 'architecture', ${JSON.stringify(baseFixture)}, ${JSON.stringify(headFixture)}, ${JSON.stringify(output)}, '--json'];
+await import(${JSON.stringify(pathToFileURL(cli).href)});
+`);
+
+  const compared = spawnSync(process.execPath, [wrapper], { cwd: skillRoot, encoding: 'utf8' });
+
+  assert.equal(compared.status, 0, compared.stderr || compared.stdout);
+  assert.match(compared.stderr, /Warning: could not remove compare staging directory/);
+  const claimant = fs.readdirSync(caseRoot, { recursive: true })
+    .map((entry) => path.join(caseRoot, entry))
+    .find((entry) => path.basename(entry) === 'unknown-claimant.txt');
+  assert.ok(claimant);
+  assert.equal(fs.readFileSync(claimant, 'utf8'), 'preserve compare claimant');
 });
 
 test('compare default receipts preserve distinct HTML extension spellings only when the filesystem does', () => {

@@ -38,6 +38,30 @@ function windowsShortPath(targetPath) {
   return shortPath;
 }
 
+function assignWindowsShortName(targetPath, shortName) {
+  const result = spawnSync(
+    'fsutil.exe',
+    ['file', 'setshortname', targetPath, shortName],
+    { encoding: 'utf8', windowsHide: true },
+  );
+  if (result.error) {
+    throw new Error(`Could not assign Windows 8.3 name ${shortName}: ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    const detail = result.stderr.trim() || result.stdout.trim() || 'no command output';
+    throw new Error(`Could not assign Windows 8.3 name ${shortName} (exit ${result.status}): ${detail}`);
+  }
+  const alias = path.join(path.dirname(targetPath), shortName);
+  const aliasStat = fs.statSync(alias, { bigint: true });
+  const targetStat = fs.statSync(targetPath, { bigint: true });
+  assert.deepEqual(
+    [aliasStat.dev, aliasStat.ino],
+    [targetStat.dev, targetStat.ino],
+    'the explicitly assigned 8.3 name must resolve to the requested entry',
+  );
+  return alias;
+}
+
 function controlledWindowsShortRoot(required) {
   const root = process.env.ARCHIFY_WINDOWS_8DOT3_ROOT;
   const shortRoot = process.env.ARCHIFY_WINDOWS_8DOT3_SHORT_ROOT;
@@ -225,7 +249,9 @@ test('Windows existing 8.3 artifact aliases derive one visual-check sidecar name
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const artifact = path.join(directory, 'diagram artifact with long name.html');
   fs.writeFileSync(artifact, '<!doctype html>');
-  const shortArtifact = windowsShortPath(artifact);
+  const shortArtifact = controlledRoot
+    ? assignWindowsShortName(artifact, 'ARCHVS~1.HTM')
+    : windowsShortPath(artifact);
   if (!shortArtifact) {
     if (requiresWindows8dot3) assert.fail('the controlled Windows volume did not expose a file 8.3 alias');
     t.skip('the Windows volume does not expose a distinct file 8.3 alias');

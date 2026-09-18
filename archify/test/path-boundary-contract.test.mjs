@@ -32,7 +32,7 @@ const protectedCallers = productionSourceRoots.flatMap(productionSources).sort()
 
 const exemption = /path-contract-allow:\s*(?:git-path|portable-logical-path|url-path|lexical-capability)\s+--\s+\S/u;
 const exemptionMarker = /path-contract-allow:/u;
-const pathIdentifier = String.raw`(?:[$A-Z_a-z][$\w]*(?:Path|Root|Directory|Dir|File|Canonical|Location)|path|root|directory|dir|file|output|input|target|destination|artifact|receipt|relative|resolved|canonical)`;
+const pathIdentifier = String.raw`(?:[$A-Z_a-z][$\w]*(?:Path|Root|Directory|Dir|File|Canonical|Location|Resolved)|path|root|directory|dir|file|output|input|target|destination|artifact|receipt|candidate|relative|resolved|canonical)`;
 const pathProperty = String.raw`(?:[$A-Z_a-z][$\w.]*\.(?:path|realPath|canonicalPath|root|directory|dir|file|output|input|target|source|destination|artifact|receipt))`;
 const pathOperand = String.raw`(?:${pathIdentifier}|${pathProperty})`;
 const rawPathEquality = new RegExp(String.raw`\b${pathOperand}\s*(?:===|!==)\s*${pathOperand}\b`, 'u');
@@ -130,6 +130,26 @@ test('path-boundary detector rejects multiline equality and canonical-path prope
   assert.deepEqual(violations.map(({ rule }) => rule), [
     'native-path-raw-equality',
     'native-path-raw-equality',
+  ]);
+});
+
+test('path-boundary detector rejects native-path equality through resolved aliases', () => {
+  const violations = inspectPathBoundarySource(
+    'if (leftResolved === rightResolved) fail();',
+  );
+
+  assert.deepEqual(violations.map(({ rule }) => rule), [
+    'native-path-raw-equality',
+  ]);
+});
+
+test('path-boundary detector rejects prefix containment through a candidate alias', () => {
+  const violations = inspectPathBoundarySource(
+    'if (candidate.startsWith(root)) accept();',
+  );
+
+  assert.deepEqual(violations.map(({ rule }) => rule), [
+    'native-path-string-prefix-containment',
   ]);
 });
 

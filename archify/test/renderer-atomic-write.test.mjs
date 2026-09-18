@@ -11,6 +11,7 @@ import {
   captureRegularFileBinding,
   quarantineRemoveRegularFileBinding,
   releaseRegularFileBinding,
+  removeOwnedRegularFile,
 } from '../renderers/shared/atomic-output.mjs';
 import { loadDiagram, writeDiagram } from '../renderers/shared/cli.mjs';
 
@@ -573,6 +574,64 @@ test('a staged candidate replaced after capture preserves the claimant', (t) => 
   assert.equal(fs.existsSync(detachedCandidate), true);
 });
 
+test('a candidate swapped at the publication boundary cannot replace the prior artifact', (t) => {
+  const root = workspace(t, 'archify-render-atomic-publication-binding-');
+  const input = path.join(root, 'diagram.workflow.json');
+  const output = path.join(root, 'diagram.html');
+  const detachedCandidate = path.join(root, 'detached-bound-candidate.html');
+  const previous = '<!doctype html><title>trusted previous artifact</title>\n';
+  const claimant = '<!doctype html><title>publication boundary claimant</title>\n';
+  fs.copyFileSync(workflowFixture, input);
+  fs.writeFileSync(output, previous);
+  const loaded = loadWorkflow(input, output);
+
+  const openSync = fs.openSync.bind(fs);
+  const closeSync = fs.closeSync.bind(fs);
+  const linkSync = fs.linkSync.bind(fs);
+  let candidatePath;
+  let candidateDescriptor;
+  let injected = false;
+  const inject = () => {
+    injected = true;
+    fs.renameSync(candidatePath, detachedCandidate);
+    fs.writeFileSync(candidatePath, claimant, { flag: 'wx' });
+  };
+  t.mock.method(fs, 'openSync', (file, flags, ...args) => {
+    const descriptor = openSync(file, flags, ...args);
+    const resolved = path.resolve(String(file));
+    if (path.basename(resolved).startsWith('.archify-render-')
+      && (flags & (fs.constants.O_WRONLY | fs.constants.O_RDWR)) === 0) {
+      candidatePath = resolved;
+      candidateDescriptor = descriptor;
+    }
+    return descriptor;
+  });
+  t.mock.method(fs, 'closeSync', (descriptor) => {
+    const result = closeSync(descriptor);
+    if (!injected && descriptor === candidateDescriptor && fs.existsSync(candidatePath)) inject();
+    return result;
+  });
+  t.mock.method(fs, 'linkSync', (source, target) => {
+    if (!injected
+      && candidatePath
+      && path.resolve(String(source)) === candidatePath
+      && path.basename(String(target)) === path.basename(output)) inject();
+    return linkSync(source, target);
+  });
+
+  let thrown;
+  try {
+    writeWorkflow(loaded);
+  } catch (error) {
+    thrown = error;
+  }
+  assert.ok(thrown, 'the publication race must fail closed');
+  assert.equal(injected, true, JSON.stringify(thrown.archifyDiagnostics || thrown.message));
+  assert.equal(fs.readFileSync(output, 'utf8'), previous);
+  assert.equal(fs.readFileSync(candidatePath, 'utf8'), claimant);
+  assert.equal(fs.existsSync(detachedCandidate), true);
+});
+
 test('a byte-identical replacement before candidate capture is not published', (t) => {
   const root = workspace(t, 'archify-render-atomic-candidate-pre-capture-');
   const input = path.join(root, 'diagram.workflow.json');
@@ -904,7 +963,7 @@ test('a hardlinked existing output is rejected before staging', (t) => {
   assert.deepEqual(renderCandidates(root), []);
 });
 
-test('the previous artifact remains visible until one atomic rename preserves its mode', (t) => {
+test('no-clobber publication retains recovery bytes while the public name is absent', (t) => {
   const root = workspace(t, 'archify-render-atomic-rename-');
   const input = path.join(root, 'diagram.workflow.json');
   const output = path.join(root, 'diagram.html');
@@ -913,27 +972,37 @@ test('the previous artifact remains visible until one atomic rename preserves it
   fs.writeFileSync(output, previous);
   if (process.platform !== 'win32') fs.chmodSync(output, 0o640);
   const previousMode = fs.statSync(output).mode & 0o777;
+  const physicalOutput = fs.realpathSync.native(output);
   const loaded = loadWorkflow(input, output);
 
-  const renameSync = fs.renameSync;
-  let renames = 0;
-  t.mock.method(fs, 'renameSync', (source, target) => {
-    renames += 1;
-    assert.equal(target, fs.realpathSync.native(output));
-    assert.equal(fs.readFileSync(output, 'utf8'), previous);
-    assert.match(fs.readFileSync(source, 'utf8'), /<svg role="img"><\/svg>/);
-    return renameSync(source, target);
+  const linkSync = fs.linkSync.bind(fs);
+  let publications = 0;
+  t.mock.method(fs, 'linkSync', (source, target) => {
+    if (path.basename(String(source)).startsWith('.archify-render-')) {
+      publications += 1;
+      assert.equal(target, physicalOutput);
+      assert.equal(fs.existsSync(output), false);
+      const recoveryDirectories = fs.readdirSync(root, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory() && entry.name.startsWith('.archify-remove-'));
+      assert.equal(recoveryDirectories.length, 1);
+      assert.equal(
+        fs.readFileSync(path.join(root, recoveryDirectories[0].name, 'previous'), 'utf8'),
+        previous,
+      );
+      assert.match(fs.readFileSync(source, 'utf8'), /<svg role="img"><\/svg>/);
+    }
+    return linkSync(source, target);
   });
 
   writeWorkflow(loaded);
 
-  assert.equal(renames, 1);
+  assert.equal(publications, 1);
   assert.notEqual(fs.readFileSync(output, 'utf8'), previous);
   assert.equal(fs.statSync(output).mode & 0o777, previousMode);
   assert.deepEqual(renderCandidates(root), []);
 });
 
-test('atomic replacement preserves permissive existing modes despite a restrictive umask', (t) => {
+test('no-clobber replacement preserves permissive existing modes despite a restrictive umask', (t) => {
   if (process.platform === 'win32') {
     t.skip('POSIX mode and umask regression');
     return;
@@ -1170,7 +1239,7 @@ test('a requested symlink replaced during canonical resolution fails before stag
   assert.deepEqual(renderCandidates(root), []);
 });
 
-test('an existing output symlink remains intact while its target is atomically replaced', (t) => {
+test('an existing output symlink remains intact while its resolved target is replaced', (t) => {
   const root = workspace(t, 'archify-render-atomic-symlink-');
   const input = path.join(root, 'diagram.workflow.json');
   const target = path.join(root, 'target.html');
@@ -1214,6 +1283,40 @@ test('quarantine removal deletes only the public entry still owned by its bindin
   } finally {
     releaseRegularFileBinding(captured.binding);
   }
+});
+
+test('owned-file cleanup preserves a successor swapped at the unlink boundary', (t) => {
+  const root = workspace(t, 'archify-owned-cleanup-successor-');
+  const target = path.join(root, 'candidate.html');
+  const detached = path.join(root, 'detached-owned-candidate.html');
+  fs.writeFileSync(target, 'owned candidate\n');
+  const metadata = fs.lstatSync(target, { bigint: true });
+  const identity = { device: metadata.dev, inode: metadata.ino };
+  const unlinkSync = fs.unlinkSync.bind(fs);
+  const renameSync = fs.renameSync.bind(fs);
+  let injected = false;
+  const injectSuccessor = () => {
+    renameSync(target, detached);
+    fs.writeFileSync(target, 'successor claimant\n', { flag: 'wx' });
+    injected = true;
+  };
+  t.mock.method(fs, 'unlinkSync', (file) => {
+    if (!injected && path.resolve(String(file)) === target) {
+      injectSuccessor();
+    }
+    return unlinkSync(file);
+  });
+  t.mock.method(fs, 'renameSync', (source, destination) => {
+    if (!injected && path.resolve(String(source)) === target) injectSuccessor();
+    return renameSync(source, destination);
+  });
+
+  const removed = removeOwnedRegularFile(target, identity);
+
+  assert.equal(injected, true);
+  assert.notEqual(removed.status, 'removed');
+  assert.equal(fs.readFileSync(target, 'utf8'), 'successor claimant\n');
+  assert.equal(fs.readFileSync(detached, 'utf8'), 'owned candidate\n');
 });
 
 test('quarantine removal restores a successor swapped at the final move boundary', (t) => {

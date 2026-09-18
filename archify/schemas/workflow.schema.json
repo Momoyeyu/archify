@@ -26,7 +26,8 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "title"
+        "title",
+        "output"
       ],
       "properties": {
         "title": {

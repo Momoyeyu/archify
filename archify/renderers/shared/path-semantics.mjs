@@ -5,6 +5,19 @@ import path from 'node:path';
 const MAX_SYMLINK_DEPTH = 64;
 const RECENT_PROBE_NAME_LIMIT = 128;
 const recentProbeNames = new Set();
+const WINDOWS_SMB_SHARE_FORBIDDEN = /[\u0000-\u001F"\/\\[\]:|<>+=;,?*]/u;
+
+export function isWindowsIpcShare(share) {
+  return /^(?:IPC\$|pipe|mailslot)$/iu.test(share);
+}
+
+export function isValidWindowsSmbShareName(share) {
+  return typeof share === 'string'
+    && share.length > 0
+    && share.length <= 80
+    && !WINDOWS_SMB_SHARE_FORBIDDEN.test(share)
+    && !/[ .]$/u.test(share);
+}
 
 function result(status, code, details = {}) {
   return {
@@ -104,6 +117,12 @@ function splitWindowsAbsolute(absolute, side, { internalRelativeLinkTarget = fal
 
     const extendedUnc = absolute.match(/^(\\\\\?\\UNC\\([^\\]+)\\([^\\]+))(?:\\(.*))?$/iu);
     if (extendedUnc) {
+      if (isWindowsIpcShare(extendedUnc[3])) {
+        return rootFailure('windows-namespace-unsupported', side);
+      }
+      if (!isValidWindowsSmbShareName(extendedUnc[3])) {
+        return rootFailure('windows-root-invalid', side);
+      }
       if ([extendedUnc[2], extendedUnc[3]].some((component) => component === '.' || component === '..')) {
         return rootFailure('windows-root-invalid', side);
       }
@@ -139,6 +158,12 @@ function splitWindowsAbsolute(absolute, side, { internalRelativeLinkTarget = fal
 
   const unc = absolute.match(/^[\\/]{2}([^\\/]+)[\\/]([^\\/]+)(?:[\\/](.*))?$/u);
   if (unc) {
+    if (isWindowsIpcShare(unc[2])) {
+      return rootFailure('windows-namespace-unsupported', side);
+    }
+    if (!isValidWindowsSmbShareName(unc[2])) {
+      return rootFailure('windows-root-invalid', side);
+    }
     if ([unc[1], unc[2]].some((component) => component === '.' || component === '..')) {
       return rootFailure('windows-root-invalid', side);
     }

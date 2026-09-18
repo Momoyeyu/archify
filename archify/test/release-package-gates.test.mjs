@@ -876,6 +876,30 @@ function stagedFixture(files) {
   return { fixture, staged };
 }
 
+test('archive writer publishes over a maximum-length output component without an oversized candidate name', () => {
+  const { fixture, staged } = stagedFixture({
+    'README.md': { content: 'bounded archive candidate\n', mode: 0o644 },
+  });
+  try {
+    const manifest = path.join(fixture, 'modes.json');
+    fs.writeFileSync(manifest, JSON.stringify({ 'README.md': '100644' }));
+    const archive = path.join(fixture, `${'a'.repeat(251)}.zip`);
+    fs.writeFileSync(archive, 'trusted previous archive');
+
+    const build = writeArchive(staged, archive, manifest);
+
+    assert.equal(build.status, 0, `${build.stdout}\n${build.stderr}`);
+    assert.equal(fs.readFileSync(archive).readUInt32LE(0), 0x04034b50);
+    assert.deepEqual(
+      fs.readdirSync(fixture).filter((name) => name.endsWith('.tmp')),
+      [],
+      'successful publication must not leave a temporary candidate behind',
+    );
+  } finally {
+    fs.rmSync(fixture, { recursive: true, force: true });
+  }
+});
+
 test('archive writer records Git index modes from the manifest, not filesystem bits', () => {
   const { fixture, staged } = stagedFixture({
     'bin/tool.mjs': { content: '#!/usr/bin/env node\n', mode: 0o644 },
@@ -1046,7 +1070,7 @@ test('archive writer rejects a hard-linked output without changing either name',
   }
 });
 
-test('archive writer verifies the output binding immediately before rename', () => {
+test('archive writer verifies the output binding immediately before publication', () => {
   const { fixture, staged } = stagedFixture({
     'safe.txt': { content: 'safe\n', mode: 0o644 },
   });
@@ -1071,8 +1095,7 @@ let swapped = false;
 fs.openSync = function patchedOpen(file, ...args) {
   const descriptor = originalOpen.call(this, file, ...args);
   if (typeof file === 'string'
-      && path.basename(file).startsWith('.' + path.basename(output) + '.')
-      && file.endsWith('.tmp')) {
+      && /^\.archify-zip-[a-f\d]{16}-[a-f\d]{32}\.tmp$/.test(path.basename(file))) {
     temporaryDescriptor = descriptor;
   }
   return descriptor;
@@ -1111,6 +1134,57 @@ require('node:module').syncBuiltinESMExports();
   }
 });
 
+test('archive writer preserves a target claimant that arrives after the previous output is backed up', () => {
+  const { fixture, staged } = stagedFixture({
+    'safe.txt': { content: 'safe\n', mode: 0o644 },
+  });
+  const manifest = path.join(fixture, 'modes.json');
+  const archive = path.join(fixture, 'archive.zip');
+  const preload = path.join(fixture, 'claim-archive-target.cjs');
+  const original = Buffer.from('previous archive\n');
+  const claimant = Buffer.from('concurrent archive claimant\n');
+  fs.writeFileSync(manifest, JSON.stringify({ 'safe.txt': '100644' }));
+  fs.writeFileSync(archive, original);
+  fs.writeFileSync(preload, String.raw`
+const fs = require('node:fs');
+const path = require('node:path');
+const output = process.env.ARCHIFY_TEST_ARCHIVE_OUTPUT;
+const claimant = process.env.ARCHIFY_TEST_ARCHIVE_CLAIMANT;
+const originalLink = fs.linkSync;
+const originalWriteFile = fs.writeFileSync;
+let injected = false;
+fs.linkSync = function patchedLink(source, destination) {
+  if (!injected
+      && path.basename(destination) === path.basename(output)
+      && /^\.archify-zip-[a-f\d]{16}-[a-f\d]{32}\.tmp$/.test(path.basename(source))) {
+    originalWriteFile(output, claimant, { flag: 'wx' });
+    injected = true;
+  }
+  return originalLink.call(this, source, destination);
+};
+require('node:module').syncBuiltinESMExports();
+`);
+  try {
+    const build = writeArchive(staged, archive, manifest, {
+      env: {
+        ...process.env,
+        NODE_OPTIONS: `${process.env.NODE_OPTIONS ? `${process.env.NODE_OPTIONS} ` : ''}--import=${pathToFileURL(preload).href}`,
+        ARCHIFY_TEST_ARCHIVE_OUTPUT: archive,
+        ARCHIFY_TEST_ARCHIVE_CLAIMANT: claimant.toString('utf8'),
+      },
+    });
+    assert.notEqual(build.status, 0, `${build.stdout}\n${build.stderr}`);
+    assert.match(build.stderr, /requires recovery/);
+    assert.ok(fs.readFileSync(archive).equals(claimant), 'the concurrent target claimant must remain public');
+    const backups = fs.readdirSync(fixture)
+      .filter((name) => /^\.archify-zip-backup-[a-f\d]{16}-[a-f\d]{32}\.tmp$/.test(name));
+    assert.equal(backups.length, 1, 'the displaced previous output must remain recoverable');
+    assert.ok(fs.readFileSync(path.join(fixture, backups[0])).equals(original));
+  } finally {
+    fs.rmSync(fixture, { recursive: true, force: true });
+  }
+});
+
 test('archive writer rejects a candidate changed while the final output state is checked', () => {
   const { fixture, staged } = stagedFixture({
     'safe.txt': { content: 'safe\n', mode: 0o644 },
@@ -1134,8 +1208,7 @@ let mutated = false;
 fs.openSync = function patchedOpen(file, ...args) {
   const descriptor = originalOpen.call(this, file, ...args);
   if (typeof file === 'string'
-      && path.basename(file).startsWith('.' + path.basename(output) + '.')
-      && file.endsWith('.tmp')) {
+      && /^\.archify-zip-[a-f\d]{16}-[a-f\d]{32}\.tmp$/.test(path.basename(file))) {
     candidatePath = file;
     candidateOpens += 1;
   }
@@ -1201,8 +1274,7 @@ let swapped = false;
 fs.openSync = function patchedOpen(file, ...args) {
   const descriptor = originalOpen.call(this, file, ...args);
   if (typeof file === 'string'
-      && path.basename(file).startsWith('.' + path.basename(output) + '.')
-      && file.endsWith('.tmp')) {
+      && /^\.archify-zip-[a-f\d]{16}-[a-f\d]{32}\.tmp$/.test(path.basename(file))) {
     candidatePath = file;
     candidateOpens += 1;
   }
@@ -1232,6 +1304,70 @@ require('node:module').syncBuiltinESMExports();
     assert.ok(fs.readFileSync(archive).equals(original));
     const candidates = fs.readdirSync(fixture).filter((name) => name.endsWith('.tmp'));
     assert.equal(candidates.length, 1, 'the replacement claimant must remain named');
+    assert.ok(fs.readFileSync(path.join(fixture, candidates[0])).equals(successor));
+  } finally {
+    fs.rmSync(fixture, { recursive: true, force: true });
+  }
+});
+
+test('archive writer keeps the candidate identity bound through commit and preserves a release-time successor', () => {
+  const { fixture, staged } = stagedFixture({
+    'safe.txt': { content: 'safe\n', mode: 0o644 },
+  });
+  const manifest = path.join(fixture, 'modes.json');
+  const archive = path.join(fixture, 'archive.zip');
+  const preload = path.join(fixture, 'replace-candidate-on-release.cjs');
+  const successor = Buffer.from('release-time candidate claimant\n');
+  fs.writeFileSync(manifest, JSON.stringify({ 'safe.txt': '100644' }));
+  fs.writeFileSync(archive, 'previous archive\n');
+  fs.writeFileSync(preload, String.raw`
+const fs = require('node:fs');
+const path = require('node:path');
+const successor = process.env.ARCHIFY_TEST_ARCHIVE_SUCCESSOR;
+const originalOpen = fs.openSync;
+const originalClose = fs.closeSync;
+const originalUnlink = fs.unlinkSync;
+const originalWriteFile = fs.writeFileSync;
+let candidatePath;
+let candidateOpens = 0;
+let bindingDescriptor;
+let swapped = false;
+fs.openSync = function patchedOpen(file, ...args) {
+  const descriptor = originalOpen.call(this, file, ...args);
+  if (typeof file === 'string'
+      && /^\.archify-zip-[a-f\d]{16}-[a-f\d]{32}\.tmp$/.test(path.basename(file))) {
+    candidatePath = file;
+    candidateOpens += 1;
+    if (candidateOpens === 2) bindingDescriptor = descriptor;
+  }
+  return descriptor;
+};
+fs.closeSync = function patchedClose(descriptor) {
+  const result = originalClose.call(this, descriptor);
+  if (!swapped && descriptor === bindingDescriptor) {
+    swapped = true;
+    try { originalUnlink(candidatePath); } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    originalWriteFile(candidatePath, successor, { flag: 'wx' });
+  }
+  return result;
+};
+require('node:module').syncBuiltinESMExports();
+`);
+  try {
+    const build = writeArchive(staged, archive, manifest, {
+      env: {
+        ...process.env,
+        NODE_OPTIONS: `${process.env.NODE_OPTIONS ? `${process.env.NODE_OPTIONS} ` : ''}--import=${pathToFileURL(preload).href}`,
+        ARCHIFY_TEST_ARCHIVE_SUCCESSOR: successor.toString('utf8'),
+      },
+    });
+    assert.equal(build.status, 0, `${build.stdout}\n${build.stderr}`);
+    assert.equal(fs.readFileSync(archive).readUInt32LE(0), 0x04034b50);
+    const candidates = fs.readdirSync(fixture)
+      .filter((name) => /^\.archify-zip-[a-f\d]{16}-[a-f\d]{32}\.tmp$/.test(name));
+    assert.equal(candidates.length, 1, 'the release-time successor must remain named');
     assert.ok(fs.readFileSync(path.join(fixture, candidates[0])).equals(successor));
   } finally {
     fs.rmSync(fixture, { recursive: true, force: true });
@@ -1403,24 +1539,59 @@ test('CI and tagged releases share the maintained Windows path contract on Node 
   assert.match(runner, /repository root through drive-letter case alias/);
   assert.match(runner, /stageCleanSkill\(\{ repoRoot: driveCaseRepoRoot/);
   assert.match(runner, /checkForUpdate\(\{/);
-  assert.match(runner, /delivery beyond traditional MAX_PATH/);
+  assert.match(runner, /let ordinaryLongDirectory = uncRoot/);
+  assert.match(runner, /ordinary UNC delivery beyond traditional MAX_PATH/);
+  assert.match(runner, /let extendedLongDirectory = extendedUncRoot/);
+  assert.match(runner, /extended UNC delivery beyond traditional MAX_PATH/);
+  assert.match(runner, /case-sensitive upper artifact visual-check to shared UNC/);
+  assert.match(runner, /case-sensitive lower artifact visual-check to shared UNC/);
+  assert.match(runner, /case-variant artifacts must receive distinct evidence names/);
+  assert.match(runner, /normalization-sensitive render \(NFC\)/);
+  assert.match(runner, /normalization-sensitive render \(NFD\)/);
+  assert.match(runner, /normalization-sensitive NFC artifact visual-check to shared UNC/);
+  assert.match(runner, /normalization-sensitive NFD artifact visual-check to shared UNC/);
+  assert.match(runner, /normalization-distinct artifacts must receive distinct evidence names/);
   assert.match(runner, /build-zip[.]sh/);
 
   const previewSuite = fs.readFileSync(path.join(repoRoot, 'archify', 'test', 'preview.test.mjs'), 'utf8');
   assert.match(previewSuite, /process\.env\.ARCHIFY_REQUIRE_WINDOWS_8DOT3 === '1'/);
   assert.match(previewSuite, /process\.env\.ARCHIFY_WINDOWS_8DOT3_ROOT/);
   assert.match(previewSuite, /process\.env\.ARCHIFY_WINDOWS_8DOT3_SHORT_ROOT/);
+  assert.match(previewSuite, /assignWindowsShortName\(realDirectory, shortName\)/);
   const deliverySuite = fs.readFileSync(
     path.join(repoRoot, 'archify', 'test', 'delivery-sidecar-path.test.mjs'),
     'utf8',
   );
   assert.match(deliverySuite, /process\.env\.ARCHIFY_WINDOWS_8DOT3_ROOT/);
   assert.match(deliverySuite, /process\.env\.ARCHIFY_WINDOWS_8DOT3_SHORT_ROOT/);
+  assert.match(deliverySuite, /assignWindowsShortName\(output, 'ARCHDL~1[.]HTM'\)/);
+  const visualSidecarSuite = fs.readFileSync(
+    path.join(repoRoot, 'archify', 'test', 'sidecar-path-length.test.mjs'),
+    'utf8',
+  );
+  assert.match(visualSidecarSuite, /assignWindowsShortName\(artifact, 'ARCHVS~1[.]HTM'\)/);
 
   const workflows = [
     ['CI', fs.readFileSync(path.join(repoRoot, '.github', 'workflows', 'ci.yml'), 'utf8')],
     ['release', fs.readFileSync(path.join(repoRoot, '.github', 'workflows', 'release.yml'), 'utf8')],
   ];
+  const fixtureScript = fs.readFileSync(
+    path.join(repoRoot, 'scripts', 'windows-path-fixtures.ps1'),
+    'utf8',
+  );
+  assert.match(fixtureScript, /node\$NodeVersion/);
+  assert.match(fixtureScript, /fsutil[.]exe file setCaseSensitiveInfo/);
+  assert.match(fixtureScript, /New-SmbShare[^\n]*-Temporary[^\n]*-ChangeAccess \$identity/);
+  assert.match(fixtureScript, /\\\\localhost\\\$shareName/);
+  assert.match(fixtureScript, /\\\\[?]\\UNC\\localhost\\\$shareName/);
+  assert.match(fixtureScript, /ARCHIFY_WINDOWS_CASE_SENSITIVE_ROOT/);
+  assert.match(fixtureScript, /ARCHIFY_WINDOWS_UNC_ROOT/);
+  assert.match(fixtureScript, /ARCHIFY_WINDOWS_EXTENDED_UNC_ROOT/);
+  assert.match(fixtureScript, /fsutil[.]exe file setshortname/);
+  assert.doesNotMatch(fixtureScript, /fsutil[.]exe 8dot3name set/);
+  assert.match(fixtureScript, /ARCHIFY_WINDOWS_8DOT3_ROOT/);
+  assert.match(fixtureScript, /ARCHIFY_WINDOWS_8DOT3_SHORT_ROOT/);
+  assert.match(fixtureScript, /Remove-SmbShare/);
   for (const [label, workflow] of workflows) {
     const job = workflowJob(workflow, 'windows-test-portability');
     assert.match(job, /runs-on:\s*windows-latest/);
@@ -1429,26 +1600,22 @@ test('CI and tagged releases share the maintained Windows path contract on Node 
     assert.match(job, /npm ci --ignore-scripts/);
     assert.match(job, /node scripts\/run-windows-path-tests\.mjs/);
     assert.match(job, /name: Provision controlled Windows path fixtures\n\s+shell: pwsh/);
-    assert.match(job, /node\$\{\{ matrix\.node-version \}\}/);
-    assert.match(job, /fsutil[.]exe file setCaseSensitiveInfo/);
-    assert.match(job, /New-SmbShare[^\n]*-Temporary[^\n]*-ChangeAccess \$identity/);
-    assert.match(job, /\\\\localhost\\/);
-    assert.match(job, /\\\\[?]\\UNC\\localhost\\/);
-    assert.match(job, /ARCHIFY_WINDOWS_CASE_SENSITIVE_ROOT/);
-    assert.match(job, /ARCHIFY_WINDOWS_UNC_ROOT/);
-    assert.match(job, /ARCHIFY_WINDOWS_EXTENDED_UNC_ROOT/);
-    assert.match(job, /fsutil[.]exe file setshortname/);
-    assert.match(job, /ARCHIFY_WINDOWS_8DOT3_ROOT/);
-    assert.match(job, /ARCHIFY_WINDOWS_8DOT3_SHORT_ROOT/);
+    assert.match(
+      job,
+      /scripts\/windows-path-fixtures[.]ps1 -NodeVersion '\$\{\{ matrix[.]node-version \}\}'/,
+    );
     assert.match(
       job,
       /name: Clean up controlled Windows path fixtures\n\s+if: \$\{\{ always\(\) \}\}/,
     );
-    assert.match(job, /Remove-SmbShare/);
     assert.match(
       job,
-      /ARCHIFY_REQUIRE_WINDOWS_8DOT3:\s*\$\{\{ matrix\.node-version == 22 && '1' \|\| '0' \}\}/,
-      `${label} must require real 8.3 watcher coverage on its controlled Node 22 lane`,
+      /scripts\/windows-path-fixtures[.]ps1 -NodeVersion '\$\{\{ matrix[.]node-version \}\}' -Cleanup/,
+    );
+    assert.match(
+      job,
+      /ARCHIFY_REQUIRE_WINDOWS_8DOT3:\s*'1'/,
+      `${label} must require real 8.3 coverage on every maintained Node lane`,
     );
     assert.match(
       job,

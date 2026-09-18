@@ -39,6 +39,30 @@ function windowsShortPath(targetPath) {
   return shortPath;
 }
 
+function assignWindowsShortName(targetPath, shortName) {
+  const result = spawnSync(
+    'fsutil.exe',
+    ['file', 'setshortname', targetPath, shortName],
+    { encoding: 'utf8', windowsHide: true },
+  );
+  if (result.error) {
+    throw new Error(`Could not assign Windows 8.3 name ${shortName}: ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    const detail = result.stderr.trim() || result.stdout.trim() || 'no command output';
+    throw new Error(`Could not assign Windows 8.3 name ${shortName} (exit ${result.status}): ${detail}`);
+  }
+  const alias = path.join(path.dirname(targetPath), shortName);
+  const aliasStat = fs.statSync(alias, { bigint: true });
+  const targetStat = fs.statSync(targetPath, { bigint: true });
+  assert.deepEqual(
+    [aliasStat.dev, aliasStat.ino],
+    [targetStat.dev, targetStat.ino],
+    'the explicitly assigned 8.3 name must resolve to the requested entry',
+  );
+  return alias;
+}
+
 function controlledWindowsShortRoot(required) {
   const root = process.env.ARCHIFY_WINDOWS_8DOT3_ROOT;
   const shortRoot = process.env.ARCHIFY_WINDOWS_8DOT3_SHORT_ROOT;
@@ -855,6 +879,72 @@ await import(${JSON.stringify(pathToFileURL(cli).href)});
   });
 }
 
+for (const candidateRole of ['artifact', 'provenance']) {
+  test(`delivery preserves a claimant that replaces the staged ${candidateRole} at retirement`, (t) => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), `archify-${candidateRole}-retirement-claimant-`));
+    t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
+    const output = path.join(cwd, 'diagram.html');
+    assert.equal(run(['deliver', 'workflow', input, output, '--json'], cwd).status, 0);
+    const candidateName = candidateRole === 'artifact' ? path.basename(output) : 'delivery-provenance.json';
+    const claimant = `${candidateRole} retirement claimant\n`;
+    const claimantIdentityFile = path.join(cwd, `${candidateRole}-retirement-identity.json`);
+    const displacedCandidate = path.join(cwd, `${candidateRole}-retirement-displaced`);
+    const wrapper = path.join(cwd, `replace-staged-${candidateRole}-at-retirement.mjs`);
+    fs.writeFileSync(wrapper, `
+import fs from 'node:fs';
+import path from 'node:path';
+const unlinkSync = fs.unlinkSync;
+const renameSync = fs.renameSync;
+const writeFileSync = fs.writeFileSync;
+let replaced = false;
+const isCandidate = (file) => (
+  path.basename(String(file)) === ${JSON.stringify(candidateName)}
+  && path.basename(path.dirname(String(file))).startsWith('.archify-delivery-')
+);
+const replaceCandidate = (file) => {
+  replaced = true;
+  renameSync(file, ${JSON.stringify(displacedCandidate)});
+  writeFileSync(file, ${JSON.stringify(claimant)}, { flag: 'wx' });
+  const stat = fs.lstatSync(file, { bigint: true });
+  writeFileSync(${JSON.stringify(claimantIdentityFile)}, JSON.stringify({
+    dev: String(stat.dev),
+    ino: String(stat.ino),
+  }));
+};
+fs.unlinkSync = (file, ...args) => {
+  if (!replaced && isCandidate(file)) replaceCandidate(file);
+  return unlinkSync(file, ...args);
+};
+fs.renameSync = (source, target, ...args) => {
+  if (!replaced
+      && isCandidate(source)
+      && path.basename(path.dirname(String(target))).startsWith('.archify-remove-')) {
+    replaceCandidate(source);
+  }
+  return renameSync(source, target, ...args);
+};
+process.argv = [process.execPath, ${JSON.stringify(cli)}, 'deliver', 'workflow', ${JSON.stringify(input)}, ${JSON.stringify(output)}, '--json'];
+await import(${JSON.stringify(pathToFileURL(cli).href)});
+`);
+
+    const failed = spawnSync(process.execPath, [wrapper], { cwd, encoding: 'utf8' });
+    assert.equal(failed.status, 1, failed.stderr || failed.stdout);
+    const staging = fs.readdirSync(cwd).filter((name) => (
+      name.startsWith('.archify-delivery-')
+      && fs.lstatSync(path.join(cwd, name)).isDirectory()
+    ));
+    assert.equal(staging.length, 1, failed.stderr || failed.stdout);
+    const candidate = path.join(cwd, staging[0], candidateName);
+    assert.equal(fs.readFileSync(candidate, 'utf8'), claimant);
+    const claimantIdentity = fs.lstatSync(candidate, { bigint: true });
+    assert.deepEqual(
+      { dev: String(claimantIdentity.dev), ino: String(claimantIdentity.ino) },
+      JSON.parse(fs.readFileSync(claimantIdentityFile, 'utf8')),
+    );
+    assert.equal(fs.existsSync(displacedCandidate), true);
+  });
+}
+
 for (const initiallyExisting of [false, true]) {
   for (const targetRole of ['artifact', 'provenance']) {
     test(`delivery preserves an ${initiallyExisting ? 'existing replacement' : 'absent-slot claimant'} for the ${targetRole}`, (t) => {
@@ -999,8 +1089,11 @@ test('Windows delivery accepts an existing 8.3 artifact alias and keeps strict p
   fs.mkdirSync(directory);
   const output = path.join(directory, 'diagram artifact with long name.html');
   assert.equal(run(['deliver', 'workflow', input, output, '--json'], cwd).status, 0);
-  const shortOutput = windowsShortPath(output);
+  const shortOutput = controlledRoot
+    ? assignWindowsShortName(output, 'ARCHDL~1.HTM')
+    : windowsShortPath(output);
   if (!shortOutput) {
+    if (requiresWindows8dot3) assert.fail('the controlled Windows fixture did not expose the explicit file 8.3 alias');
     t.skip('the Windows volume does not expose a distinct 8.3 artifact alias');
     return;
   }

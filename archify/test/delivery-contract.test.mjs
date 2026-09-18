@@ -110,15 +110,22 @@ test('skill uses recoverable verified delivery for the final artifact', () => {
   assert.match(delivery, /never claim that the deterministic receipt includes visual review/i);
 });
 
-test('atomic publishers freeze the write slot and reject hardlinked write targets', () => {
-  assert.match(delivery, /Every atomic HTML publisher \(`render`, `deliver`, `compare`, and `preview`\)/i);
+test('no-clobber publishers freeze the write slot and reject hardlinked write targets', () => {
+  assert.match(delivery, /Every no-clobber HTML publisher \(`render`, `deliver`, `compare`, and `preview`\)/i);
   assert.match(delivery, /requested directory entry, canonical write slot, physical parent/i);
   assert.match(delivery, /target type, device\/inode identity, and mode[\s\S]*revalidates/i);
   assert.match(delivery, /multiple hard-link names fails closed with `output\/target-hardlinked`/i);
   assert.match(delivery, /provenance directory\s+entry itself must be a single-link regular file[\s\S]*`delivery\/provenance-hardlink-unsupported`/i);
-  assert.match(delivery, /Hard links remain supported for[\s\S]*read identity[\s\S]*unsupported only as\s+write targets/i);
-  assert.match(delivery, /symbolic link to a single-link regular file remains supported/i);
+  assert.match(delivery, /Hard\s+links\s+remain supported for[\s\S]*read identity[\s\S]*unsupported only as\s+write targets/i);
+  assert.match(delivery, /symbolic link to a single-link regular\s+file remains supported/i);
   assert.match(delivery, /preserves the symbolic-link entry[\s\S]*resolved target/i);
+});
+
+test('publication contract distinguishes no-clobber recovery from crash-atomic replacement', () => {
+  assert.match(delivery, /publication is no-clobber and recoverable, not crash-atomic/i);
+  assert.match(delivery, /private\s+recovery\s+backup[\s\S]*removes the public name[\s\S]*exclusive hard link/i);
+  assert.match(delivery, /process\s+interruption[\s\S]*public\s+path absent[\s\S]*verified\s+previous bytes/i);
+  assert.match(delivery, /portable\s+Node\.js filesystem API[\s\S]*compare-and-swap/i);
 });
 
 test('skill keeps optional opening behind the verified commit and outside automation', () => {

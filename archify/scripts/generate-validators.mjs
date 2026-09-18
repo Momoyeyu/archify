@@ -48,12 +48,10 @@ validatorCode = validatorCode.replaceAll(ajvUcs2Import, inlineUcs2Length);
 if (validatorCode.includes('require(')) {
   throw new Error('AJV standalone output contains an unexpected runtime dependency');
 }
-const schemaValidators = {};
 for (const type of diagramTypes) {
   const exportPattern = new RegExp(`export const ${type} = (validate\\d+);`);
   const match = validatorCode.match(exportPattern);
   if (!match) throw new Error(`AJV standalone output no longer exports the ${type} validator as expected`);
-  schemaValidators[type] = match[1];
   validatorCode = validatorCode.replace(exportPattern, `const ${type}Schema = ${match[1]};`);
 }
 

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
 
 import {
@@ -19,9 +20,11 @@ test('Windows CLI outputs retain native absolute, UNC, extended, and relative fo
   for (const value of [
     String.raw`C:\reports\diagram.html`,
     String.raw`\\server\share\reports\diagram.html`,
+    String.raw`\\server\CON\reports\diagram.html`,
     '//server/share/reports/diagram.html',
     String.raw`\\?\C:\reports\diagram.html`,
     String.raw`\\?\UNC\server\share\reports\diagram.html`,
+    String.raw`\\?\UNC\server\CON\reports\diagram.html`,
     String.raw`reports\diagram.html`,
     String.raw`..\diagram.html`,
     String.raw`.\reports\..\diagram.html`,
@@ -54,9 +57,70 @@ test('Windows CLI outputs reject ambiguous or special namespace forms', () => {
     String.raw`C:\reports\bad?.html`,
     String.raw`\\localhost\pipe\diagram.html`,
     String.raw`\\server\mailslot\diagram.html`,
+    String.raw`\\server\IPC$\diagram.html`,
     String.raw`\\?\UNC\localhost\pipe\diagram.html`,
     String.raw`\\?\UNC\server\MAILSLOT\diagram.html`,
+    String.raw`\\?\UNC\server\ipc$\diagram.html`,
   ]) nativeFailure(value, { platform: 'win32' });
+});
+
+test('Windows UNC share names use SMB share syntax rather than DOS file-device rules', () => {
+  for (const value of [
+    String.raw`\\server\CON\diagram.html`,
+    String.raw`\\CON\share\diagram.html`,
+    String.raw`\\?\UNC\server\CON\diagram.html`,
+    String.raw`\\?\UNC\CON\share\diagram.html`,
+  ]) {
+    assert.equal(validateNativeOutputPath(value, { platform: 'win32' }), value);
+  }
+
+  for (const value of [
+    String.raw`\\server\bad+share\diagram.html`,
+    String.raw`\\server\trailing.\diagram.html`,
+    `\\\\server\\${'x'.repeat(81)}\\diagram.html`,
+    String.raw`\\?\UNC\server\bad,share\diagram.html`,
+    String.raw`\\?\UNC\server\trailing \diagram.html`,
+  ]) {
+    assert.throws(
+      () => validateNativeOutputPath(value, { platform: 'win32' }),
+      (error) => error?.archifyDiagnostics?.[0]?.evidence?.reason === 'windows-unc-share-name',
+      value,
+    );
+  }
+});
+
+test('Windows IPC shares fail before output resolution touches the filesystem', (t) => {
+  let realpathCalls = 0;
+  let lstatCalls = 0;
+  t.mock.method(fs.realpathSync, 'native', () => {
+    realpathCalls += 1;
+    throw new Error('unexpected realpath');
+  });
+  t.mock.method(fs, 'lstatSync', () => {
+    lstatCalls += 1;
+    throw new Error('unexpected lstat');
+  });
+
+  for (const requestedOutput of [
+    String.raw`\\server\IPC$\diagram.html`,
+    String.raw`\\server\pipe\diagram.html`,
+    String.raw`\\server\mailslot\diagram.html`,
+    String.raw`\\?\UNC\server\IPC$\diagram.html`,
+    String.raw`\\?\UNC\server\pipe\diagram.html`,
+    String.raw`\\?\UNC\server\mailslot\diagram.html`,
+  ]) {
+    assert.throws(
+      () => resolveOutputPath({
+        requestedOutput,
+        defaultOutput: 'diagram.html',
+        platform: 'win32',
+      }),
+      (error) => error?.archifyDiagnostics?.[0]?.evidence?.reason === 'windows-ipc-namespace',
+      requestedOutput,
+    );
+  }
+  assert.equal(realpathCalls, 0);
+  assert.equal(lstatCalls, 0);
 });
 
 test('Windows native output directories validate raw spelling before resolution', () => {

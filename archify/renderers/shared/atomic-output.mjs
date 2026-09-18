@@ -739,35 +739,363 @@ export function backupPublicRegularFileBinding(binding, filePath, backupPath, {
   };
 }
 
+/**
+ * Remove a hard-link name that this process just introduced while preserving
+ * the source claimant. This is the rollback path when a staged pathname was
+ * swapped after its expected binding was verified but before `linkSync` used
+ * that pathname.
+ */
+export function quarantineRemoveLinkedRegularFileAlias(sourcePath, aliasPath, {
+  subject = 'linked-claimant',
+} = {}) {
+  const source = path.resolve(sourcePath);
+  const alias = path.resolve(aliasPath);
+  const captured = captureRegularFileBinding(source, {
+    subject,
+    expectedLinks: 2,
+  });
+  if (captured.status !== 'captured') return captured;
+  let result;
+  let released;
+  try {
+    const aliasMatches = verifyRegularFileBinding(captured.binding, {
+      filePath: alias,
+      expectedLinks: 2,
+    });
+    if (aliasMatches.status !== 'match') {
+      result = aliasMatches;
+    } else {
+      const removal = quarantineRemoveRegularFileBinding(captured.binding, alias, {
+        subject,
+        expectedLinks: 2,
+      });
+      if (removal.status !== 'removed') {
+        result = removal;
+      } else {
+        const sourceRemains = verifyRegularFileBinding(captured.binding, {
+          filePath: source,
+          expectedLinks: 1,
+        });
+        result = sourceRemains.status === 'match' ? removal : sourceRemains;
+      }
+    }
+  } finally {
+    released = releaseRegularFileBinding(captured.binding);
+  }
+  if (released.status !== 'released') {
+    return {
+      ...released,
+      removalStatus: result?.status,
+      ...(result?.recoveryDirectory ? {
+        recoveryDirectory: result.recoveryDirectory,
+        recoveryFile: result.recoveryFile,
+        target: result.target,
+      } : {}),
+    };
+  }
+  return result;
+}
+
+function removePublishedBindingName(binding, filePath, subject) {
+  for (const expectedLinks of [2, 1]) {
+    const matches = verifyRegularFileBinding(binding, { filePath, expectedLinks });
+    if (matches.status === 'match') {
+      return quarantineRemoveRegularFileBinding(binding, filePath, {
+        subject,
+        expectedLinks,
+      });
+    }
+  }
+  return relation('preserved', `${subject}-identity-changed`, { filePath });
+}
+
+function restorePublicationBackup(binding, backupPath, commitPath, subject) {
+  const backupMatches = verifyRegularFileBinding(binding, {
+    filePath: backupPath,
+    expectedLinks: 1,
+  });
+  if (backupMatches.status !== 'match') return backupMatches;
+  try {
+    fs.linkSync(backupPath, commitPath);
+  } catch (error) {
+    return filesystemFailure(
+      error?.code === 'EEXIST'
+        ? `${subject}-restore-blocked`
+        : `${subject}-restore-failed`,
+      error,
+      { backupPath, commitPath },
+    );
+  }
+  for (const linkedPath of [backupPath, commitPath]) {
+    const linked = verifyRegularFileBinding(binding, {
+      filePath: linkedPath,
+      expectedLinks: 2,
+    });
+    if (linked.status !== 'match') return linked;
+  }
+  const retired = quarantineRemoveRegularFileBinding(binding, backupPath, {
+    subject: `${subject}-backup`,
+    expectedLinks: 2,
+  });
+  if (retired.status !== 'removed') return retired;
+  return verifyRegularFileBinding(binding, {
+    filePath: commitPath,
+    expectedLinks: 1,
+  });
+}
+
+/**
+ * Publish a captured candidate without ever replacing an unverified public
+ * entry. Existing output is retained through a bound private backup; the new
+ * name is created with a no-clobber hard link while the candidate descriptor
+ * remains open. Both the staged and public names are then verified through
+ * that descriptor before the staged name is retired via quarantine.
+ * Replacing an existing entry is recoverable but not crash-atomic: the public
+ * name is absent between retiring the verified previous name and linking the
+ * candidate. Portable Node.js exposes no replacement compare-and-swap that
+ * also preserves a late claimant.
+ *
+ * The caller owns `binding` and must release it after this function returns.
+ */
+export function publishRegularFileBinding(binding, candidatePath, snapshot, {
+  subject = 'candidate',
+} = {}) {
+  const candidate = path.resolve(candidatePath);
+  const commitPath = snapshot?.slot?.commitPath;
+  if (typeof commitPath !== 'string') {
+    return relation('unknown', `${subject}-publication-snapshot-unavailable`);
+  }
+
+  const beforePublish = verifyAtomicOutput(snapshot);
+  if (beforePublish.status !== 'match') return beforePublish;
+  const candidateMatches = verifyRegularFileBinding(binding, {
+    filePath: candidate,
+    expectedLinks: 1,
+  });
+  if (candidateMatches.status !== 'match') return candidateMatches;
+
+  let previousBinding;
+  let recoveryDirectory;
+  let backupPath;
+  let previousBackedUp = false;
+  const finishPrevious = () => {
+    if (!previousBinding) return null;
+    const released = releaseRegularFileBinding(previousBinding);
+    previousBinding = undefined;
+    return released.status === 'released' ? null : released;
+  };
+  const cleanupRecoveryDirectory = () => {
+    if (!recoveryDirectory) return null;
+    const cleanup = removeEmptyQuarantine(recoveryDirectory);
+    if (!cleanup) recoveryDirectory = undefined;
+    return cleanup;
+  };
+  const restorePrevious = () => {
+    if (!previousBinding || !previousBackedUp) return null;
+    return restorePublicationBackup(
+      previousBinding,
+      backupPath,
+      commitPath,
+      'previous-output',
+    );
+  };
+  const rollback = (failure) => {
+    let publicRemoval = removePublishedBindingName(
+      binding,
+      commitPath,
+      `${subject}-publication`,
+    );
+    if (publicRemoval.status === 'preserved') {
+      const claimantRemoval = quarantineRemoveLinkedRegularFileAlias(
+        candidate,
+        commitPath,
+        { subject: `${subject}-publication-claimant` },
+      );
+      if (claimantRemoval.status === 'removed') publicRemoval = claimantRemoval;
+    }
+    const restored = restorePrevious();
+    const released = finishPrevious();
+    const directoryCleanup = cleanupRecoveryDirectory();
+    return {
+      ...failure,
+      ...(publicRemoval.status !== 'removed' && publicRemoval.status !== 'absent'
+        ? { publicState: publicRemoval.reason } : {}),
+      ...(restored && restored.status !== 'match' ? { restoreState: restored.reason } : {}),
+      ...(released ? { releaseState: released.reason } : {}),
+      ...(directoryCleanup ? {
+        recoveryDirectory: directoryCleanup.reason?.recoveryDirectory || recoveryDirectory,
+      } : {}),
+      ...((restored && restored.status !== 'match') || directoryCleanup
+        ? { recoveryFile: backupPath } : {}),
+    };
+  };
+
+  if (snapshot.target.kind === 'file') {
+    const previous = captureRegularFileBinding(commitPath, {
+      subject: 'previous-output',
+      expectedIdentity: {
+        device: snapshot.target.device,
+        inode: snapshot.target.inode,
+      },
+      expectedMode: snapshot.target.mode,
+      expectedLinks: 1,
+    });
+    if (previous.status !== 'captured') return previous;
+    previousBinding = previous.binding;
+    const quarantine = createRemovalQuarantine(path.dirname(commitPath));
+    if (quarantine.status !== 'created') {
+      const released = finishPrevious();
+      return released || quarantine;
+    }
+    recoveryDirectory = quarantine.directory;
+    backupPath = path.join(recoveryDirectory, 'previous');
+    const backup = backupPublicRegularFileBinding(
+      previousBinding,
+      commitPath,
+      backupPath,
+      { subject: 'previous-output' },
+    );
+    previousBackedUp = backup.status === 'backed-up';
+    if (!previousBackedUp) {
+      const released = finishPrevious();
+      const directoryCleanup = backup.backupCreated ? null : cleanupRecoveryDirectory();
+      return {
+        ...backup,
+        ...(released ? { releaseState: released.reason } : {}),
+        ...(directoryCleanup ? { directoryCleanupState: directoryCleanup.reason } : {}),
+      };
+    }
+  }
+
+  try {
+    fs.linkSync(candidate, commitPath);
+  } catch (error) {
+    return rollback(filesystemFailure(
+      error?.code === 'EEXIST'
+        ? 'target-created-during-commit'
+        : `${subject}-publication-link-failed`,
+      error,
+      { candidatePath: candidate, commitPath },
+    ));
+  }
+
+  const published = verifyRegularFileBinding(binding, {
+    filePath: commitPath,
+    expectedLinks: 2,
+  });
+  const staged = verifyRegularFileBinding(binding, {
+    filePath: candidate,
+    expectedLinks: 2,
+  });
+  if (published.status !== 'match' || staged.status !== 'match') {
+    return rollback(relation('different', `${subject}-identity-changed`, {
+      candidatePath: candidate,
+      commitPath,
+      publishedState: published.reason,
+      stagedState: staged.reason,
+    }));
+  }
+
+  const retired = quarantineRemoveRegularFileBinding(binding, candidate, {
+    subject: `${subject}-staging`,
+    expectedLinks: 2,
+  });
+  if (retired.status !== 'removed' && retired.status !== 'preserved') {
+    return rollback(retired);
+  }
+  const final = verifyRegularFileBinding(binding, {
+    filePath: commitPath,
+    expectedLinks: 1,
+  });
+  if (final.status !== 'match') return rollback(final);
+
+  let cleanupWarning = retired.status === 'preserved' ? retired : undefined;
+  if (previousBinding) {
+    const backupRemoval = quarantineRemoveRegularFileBinding(
+      previousBinding,
+      backupPath,
+      { subject: 'previous-output-backup', expectedLinks: 1 },
+    );
+    if (backupRemoval.status !== 'removed') cleanupWarning = backupRemoval;
+  }
+  const released = finishPrevious();
+  const directoryCleanup = cleanupRecoveryDirectory();
+  cleanupWarning ||= released || directoryCleanup;
+  const recoveryFile = cleanupWarning?.recoveryFile
+    || (retired.status === 'preserved' ? candidate : undefined)
+    || (recoveryDirectory ? backupPath : undefined);
+  return {
+    status: cleanupWarning ? 'committed-with-warning' : 'committed',
+    reason: {
+      code: `${subject}-published`,
+      candidatePath: candidate,
+      commitPath,
+      ...(retired.status === 'preserved' ? { stagedSuccessorPreserved: true } : {}),
+    },
+    ...(cleanupWarning ? {
+      cleanupState: cleanupWarning.reason,
+      ...(recoveryDirectory ? { recoveryDirectory } : {}),
+      ...(recoveryFile ? { recoveryFile } : {}),
+    } : {}),
+  };
+}
+
 /** Remove only the directory entry that still names a caller-owned inode. */
 export function removeOwnedRegularFile(filePath, identity, { subject = 'candidate' } = {}) {
   const resolvedPath = path.resolve(filePath);
-  let current;
-  try {
-    current = fs.lstatSync(resolvedPath, { bigint: true });
-  } catch (error) {
-    if (error.code === 'ENOENT') {
-      return relation('absent', `${subject}-already-absent`, { filePath: resolvedPath });
-    }
-    return filesystemFailure(`${subject}-cleanup-inspection-failed`, error, {
-      filePath: resolvedPath,
+  let expectedLinks = 1;
+  let captured = captureRegularFileBinding(resolvedPath, {
+    subject,
+    expectedIdentity: identity,
+    expectedLinks,
+  });
+  const reportedLinks = Number(captured.reason?.links);
+  if (captured.status === 'unsupported'
+    && captured.reason?.code === `${subject}-hardlinked`
+    && Number.isSafeInteger(reportedLinks)
+    && reportedLinks > 1) {
+    expectedLinks = reportedLinks;
+    captured = captureRegularFileBinding(resolvedPath, {
+      subject,
+      expectedIdentity: identity,
+      expectedLinks,
     });
   }
-  if (!current.isFile()
-    || current.ino === 0n
-    || current.dev !== identity?.device
-    || current.ino !== identity?.inode) {
-    return relation('preserved', `${subject}-identity-changed`, { filePath: resolvedPath });
-  }
-  try {
-    fs.unlinkSync(resolvedPath);
-    return relation('removed', `${subject}-removed`, { filePath: resolvedPath });
-  } catch (error) {
-    if (error.code === 'ENOENT') {
+  if (captured.status !== 'captured') {
+    if (captured.reason?.systemCode === 'ENOENT') {
       return relation('absent', `${subject}-already-absent`, { filePath: resolvedPath });
     }
-    return filesystemFailure(`${subject}-cleanup-failed`, error, { filePath: resolvedPath });
+    if (captured.status === 'different' || captured.status === 'unsupported') {
+      return relation('preserved', `${subject}-identity-changed`, {
+        filePath: resolvedPath,
+        priorState: captured.reason,
+      });
+    }
+    return captured;
   }
+
+  let removal;
+  let released;
+  try {
+    removal = quarantineRemoveRegularFileBinding(captured.binding, resolvedPath, {
+      subject,
+      expectedLinks,
+    });
+  } finally {
+    released = releaseRegularFileBinding(captured.binding);
+  }
+  if (released.status !== 'released') {
+    return {
+      ...released,
+      removalStatus: removal?.status,
+      ...(removal?.recoveryDirectory ? {
+        recoveryDirectory: removal.recoveryDirectory,
+        recoveryFile: removal.recoveryFile,
+        target: removal.target,
+      } : {}),
+    };
+  }
+  return removal;
 }
 
 function captureWriteSlot(requestedPath) {
@@ -886,9 +1214,9 @@ function requestedEntryMatches(left, right) {
 }
 
 /**
- * Capture the physical directory-entry slot and target identity used by an
- * atomic rename. Hard links are intentionally unsupported: replacing one name
- * cannot update its other names while retaining crash-atomic publication.
+ * Capture the physical directory-entry slot and target identity used by a
+ * verified publication. Hard links are intentionally unsupported: replacing
+ * one name cannot safely update its unknown sibling names.
  * `regular-or-absent` additionally rejects requested-entry symlinks and special
  * nodes for sidecars whose public name itself must never be followed.
  */

@@ -6,7 +6,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { sameLocation } from '../archify/renderers/shared/path-semantics.mjs';
+import {
+  sameLocation,
+  sidecarNamespaceComponentKey,
+} from '../archify/renderers/shared/path-semantics.mjs';
 import { checkForUpdate } from '../archify/scripts/check-update.mjs';
 import { stageCleanSkill } from './stage-clean-skill.mjs';
 
@@ -157,6 +160,27 @@ async function runControlledWindowsPathE2E() {
     assert.equal(sameLocation(upperOutput, lowerOutput).status, 'different');
     assert.ok(fs.existsSync(upperOutput) && fs.existsSync(lowerOutput));
 
+    const nfcOutput = path.join(caseRoot, `${token}-Caf\u00e9.html`);
+    const nfdOutput = path.join(caseRoot, `${token}-Cafe\u0301.html`);
+    assert.equal(
+      path.basename(nfcOutput).normalize('NFC'),
+      path.basename(nfdOutput).normalize('NFC'),
+      'the controlled artifact pair must differ only by canonical Unicode normalization',
+    );
+    requireSuccess('normalization-sensitive render (NFC)', runCli([
+      'render', 'architecture', architectureInput, nfcOutput,
+    ]));
+    assert.equal(
+      sameLocation(nfcOutput, nfdOutput).status,
+      'different',
+      'a future NFD spelling must remain distinct in the controlled NTFS directory',
+    );
+    requireSuccess('normalization-sensitive render (NFD)', runCli([
+      'render', 'architecture', architectureInput, nfdOutput,
+    ]));
+    assert.equal(sameLocation(nfcOutput, nfdOutput).status, 'different');
+    assert.ok(fs.existsSync(nfcOutput) && fs.existsSync(nfdOutput));
+
     const caseDelivery = path.join(caseRoot, `${token}-drive-case-delivery.html`);
     const driveCaseDelivery = path.join(driveCaseRoot, path.basename(caseDelivery));
     const deliveredCase = runCli([
@@ -275,20 +299,47 @@ async function runControlledWindowsPathE2E() {
     });
     assert.equal(update.status, 'update_available');
 
-    let longDirectory = extendedUncRoot;
-    for (let index = 0; longDirectory.length <= 320; index += 1) {
-      longDirectory = path.win32.join(longDirectory, `${token.slice(0, 24)}-${index}-long-path`);
+    let ordinaryLongDirectory = uncRoot;
+    for (let index = 0; ordinaryLongDirectory.length <= 320; index += 1) {
+      ordinaryLongDirectory = path.win32.join(
+        ordinaryLongDirectory,
+        `${token.slice(0, 24)}-${index}-ordinary-long-path`,
+      );
     }
-    fs.mkdirSync(longDirectory, { recursive: true });
-    const longOutput = path.win32.join(longDirectory, 'diagram.html');
-    assert.ok(longOutput.length > 320, 'controlled path must exceed the traditional MAX_PATH limit');
-    const longDelivery = runCli([
-      'deliver', 'workflow', workflowInput, longOutput,
+    fs.mkdirSync(ordinaryLongDirectory, { recursive: true });
+    const ordinaryLongOutput = path.win32.join(ordinaryLongDirectory, 'diagram.html');
+    assert.ok(
+      ordinaryLongOutput.length > 320,
+      'controlled ordinary UNC path must exceed the traditional MAX_PATH limit',
+    );
+    const ordinaryLongDelivery = runCli([
+      'deliver', 'workflow', workflowInput, ordinaryLongOutput,
       '--quality', 'showcase', '--json',
     ]);
-    requireSuccess('delivery beyond traditional MAX_PATH', longDelivery);
-    assert.equal(JSON.parse(longDelivery.stdout).ok, true);
-    assert.ok(fs.existsSync(longOutput));
+    requireSuccess('ordinary UNC delivery beyond traditional MAX_PATH', ordinaryLongDelivery);
+    assert.equal(JSON.parse(ordinaryLongDelivery.stdout).ok, true);
+    assert.ok(fs.existsSync(ordinaryLongOutput));
+
+    let extendedLongDirectory = extendedUncRoot;
+    for (let index = 0; extendedLongDirectory.length <= 320; index += 1) {
+      extendedLongDirectory = path.win32.join(
+        extendedLongDirectory,
+        `${token.slice(0, 24)}-${index}-extended-long-path`,
+      );
+    }
+    fs.mkdirSync(extendedLongDirectory, { recursive: true });
+    const extendedLongOutput = path.win32.join(extendedLongDirectory, 'diagram.html');
+    assert.ok(
+      extendedLongOutput.length > 320,
+      'controlled extended UNC path must exceed the traditional MAX_PATH limit',
+    );
+    const extendedLongDelivery = runCli([
+      'deliver', 'workflow', workflowInput, extendedLongOutput,
+      '--quality', 'showcase', '--json',
+    ]);
+    requireSuccess('extended UNC delivery beyond traditional MAX_PATH', extendedLongDelivery);
+    assert.equal(JSON.parse(extendedLongDelivery.stdout).ok, true);
+    assert.ok(fs.existsSync(extendedLongOutput));
 
     const evidenceDirectory = path.win32.join(uncRoot, `${token}-visual-evidence`);
     const visual = runCli([
@@ -297,6 +348,86 @@ async function runControlledWindowsPathE2E() {
     ], { timeout: 180_000 });
     requireSuccess('ordinary UNC visual-check', visual);
     assert.equal(JSON.parse(visual.stdout).status, 'pass');
+
+    const sharedCaseEvidenceDirectory = path.win32.join(
+      uncRoot,
+      `${token}-case-variant-visual-evidence`,
+    );
+    const upperVisual = runCli([
+      'visual-check', upperOutput, '--json', '--out-dir', sharedCaseEvidenceDirectory,
+    ], { timeout: 180_000 });
+    requireSuccess('case-sensitive upper artifact visual-check to shared UNC', upperVisual);
+    const lowerVisual = runCli([
+      'visual-check', lowerOutput, '--json', '--out-dir', sharedCaseEvidenceDirectory,
+    ], { timeout: 180_000 });
+    requireSuccess('case-sensitive lower artifact visual-check to shared UNC', lowerVisual);
+    const upperReceipt = JSON.parse(upperVisual.stdout);
+    const lowerReceipt = JSON.parse(lowerVisual.stdout);
+    assert.equal(upperReceipt.status, 'pass');
+    assert.equal(lowerReceipt.status, 'pass');
+    const upperReceiptKey = sidecarNamespaceComponentKey(
+      upperReceipt.sidecars.directory,
+      upperReceipt.sidecars.receipt,
+    );
+    const lowerReceiptKey = sidecarNamespaceComponentKey(
+      lowerReceipt.sidecars.directory,
+      lowerReceipt.sidecars.receipt,
+    );
+    assert.equal(upperReceiptKey.status, 'resolved');
+    assert.equal(lowerReceiptKey.status, 'resolved');
+    assert.notEqual(
+      upperReceiptKey.componentKey,
+      lowerReceiptKey.componentKey,
+      'case-variant artifacts must receive distinct evidence names on a case-insensitive share',
+    );
+    assert.ok(fs.existsSync(path.win32.join(
+      upperReceipt.sidecars.directory,
+      upperReceipt.sidecars.receipt,
+    )));
+    assert.ok(fs.existsSync(path.win32.join(
+      lowerReceipt.sidecars.directory,
+      lowerReceipt.sidecars.receipt,
+    )));
+
+    const sharedNormalizationEvidenceDirectory = path.win32.join(
+      uncRoot,
+      `${token}-normalization-variant-visual-evidence`,
+    );
+    const nfcVisual = runCli([
+      'visual-check', nfcOutput, '--json', '--out-dir', sharedNormalizationEvidenceDirectory,
+    ], { timeout: 180_000 });
+    requireSuccess('normalization-sensitive NFC artifact visual-check to shared UNC', nfcVisual);
+    const nfdVisual = runCli([
+      'visual-check', nfdOutput, '--json', '--out-dir', sharedNormalizationEvidenceDirectory,
+    ], { timeout: 180_000 });
+    requireSuccess('normalization-sensitive NFD artifact visual-check to shared UNC', nfdVisual);
+    const nfcReceipt = JSON.parse(nfcVisual.stdout);
+    const nfdReceipt = JSON.parse(nfdVisual.stdout);
+    assert.equal(nfcReceipt.status, 'pass');
+    assert.equal(nfdReceipt.status, 'pass');
+    const nfcReceiptKey = sidecarNamespaceComponentKey(
+      nfcReceipt.sidecars.directory,
+      nfcReceipt.sidecars.receipt,
+    );
+    const nfdReceiptKey = sidecarNamespaceComponentKey(
+      nfdReceipt.sidecars.directory,
+      nfdReceipt.sidecars.receipt,
+    );
+    assert.equal(nfcReceiptKey.status, 'resolved');
+    assert.equal(nfdReceiptKey.status, 'resolved');
+    assert.notEqual(
+      nfcReceiptKey.componentKey,
+      nfdReceiptKey.componentKey,
+      'normalization-distinct artifacts must receive distinct evidence names on the shared UNC target',
+    );
+    assert.ok(fs.existsSync(path.win32.join(
+      nfcReceipt.sidecars.directory,
+      nfcReceipt.sidecars.receipt,
+    )));
+    assert.ok(fs.existsSync(path.win32.join(
+      nfdReceipt.sidecars.directory,
+      nfdReceipt.sidecars.receipt,
+    )));
 
     const previewOutput = path.win32.join(extendedUncRoot, `${token}-preview.html`);
     const { startPreview } = await import('../archify/bin/preview.mjs');

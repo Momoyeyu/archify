@@ -166,6 +166,70 @@ test('compare recovery: a claimant swapped at the final backup move is restored 
   assert.deepEqual(fs.readFileSync(recovery.backup), data.old.receipt);
 });
 
+for (const candidateRole of ['html', 'receipt']) {
+  test(`compare recovery: preserves a claimant that replaces the staged ${candidateRole} at retirement`, { timeout: 70000 }, (t) => {
+    const data = fixture(t);
+    const candidateName = path.basename(data.targets[candidateRole]);
+    const claimant = `${candidateRole} retirement claimant\n`;
+    const claimantIdentityFile = path.join(data.root, `${candidateRole}-retirement-identity.json`);
+    const displacedCandidate = path.join(data.root, `${candidateRole}-retirement-displaced`);
+    const preload = path.join(data.root, `replace-${candidateRole}-candidate-at-retirement.cjs`);
+    fs.writeFileSync(preload, `
+const fs = require('node:fs');
+const path = require('node:path');
+const unlinkSync = fs.unlinkSync;
+const renameSync = fs.renameSync;
+const writeFileSync = fs.writeFileSync;
+let replaced = false;
+const isCandidate = (file) => (
+  path.basename(String(file)) === ${JSON.stringify(candidateName)}
+  && path.basename(path.dirname(String(file))).startsWith('.archify-compare-')
+);
+const replaceCandidate = (file) => {
+  replaced = true;
+  renameSync(file, ${JSON.stringify(displacedCandidate)});
+  writeFileSync(file, ${JSON.stringify(claimant)}, { flag: 'wx' });
+  const stat = fs.lstatSync(file, { bigint: true });
+  writeFileSync(${JSON.stringify(claimantIdentityFile)}, JSON.stringify({
+    dev: String(stat.dev),
+    ino: String(stat.ino),
+  }));
+};
+fs.unlinkSync = (file, ...args) => {
+  if (!replaced && isCandidate(file)) replaceCandidate(file);
+  return unlinkSync(file, ...args);
+};
+fs.renameSync = (source, target, ...args) => {
+  if (!replaced
+      && isCandidate(source)
+      && path.basename(path.dirname(String(target))).startsWith('.archify-remove-')) {
+    replaceCandidate(source);
+  }
+  return renameSync(source, target, ...args);
+};
+`);
+
+    const result = data.run(preload);
+    assert.ifError(result.error);
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    const staging = fs.readdirSync(data.root).filter((name) => (
+      name.startsWith('.archify-compare-')
+      && fs.lstatSync(path.join(data.root, name)).isDirectory()
+    ));
+    assert.equal(staging.length, 1, result.stderr || result.stdout);
+    const candidate = path.join(data.root, staging[0], candidateName);
+    assert.equal(fs.readFileSync(candidate, 'utf8'), claimant);
+    const claimantIdentity = fs.lstatSync(candidate, { bigint: true });
+    assert.deepEqual(
+      { dev: String(claimantIdentity.dev), ino: String(claimantIdentity.ino) },
+      JSON.parse(fs.readFileSync(claimantIdentityFile, 'utf8')),
+    );
+    assert.equal(fs.existsSync(displacedCandidate), true);
+    assert.deepEqual(fs.readFileSync(data.targets.html), data.old.html);
+    assert.deepEqual(fs.readFileSync(data.targets.receipt), data.old.receipt);
+  });
+}
+
 for (const scenario of cases) {
   test(`compare recovery: ${scenario.name}`, { timeout: 70000 }, (t) => {
     const data = fixture(t);

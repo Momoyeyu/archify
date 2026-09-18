@@ -11,7 +11,7 @@
     "meta": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["title"],
+      "required": ["title", "output"],
       "properties": {
         "title": { "type": "string", "minLength": 1 },
         "locale": { "$ref": "common.schema.json#/$defs/locale" },

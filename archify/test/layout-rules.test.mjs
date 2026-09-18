@@ -39,7 +39,9 @@ function load(mode) {
 function render(mode, doc) {
   const input = path.join(tmp, `${mode}-${Math.abs(hash(JSON.stringify(doc)))}.json`);
   const outPath = path.join(tmp, `${mode}-${Math.abs(hash(JSON.stringify(doc)))}.html`);
-  fs.writeFileSync(input, JSON.stringify(doc));
+  const renderDoc = structuredClone(doc);
+  renderDoc.meta = { ...renderDoc.meta, output: `${mode}-layout-rules.html` };
+  fs.writeFileSync(input, JSON.stringify(renderDoc));
   try {
     execFileSync('node', [
       path.join(skillRoot, `renderers/${mode}/render-${mode}.mjs`),

@@ -20,7 +20,7 @@ function workflowDocument(schemaVersion) {
   return {
     schema_version: schemaVersion,
     diagram_type: 'workflow',
-    meta: { title: 'Schema compatibility' },
+    meta: { title: 'Schema compatibility', output: 'schema-compatibility.html' },
     lanes: [{ id: 'main', label: 'Main' }],
     nodes: [{ id: 'step', lane: 'main', col: 0, type: 'backend', label: 'Step' }],
     edges: [],
@@ -92,6 +92,12 @@ test('generated validators share one portable authored output contract', () => {
     `${'a'.repeat(251)}.html`,
     `${'é'.repeat(128)}.html`,
   ];
+  const deepOutput = `${Array.from(
+    { length: 10 },
+    (_, index) => `component-${index}-${'a'.repeat(20)}`,
+  ).join('/')}/diagram.html`;
+  assert.ok(deepOutput.length > 255);
+  assert.equal(validatePortableOutputSchema(deepOutput), true);
 
   for (const [type, example] of Object.entries(examples)) {
     const document = JSON.parse(fs.readFileSync(path.join(skillRoot, 'examples', example), 'utf8'));
@@ -100,6 +106,12 @@ test('generated validators share one portable authored output contract', () => {
       generatedValidators[type](document),
       true,
       `${type} rejected a portable HTML output: ${JSON.stringify(generatedValidators[type].errors)}`,
+    );
+    document.meta.output = deepOutput;
+    assert.equal(
+      generatedValidators[type](document),
+      true,
+      `${type} rejected a deep output whose individual components are portable: ${JSON.stringify(generatedValidators[type].errors)}`,
     );
 
     for (const output of invalidOutputs) {

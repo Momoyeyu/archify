@@ -47,6 +47,30 @@ function windowsShortPath(targetPath) {
   return shortPath;
 }
 
+function assignWindowsShortName(targetPath, shortName) {
+  const result = spawnSync(
+    'fsutil.exe',
+    ['file', 'setshortname', targetPath, shortName],
+    { encoding: 'utf8', windowsHide: true },
+  );
+  if (result.error) {
+    throw new Error(`Could not assign Windows 8.3 name ${shortName}: ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    const detail = result.stderr.trim() || result.stdout.trim() || 'no command output';
+    throw new Error(`Could not assign Windows 8.3 name ${shortName} (exit ${result.status}): ${detail}`);
+  }
+  const alias = path.join(path.dirname(targetPath), shortName);
+  const aliasStat = fs.statSync(alias, { bigint: true });
+  const targetStat = fs.statSync(targetPath, { bigint: true });
+  assert.deepEqual(
+    [aliasStat.dev, aliasStat.ino],
+    [targetStat.dev, targetStat.ino],
+    'the explicitly assigned 8.3 name must resolve to the requested entry',
+  );
+  return alias;
+}
+
 function controlledWindowsShortRoot(required) {
   const root = process.env.ARCHIFY_WINDOWS_8DOT3_ROOT;
   const shortRoot = process.env.ARCHIFY_WINDOWS_8DOT3_SHORT_ROOT;
@@ -599,6 +623,77 @@ test('preview: replacing the staged commit candidate preserves the claimant', { 
   }
 });
 
+test('preview: a candidate swapped at publication cannot replace the last good artifact', { timeout: 10000 }, async (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-preview-publication-binding-'));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  const input = path.join(tmp, 'diagram.json');
+  const output = path.join(tmp, 'diagram.html');
+  const deliveryCli = path.join(tmp, 'delivery.mjs');
+  const marker = path.join(tmp, 'delivery-started');
+  const detachedCandidate = path.join(tmp, 'detached-preview-publication-candidate.html');
+  const previous = '<!doctype html><title>previous preview artifact</title>\n';
+  const claimant = '<!doctype html><title>preview publication claimant</title>\n';
+  fs.writeFileSync(input, '{}');
+  fs.writeFileSync(output, previous);
+  writeDelayedDeliveryCli(deliveryCli, marker, 'Bound preview candidate');
+
+  const openSync = fs.openSync.bind(fs);
+  const closeSync = fs.closeSync.bind(fs);
+  const linkSync = fs.linkSync.bind(fs);
+  const writeFileSync = fs.writeFileSync.bind(fs);
+  let candidatePath;
+  let candidateDescriptor;
+  let injected = false;
+  const inject = () => {
+    injected = true;
+    fs.renameSync(candidatePath, detachedCandidate);
+    writeFileSync(candidatePath, claimant, { flag: 'wx' });
+  };
+  t.mock.method(fs, 'openSync', (file, flags, ...args) => {
+    const descriptor = openSync(file, flags, ...args);
+    const resolved = path.resolve(String(file));
+    if (path.basename(resolved).startsWith('.archify-preview-commit-')
+      && (flags & (fs.constants.O_WRONLY | fs.constants.O_RDWR)) === 0) {
+      candidatePath = resolved;
+      candidateDescriptor = descriptor;
+    }
+    return descriptor;
+  });
+  t.mock.method(fs, 'closeSync', (descriptor) => {
+    const result = closeSync(descriptor);
+    if (!injected && descriptor === candidateDescriptor && fs.existsSync(candidatePath)) inject();
+    return result;
+  });
+  t.mock.method(fs, 'linkSync', (source, target) => {
+    if (!injected
+      && candidatePath
+      && path.resolve(String(source)) === candidatePath
+      && path.basename(String(target)) === path.basename(output)) inject();
+    return linkSync(source, target);
+  });
+
+  const preview = await startPreview({
+    type: 'architecture', input, output, open: false, watch: false,
+    pollMs: 60_000, debounceMs: 10, deliveryCli,
+  });
+  try {
+    const state = await waitForState(
+      preview.url,
+      (candidate) => candidate.status === 'needs-fix',
+      'publication-boundary replacement did not fail preview',
+    );
+    assert.equal(state.failure.stage, 'commit');
+    assert.equal(state.failure.code, 'output/target-changed');
+    assert.equal(state.failure.evidence.relation.code, 'candidate-identity-changed');
+    assert.equal(injected, true);
+    assert.equal(fs.readFileSync(output, 'utf8'), previous);
+    assert.equal(fs.readFileSync(candidatePath, 'utf8'), claimant);
+    assert.equal(fs.existsSync(detachedCandidate), true);
+  } finally {
+    await preview.stop();
+  }
+});
+
 test('preview: replacing the delivered source candidate preserves the claimant', { timeout: 10000 }, async (t) => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-preview-source-replacement-'));
   t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
@@ -767,15 +862,16 @@ test('preview: publishing through an existing output symlink preserves the link 
   }
   writeDelayedDeliveryCli(deliveryCli, marker, 'Published through symlink');
   const physicalTarget = fs.realpathSync.native(target);
-  const renameSync = fs.renameSync;
+  const linkSync = fs.linkSync.bind(fs);
   let commits = 0;
-  t.mock.method(fs, 'renameSync', (source, destination) => {
-    if (path.resolve(destination) === physicalTarget) {
+  t.mock.method(fs, 'linkSync', (source, destination) => {
+    if (path.resolve(destination) === physicalTarget
+      && path.basename(String(source)).startsWith('.archify-preview-commit-')) {
       commits += 1;
       assert.equal(path.dirname(source), path.dirname(physicalTarget));
       assert.match(path.basename(source), /^\.archify-preview-commit-/);
     }
-    return renameSync(source, destination);
+    return linkSync(source, destination);
   });
 
   const preview = await startPreview({
@@ -1348,9 +1444,14 @@ test('preview: Windows 8.3 short path observes edits through the canonical watch
     : null;
   const realDirectory = path.join(tmp, 'directory name requiring short alias');
   fs.mkdirSync(realDirectory);
-  const shortDirectory = shortTmp
-    ? path.win32.join(shortTmp, path.basename(realDirectory))
-    : windowsShortPath(realDirectory);
+  let shortDirectory;
+  if (shortTmp) {
+    const shortName = 'ARCHPR~1';
+    const explicitAlias = assignWindowsShortName(realDirectory, shortName);
+    shortDirectory = path.win32.join(shortTmp, path.basename(explicitAlias));
+  } else {
+    shortDirectory = windowsShortPath(realDirectory);
+  }
   if (!shortDirectory) {
     t.skip('the Windows volume does not expose a distinct 8.3 short path');
     return;

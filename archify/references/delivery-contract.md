@@ -81,19 +81,36 @@ contract does not claim distributed-lock correctness on NFS, SMB, or other
 network filesystems, and it cannot prevent an external process that ignores
 the protocol from replacing shared paths.
 
-Every atomic HTML publisher (`render`, `deliver`, `compare`, and `preview`)
+Every no-clobber HTML publisher (`render`, `deliver`, `compare`, and `preview`)
 captures the requested directory entry, canonical write slot, physical parent,
 and existing target type, device/inode identity, and mode before staging, then
 revalidates that snapshot immediately before replacement. An existing write
 target must be a regular file with exactly one hard-link name. A target with
-multiple hard-link names fails closed with `output/target-hardlinked`: atomic
-rename can replace the requested name, but cannot update unknown sibling names
-without abandoning crash-atomic publication. Hard links remain supported for
-read identity and input/alias collision checks; they are unsupported only as
-write targets. A symbolic link to a single-link regular file remains supported:
-publication preserves the symbolic-link entry and atomically replaces or
-creates its resolved target. Directory, FIFO, socket, device, changing mode,
-new claimant, and indeterminate identity cases fail before replacement.
+multiple hard-link names fails closed with `output/target-hardlinked`: replacing
+the requested name cannot update unknown sibling names as one publication.
+Hard links remain supported for read identity and input/alias collision checks;
+they are unsupported only as write targets. A symbolic link to a single-link regular
+file remains supported: publication preserves the symbolic-link entry and
+applies the same protocol to its resolved target. Directory, FIFO, socket,
+device, changing mode, new claimant, and indeterminate identity cases fail
+before replacement.
+
+Publication is no-clobber and recoverable, not crash-atomic replacement of an
+existing target. To avoid overwriting a claimant that appears after the last
+identity check, Archify first retains the bound old file in a private recovery
+backup, removes the public name through identity-bound quarantine, and then
+creates the new public name with an exclusive hard link. A caught failure rolls
+back when the public slot and recovery binding still permit it. A process
+interruption between those namespace operations can instead leave the public
+path absent while the verified previous bytes remain in an adjacent private
+recovery backup. Single-artifact publication uses
+`.archify-remove-*/previous`; paired flows retain the backup in their private
+transaction staging directory. Preserve and inspect that backup before serial
+recovery; for `deliver`, the pending journal and lock keep strict checkers
+fail-closed. The portable Node.js filesystem API has no pathname
+compare-and-swap that both replaces an existing name atomically and refuses to
+overwrite a late claimant: `rename` would close the visibility gap only by
+overwriting that claimant.
 
 After ownership is established, `deliver` creates the journal before rendering
 and keeps it through the recoverable HTML/sidecar pair commit. It removes the
@@ -146,7 +163,7 @@ node bin/archify.mjs visual-check <output.html> --json --require-provenance
 
 Archify intentionally separates durable authored paths from command-line paths:
 
-- Authored `meta.output` is a portable POSIX-relative path such as
+- Required authored `meta.output` is a portable POSIX-relative path such as
   `reports/diagram.html`. It uses `/`, ends in a non-empty `.html` basename,
   and cannot contain an absolute or drive-relative prefix, URI, backslash,
   empty or dot segment, control character, unpaired UTF-16 surrogate, Windows
@@ -174,8 +191,10 @@ Archify intentionally separates durable authored paths from command-line paths:
   and components that exceed its supported bound.
 
 These contracts are not interchangeable: an explicit CLI output does not hide
-an invalid durable `meta.output`, and `validate` and `migrate` check authored
-output syntax even when they do not publish to that path.
+an invalid durable `meta.output` (including a missing value), and `validate` and `migrate` check
+the authored output even when they do not publish to that path. To migrate an
+older v1 document that omitted it, add a portable POSIX-relative `.html` path
+to `meta.output`; no schema-version change is otherwise required.
 
 Use `validate` after every candidate edit. CLI HTML output paths must end in
 `.html`, including after symbolic-link resolution. Compare receipt paths must
@@ -317,8 +336,8 @@ unknown evidence and report `viewer/evidence-path-conflict`.
 
 This rule also applies when Chrome is unavailable or provenance fails before
 browser inspection: neither path may blindly delete stale-looking evidence. A
-verified owned set may be atomically replaced by a skipped or failed receipt;
-unowned evidence remains intact. These outcomes do not invalidate an already
+verified owned set may be recoverably retired before publishing a skipped or
+failed receipt; unowned evidence remains intact. These outcomes do not invalidate an already
 successful deterministic delivery and do not turn a perceptual visual review
 into passed or failed. Retry an environmental failure through the supported
 command in a browser-capable execution context when practical. Keep the

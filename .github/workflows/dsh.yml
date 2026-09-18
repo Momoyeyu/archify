@@ -6,8 +6,10 @@ on:
       - 'integrations/deepseek-harness/**'
       - '.github/workflows/dsh.yml'
       - 'archify/renderers/shared/atomic-output.mjs'
+      - 'archify/renderers/shared/output-path.mjs'
       - 'archify/renderers/shared/path-semantics.mjs'
       - 'archify/renderers/shared/portable-path.mjs'
+      - 'archify/renderers/shared/sidecar-path.mjs'
       - 'scripts/stage-clean-skill.mjs'
       - 'scripts/third-party-notices-contract.mjs'
   push:
@@ -16,8 +18,10 @@ on:
       - 'integrations/deepseek-harness/**'
       - '.github/workflows/dsh.yml'
       - 'archify/renderers/shared/atomic-output.mjs'
+      - 'archify/renderers/shared/output-path.mjs'
       - 'archify/renderers/shared/path-semantics.mjs'
       - 'archify/renderers/shared/portable-path.mjs'
+      - 'archify/renderers/shared/sidecar-path.mjs'
       - 'scripts/stage-clean-skill.mjs'
       - 'scripts/third-party-notices-contract.mjs'
     tags:

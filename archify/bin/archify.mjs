@@ -625,8 +625,45 @@ function acquireDeliveryLock(
         // lock. Bind ownership from the still-open handle before cleanup.
         try {
           handleIdentity = fs.fstatSync(descriptor, { bigint: true });
-        } catch {}
-        if (!handleIdentity) throw error;
+        } catch {
+          // Both handle metadata reads failed. Stamp the still-open inode with
+          // this attempt's unpredictable receipt before consulting the public
+          // path. A replacement claimant cannot be mistaken for our empty
+          // lock, while a successful content-bound capture gives cleanup the
+          // identity it needs after the original descriptor is closed.
+          const recoveryReceipt = `${JSON.stringify({ schemaVersion: 1, receiptId, pid: process.pid })}\n`;
+          const recoveryContent = artifactIdentity(Buffer.from(recoveryReceipt));
+          let captured;
+          try {
+            fs.writeFileSync(descriptor, recoveryReceipt);
+            captured = fileBindingRuntime?.captureRegularFileBinding?.(ownedLockPath, {
+              subject: 'owned-delivery-lock',
+              expectedSha256: recoveryContent.sha256,
+              expectedBytes: recoveryContent.bytes,
+              expectedLinks: 1,
+            });
+          } catch {}
+          if (captured?.status === 'captured') {
+            fileBindingRuntime.releaseRegularFileBinding(captured.binding);
+            openedLocks.push({
+              path: ownedLockPath,
+              identity: {
+                dev: captured.identity.device,
+                ino: captured.identity.inode,
+                mode: BigInt(captured.mode),
+              },
+              content: recoveryContent,
+              descriptor,
+            });
+          } else {
+            try {
+              fs.closeSync(descriptor);
+            } catch (closeError) {
+              error.lockCleanupError = closeError.message;
+            }
+          }
+          throw error;
+        }
         handleIdentityError = error;
       }
       const ownedLock = {
@@ -729,6 +766,175 @@ function pathEntryExists(file) {
   }
 }
 
+function captureOwnedStagingFile(registry, filePath, fileBindingRuntime, {
+  subject = 'private-staging-entry',
+  content,
+  expectedLinks = 1,
+} = {}) {
+  const { captureRegularFileBinding } = fileBindingRuntime || {};
+  if (typeof captureRegularFileBinding !== 'function') {
+    throw new Error('The regular-file binding runtime is unavailable.');
+  }
+  let captured = captureRegularFileBinding(filePath, {
+    subject,
+    ...(content ? {
+      expectedSha256: content.sha256,
+      expectedBytes: content.bytes,
+    } : {}),
+    expectedLinks,
+  });
+  if (captured.status === 'unsupported'
+    && String(captured.reason?.code || '').endsWith('-hardlinked')
+    && content) {
+    const observedLinks = Number(captured.reason?.links);
+    if (Number.isSafeInteger(observedLinks) && observedLinks > expectedLinks) {
+      captured = captureRegularFileBinding(filePath, {
+        subject,
+        expectedSha256: content.sha256,
+        expectedBytes: content.bytes,
+        expectedLinks: observedLinks,
+      });
+      expectedLinks = observedLinks;
+    }
+  }
+  if (captured.status !== 'captured') {
+    const error = new Error(`Could not bind the owned staging entry "${filePath}" (${captured.reason?.code || 'unknown state'}).`);
+    error.stagingCapture = captured;
+    throw error;
+  }
+  registry.push({ filePath, binding: captured.binding, subject, expectedLinks });
+  return captured;
+}
+
+function cleanupOwnedStagingDirectory(directory, identity, registry, fileBindingRuntime) {
+  const {
+    quarantineRemoveRegularFileBinding,
+    releaseRegularFileBinding,
+  } = fileBindingRuntime || {};
+  if (typeof quarantineRemoveRegularFileBinding !== 'function'
+    || typeof releaseRegularFileBinding !== 'function') {
+    throw new Error('The regular-file binding runtime is unavailable.');
+  }
+  const failures = [];
+  for (const entry of [...registry].reverse()) {
+    try {
+      const removed = quarantineRemoveRegularFileBinding(entry.binding, entry.filePath, {
+        subject: entry.subject,
+        expectedLinks: entry.expectedLinks,
+      });
+      // A missing path means the transaction already moved or finalized this
+      // owned inode. Every other non-removal result is deliberately preserved:
+      // it may be a concurrent claimant rather than an entry we created.
+      if (removed.status !== 'removed'
+        && !['ENOENT', 'ENOTDIR'].includes(removed.reason?.systemCode)) {
+        failures.push(`${entry.filePath}: ${removed.reason?.code || removed.status}`);
+      }
+    } catch (error) {
+      failures.push(`${entry.filePath}: ${error.message}`);
+    } finally {
+      const released = releaseRegularFileBinding(entry.binding);
+      if (released.status !== 'released') {
+        failures.push(`${entry.filePath}: ${released.reason?.code || released.status}`);
+      }
+    }
+  }
+  registry.length = 0;
+  try {
+    if (!removeOwnedEmptyStagingDirectory(directory, identity, { throwOnFailure: true })) {
+      failures.push(`${directory}: staging directory was retained because its identity changed`);
+    }
+  } catch (error) {
+    failures.push(`${directory}: ${error.message}`);
+  }
+  if (failures.length) throw new Error(failures.join('; '));
+}
+
+function createOwnedEmptyStagingDirectory(prefix) {
+  const directory = fs.mkdtempSync(prefix);
+  const metadata = fs.lstatSync(directory, { bigint: true });
+  if (!metadata.isDirectory() || metadata.isSymbolicLink() || metadata.ino === 0n) {
+    throw new Error(`Private staging directory identity is unavailable: ${directory}`);
+  }
+  return {
+    directory,
+    identity: { device: metadata.dev, inode: metadata.ino },
+  };
+}
+
+function createStagingRetirementQuarantine(parent) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const directory = path.join(parent, `.archify-staging-remove-${randomUUID()}`);
+    try {
+      fs.mkdirSync(directory, { mode: 0o700 });
+      return directory;
+    } catch (error) {
+      if (error?.code !== 'EEXIST') return undefined;
+    }
+  }
+  return undefined;
+}
+
+function removeOwnedEmptyStagingDirectory(directory, identity, { throwOnFailure = false } = {}) {
+  let current;
+  try {
+    current = fs.lstatSync(directory, { bigint: true });
+  } catch (error) {
+    if (error?.code === 'ENOENT' || error?.code === 'ENOTDIR') return false;
+    throw error;
+  }
+  if (!current.isDirectory()
+    || current.isSymbolicLink()
+    || current.ino === 0n
+    || current.dev !== identity.device
+    || current.ino !== identity.inode) return false;
+  try {
+    if (fs.readdirSync(directory).length !== 0) return false;
+  } catch {
+    return false;
+  }
+  const quarantine = createStagingRetirementQuarantine(path.dirname(directory));
+  if (!quarantine) return false;
+  const movedPath = path.join(quarantine, path.basename(directory));
+  try {
+    fs.renameSync(directory, movedPath);
+  } catch (error) {
+    if (throwOnFailure) throw error;
+    return false;
+  }
+  let moved;
+  try {
+    moved = fs.lstatSync(movedPath, { bigint: true });
+  } catch {
+    return false;
+  }
+  if (!moved.isDirectory()
+    || moved.isSymbolicLink()
+    || moved.ino === 0n
+    || moved.dev !== identity.device
+    || moved.ino !== identity.inode) {
+    // A claimant won the public move boundary. Preserve it under the private
+    // quarantine name; directories have no portable no-clobber restore link.
+    return false;
+  }
+  try {
+    // The unpredictable 0700 quarantine closes the public replacement race.
+    // Never recurse: unexpected contents remain available for recovery.
+    fs.rmdirSync(movedPath);
+    fs.rmdirSync(quarantine);
+    return true;
+  } catch (error) {
+    if (throwOnFailure) throw error;
+    return false;
+  }
+}
+
+function releaseOwnedStagingBindings(registry, fileBindingRuntime) {
+  const { releaseRegularFileBinding } = fileBindingRuntime || {};
+  if (typeof releaseRegularFileBinding !== 'function') return;
+  for (const entry of registry) releaseRegularFileBinding(entry.binding);
+  registry.length = 0;
+}
+
 function artifactIdentity(artifact) {
   return { sha256: createHash('sha256').update(artifact).digest('hex'), bytes: artifact.byteLength };
 }
@@ -777,7 +983,10 @@ function writeDeliveryProvenance(file, value, { beforeReplace, fileBindingRuntim
     };
     throw error;
   }
-  const stagingDirectory = fs.mkdtempSync(path.join(path.dirname(file), '.archify-provenance-'));
+  const staging = createOwnedEmptyStagingDirectory(
+    path.join(path.dirname(file), '.archify-provenance-'),
+  );
+  const stagingDirectory = staging.directory;
   const temporary = path.join(stagingDirectory, path.basename(file));
   const backup = path.join(stagingDirectory, '.previous-journal');
   const serialized = Buffer.from(`${JSON.stringify(value, null, 2)}\n`);
@@ -855,7 +1064,15 @@ function writeDeliveryProvenance(file, value, { beforeReplace, fileBindingRuntim
       });
       if (linked.status !== 'match') throw bindingError(linked, 'verify the published');
     }
-    fs.unlinkSync(temporary);
+    const retiredCandidate = quarantineRemoveRegularFileBinding(
+      candidateCapture.binding,
+      temporary,
+      { subject: 'delivery-journal-candidate', expectedLinks: 2 },
+    );
+    if (retiredCandidate.status !== 'removed') {
+      retainStaging = true;
+      throw bindingError(retiredCandidate, 'retire the staged');
+    }
     candidatePresent = false;
     const finalized = verifyRegularFileBinding(candidateCapture.binding, {
       filePath: file,
@@ -868,7 +1085,15 @@ function writeDeliveryProvenance(file, value, { beforeReplace, fileBindingRuntim
         expectedLinks: 1,
       });
       if (previous.status !== 'match') throw bindingError(previous, 'verify the previous');
-      fs.unlinkSync(backup);
+      const retiredBackup = quarantineRemoveRegularFileBinding(
+        previousCapture.binding,
+        backup,
+        { subject: 'previous-delivery-journal', expectedLinks: 1 },
+      );
+      if (retiredBackup.status !== 'removed') {
+        retainStaging = true;
+        throw bindingError(retiredBackup, 'retire the previous');
+      }
       backupPresent = false;
     }
     return {
@@ -915,7 +1140,17 @@ function writeDeliveryProvenance(file, value, { beforeReplace, fileBindingRuntim
           expectedLinks: published ? 2 : 1,
         });
         if (current.status === 'match') {
-          fs.unlinkSync(temporary);
+          const retiredCandidate = quarantineRemoveRegularFileBinding(
+            candidateCapture.binding,
+            temporary,
+            {
+              subject: 'delivery-journal-candidate',
+              expectedLinks: published ? 2 : 1,
+            },
+          );
+          if (retiredCandidate.status !== 'removed') {
+            throw bindingError(retiredCandidate, 'retire the staged');
+          }
           candidatePresent = false;
         } else {
           rollbackErrors.push('the staged journal candidate was replaced before cleanup');
@@ -954,7 +1189,14 @@ function writeDeliveryProvenance(file, value, { beforeReplace, fileBindingRuntim
           });
           if (restored.status !== 'match') throw bindingError(restored, 'verify the restored');
         }
-        fs.unlinkSync(backup);
+        const retiredBackup = quarantineRemoveRegularFileBinding(
+          previousCapture.binding,
+          backup,
+          { subject: 'previous-delivery-journal', expectedLinks: 2 },
+        );
+        if (retiredBackup.status !== 'removed') {
+          throw bindingError(retiredBackup, 'retire the restored backup');
+        }
         backupPresent = false;
         const restored = verifyRegularFileBinding(previousCapture.binding, {
           filePath: file,
@@ -998,7 +1240,7 @@ function writeDeliveryProvenance(file, value, { beforeReplace, fileBindingRuntim
   } finally {
     if (candidateCapture?.binding) releaseRegularFileBinding(candidateCapture.binding);
     if (previousCapture?.binding) releaseRegularFileBinding(previousCapture.binding);
-    if (!retainStaging) fs.rmSync(stagingDirectory, { recursive: true, force: true });
+    if (!retainStaging) removeOwnedEmptyStagingDirectory(stagingDirectory, staging.identity);
   }
 }
 
@@ -1027,7 +1269,10 @@ function writeCapturedDeliveryProvenance(file, value, {
       reason: { code: 'atomic-output-runtime-unavailable' },
     });
   }
-  const stagingDirectory = fs.mkdtempSync(path.join(path.dirname(file), '.archify-provenance-'));
+  const staging = createOwnedEmptyStagingDirectory(
+    path.join(path.dirname(file), '.archify-provenance-'),
+  );
+  const stagingDirectory = staging.directory;
   const candidate = path.join(stagingDirectory, path.basename(file));
   const backup = path.join(stagingDirectory, '.previous-provenance');
   let candidateIdentity;
@@ -1116,7 +1361,15 @@ function writeCapturedDeliveryProvenance(file, value, {
         throw deliveryTargetStateError(file, 'delivery provenance', linked);
       }
     }
-    fs.unlinkSync(candidate);
+    const retiredCandidate = quarantineRemoveRegularFileBinding(
+      candidateBinding,
+      candidate,
+      { subject: 'delivery-provenance-candidate', expectedLinks: 2 },
+    );
+    if (retiredCandidate.status !== 'removed') {
+      retainStaging = true;
+      throw deliveryTargetStateError(file, 'delivery provenance', retiredCandidate);
+    }
     candidatePresent = false;
     const finalized = verifyRegularFileBinding(candidateBinding, {
       filePath: capture.commitPath,
@@ -1137,7 +1390,15 @@ function writeCapturedDeliveryProvenance(file, value, {
           reason: { code: 'backup-identity-changed-before-finalize' },
         });
       }
-      fs.unlinkSync(backup);
+      const retiredBackup = quarantineRemoveRegularFileBinding(
+        previousBinding,
+        backup,
+        { subject: 'previous-delivery-provenance', expectedLinks: 1 },
+      );
+      if (retiredBackup.status !== 'removed') {
+        retainStaging = true;
+        throw deliveryTargetStateError(file, 'delivery provenance', retiredBackup);
+      }
       backupPresent = false;
     }
   } catch (cause) {
@@ -1180,7 +1441,21 @@ function writeCapturedDeliveryProvenance(file, value, {
           expectedLinks: published ? 2 : 1,
         });
         if (current.status === 'match') {
-          fs.unlinkSync(candidate);
+          const retiredCandidate = quarantineRemoveRegularFileBinding(
+            candidateBinding,
+            candidate,
+            {
+              subject: 'delivery-provenance-candidate',
+              expectedLinks: published ? 2 : 1,
+            },
+          );
+          if (retiredCandidate.status !== 'removed') {
+            throw deliveryTargetStateError(
+              file,
+              'delivery provenance',
+              retiredCandidate,
+            );
+          }
           candidatePresent = false;
         } else {
           rollbackErrors.push('the staged provenance candidate was replaced before cleanup');
@@ -1219,7 +1494,14 @@ function writeCapturedDeliveryProvenance(file, value, {
             throw new Error('the restored provenance identity could not be verified');
           }
         }
-        fs.unlinkSync(backup);
+        const retiredBackup = quarantineRemoveRegularFileBinding(
+          previousBinding,
+          backup,
+          { subject: 'previous-delivery-provenance', expectedLinks: 2 },
+        );
+        if (retiredBackup.status !== 'removed') {
+          throw deliveryTargetStateError(file, 'delivery provenance', retiredBackup);
+        }
         backupPresent = false;
         const restoredFinal = verifyRegularFileBinding(previousBinding, {
           filePath: capture.commitPath,
@@ -1275,7 +1557,7 @@ function writeCapturedDeliveryProvenance(file, value, {
   } finally {
     if (candidateBinding) releaseRegularFileBinding(candidateBinding);
     if (previousBinding) releaseRegularFileBinding(previousBinding);
-    if (!retainStaging) fs.rmSync(stagingDirectory, { recursive: true, force: true });
+    if (!retainStaging) removeOwnedEmptyStagingDirectory(stagingDirectory, staging.identity);
   }
 }
 
@@ -1997,7 +2279,6 @@ function extractOutDirArgs(args) {
 
 function rendererEnv(quality, repoRoot, diagnosticJson = false) {
   return {
-    ARCHIFY_REQUIRE_META_OUTPUT: '1',
     ...(quality ? { ARCHIFY_QUALITY_PROFILE: quality } : {}),
     ...(repoRoot ? { ARCHIFY_REPO_ROOT: repoRoot } : {}),
     ...(diagnosticJson ? { ARCHIFY_DIAGNOSTIC_FORMAT: 'json' } : {}),
@@ -2478,6 +2759,7 @@ function commitComparePair({
 
   const backedUp = [];
   const committed = [];
+  let retainSuccessfulBackupBindings = false;
   try {
     if (typeof backupPublicRegularFileBinding !== 'function'
       || typeof captureRegularFileBinding !== 'function'
@@ -2583,7 +2865,12 @@ function commitComparePair({
         expectedLinks: 2,
       });
       if (staged.status !== 'match') throw targetChanged(item, staged);
-      fs.unlinkSync(item.candidate);
+      const retired = quarantineRemoveRegularFileBinding(
+        item.candidateBinding,
+        item.candidate,
+        { subject: 'compare-candidate', expectedLinks: 2 },
+      );
+      if (retired.status !== 'removed') throw targetChanged(item, retired);
       item.candidatePresent = false;
     }
     for (const item of committed) {
@@ -2593,6 +2880,17 @@ function commitComparePair({
       });
       if (finalized.status !== 'match') throw targetChanged(item, finalized);
     }
+    retainSuccessfulBackupBindings = true;
+    return {
+      ownedBackupEntries: backedUp
+        .filter((item) => item.backupPresent)
+        .map((item) => ({
+          filePath: item.backup,
+          binding: item.previousBinding,
+          subject: 'previous-compare-backup',
+          expectedLinks: 1,
+        })),
+    };
   } catch (cause) {
     const rollbackErrors = [];
     const recoveryFiles = targets
@@ -2679,7 +2977,14 @@ function commitComparePair({
             throw new Error('the restored target identity could not be verified');
           }
         }
-        fs.unlinkSync(item.backup);
+        const retired = quarantineRemoveRegularFileBinding(
+          item.previousBinding,
+          item.backup,
+          { subject: 'previous-compare-target', expectedLinks: 2 },
+        );
+        if (retired.status !== 'removed') {
+          throw new Error(`the restored backup could not be retired safely (${retired.reason?.code || 'unknown target state'})`);
+        }
         item.backupPresent = false;
         const finalized = verifyRegularFileBinding(item.previousBinding, {
           filePath: item.capture.commitPath,
@@ -2740,7 +3045,10 @@ function commitComparePair({
   } finally {
     for (const item of targets) {
       if (item.candidateBinding) releaseRegularFileBinding(item.candidateBinding);
-      if (item.previousBinding) releaseRegularFileBinding(item.previousBinding);
+      if (item.previousBinding
+        && !(retainSuccessfulBackupBindings && item.backupPresent)) {
+        releaseRegularFileBinding(item.previousBinding);
+      }
     }
   }
 }
@@ -2791,6 +3099,7 @@ function commitDeliveryPair({
   const backedUp = [];
   const retainedBackups = new Set();
   const publicRecoveryBackups = [];
+  let retainSuccessfulBackupBindings = false;
   const committed = [];
   try {
     if (typeof backupPublicRegularFileBinding !== 'function'
@@ -2912,7 +3221,14 @@ function commitDeliveryPair({
       if (staged.status !== 'match') {
         throw deliveryTargetStateError(item.capture.requestedPath, item.label, staged);
       }
-      fs.unlinkSync(item.candidate);
+      const retired = quarantineRemoveRegularFileBinding(
+        item.candidateBinding,
+        item.candidate,
+        { subject: 'delivery-candidate', expectedLinks: 2 },
+      );
+      if (retired.status !== 'removed') {
+        throw deliveryTargetStateError(item.capture.requestedPath, item.label, retired);
+      }
       item.candidatePresent = false;
     }
     for (const item of committed) {
@@ -2939,11 +3255,20 @@ function commitDeliveryPair({
     state.pendingIdentity = undefined;
     state.pendingContent = undefined;
     state.phase = 'finalized';
+    retainSuccessfulBackupBindings = true;
     return {
       recoverableBackups: [
         ...[...retainedBackups].map((item) => ({ label: item.label, path: item.backup })),
         ...publicRecoveryBackups,
       ],
+      ownedBackupEntries: backedUp
+        .filter((item) => item.backupPresent)
+        .map((item) => ({
+          filePath: item.backup,
+          binding: item.previousBinding,
+          subject: 'previous-delivery-backup',
+          expectedLinks: 1,
+        })),
     };
   } catch (cause) {
     const recoveryDetails = () => ({
@@ -3041,7 +3366,14 @@ function commitDeliveryPair({
               throw new Error('the restored delivery target identity could not be verified');
             }
           }
-          fs.unlinkSync(item.backup);
+          const retired = quarantineRemoveRegularFileBinding(
+            item.previousBinding,
+            item.backup,
+            { subject: 'previous-delivery-target', expectedLinks: 2 },
+          );
+          if (retired.status !== 'removed') {
+            throw new Error(`the restored delivery backup could not be retired safely (${retired.reason?.code || 'unknown target state'})`);
+          }
           item.backupPresent = false;
           const restoredFinal = verifyRegularFileBinding(item.previousBinding, {
             filePath: item.target,
@@ -3103,12 +3435,15 @@ function commitDeliveryPair({
   } finally {
     for (const item of targets) {
       if (item.candidateBinding) releaseRegularFileBinding(item.candidateBinding);
-      if (item.previousBinding) releaseRegularFileBinding(item.previousBinding);
+      if (item.previousBinding
+        && !(retainSuccessfulBackupBindings && item.backupPresent)) {
+        releaseRegularFileBinding(item.previousBinding);
+      }
     }
   }
 }
 
-function renderValidatedArchitecture(inputPath, outputPath, quality, repoRoot) {
+function renderValidatedArchitecture(inputPath, outputPath, quality, repoRoot, captureStagingFile) {
   const render = runNode([rendererPath('architecture'), inputPath, outputPath], {
     stdio: 'pipe',
     env: rendererEnv(quality, repoRoot, true),
@@ -3120,6 +3455,11 @@ function renderValidatedArchitecture(inputPath, outputPath, quality, repoRoot) {
     error.compareStatus = render.status ?? 1;
     error.diagnostics = failure.diagnostics;
     throw error;
+  }
+  let artifact;
+  if (captureStagingFile) {
+    artifact = fs.readFileSync(outputPath);
+    captureStagingFile(outputPath, artifactIdentity(artifact));
   }
   const check = runNode([path.join(skillRoot, 'scripts/check-render-output.mjs'), outputPath], { stdio: 'pipe' });
   if (check.status !== 0) {
@@ -3134,7 +3474,7 @@ function renderValidatedArchitecture(inputPath, outputPath, quality, repoRoot) {
     }
     throw error;
   }
-  const artifact = fs.readFileSync(outputPath);
+  artifact ||= fs.readFileSync(outputPath);
   return {
     artifact,
     html: artifact.toString('utf8'),
@@ -3468,8 +3808,13 @@ async function commandCompare(args) {
   outputDirectory = path.dirname(outputPath);
 
   let stagingDirectory;
+  let stagingIdentity;
   try {
-    stagingDirectory = fs.mkdtempSync(path.join(outputDirectory, '.archify-compare-'));
+    const staging = createOwnedEmptyStagingDirectory(
+      path.join(outputDirectory, '.archify-compare-'),
+    );
+    stagingDirectory = staging.directory;
+    stagingIdentity = staging.identity;
   } catch (error) {
     reportCompareFailure({ json: options.json, stage: 'prepare', error: `Could not create compare candidate: ${error.message}`, code: 'delta/candidate-directory', details: { reason: error.message } });
     return;
@@ -3486,6 +3831,13 @@ async function commandCompare(args) {
   const htmlCandidate = path.join(stagingDirectory, path.basename(outputPath));
   const receiptCandidate = path.join(stagingDirectory, path.basename(receiptPath));
   let preserveRecoveryDirectory = false;
+  const stagingOwnership = [];
+  const captureCompareStagingFile = (filePath, content) => captureOwnedStagingFile(
+    stagingOwnership,
+    filePath,
+    fileBindingRuntime,
+    { subject: 'compare-staging-entry', content },
+  );
 
   try {
     let baseResult;
@@ -3496,6 +3848,7 @@ async function commandCompare(args) {
     ]) {
       try {
         fs.writeFileSync(snapshotPath, buffer, { flag: 'wx' });
+        captureCompareStagingFile(snapshotPath, artifactIdentity(buffer));
       } catch (error) {
         const message = `Could not freeze ${side} compare snapshot: ${error.message}`;
         reportCompareFailure({
@@ -3514,7 +3867,13 @@ async function commandCompare(args) {
       }
     }
     try {
-      renderValidatedArchitecture(rawBaseInput, rawBaseCandidate, qualityArgs.quality, repoArgs.repoRoot);
+      renderValidatedArchitecture(
+        rawBaseInput,
+        rawBaseCandidate,
+        qualityArgs.quality,
+        repoArgs.repoRoot,
+        captureCompareStagingFile,
+      );
     } catch (error) {
       const diagnosticEntry = error.diagnostics?.[0];
       reportCompareFailure({
@@ -3528,7 +3887,13 @@ async function commandCompare(args) {
       return;
     }
     try {
-      renderValidatedArchitecture(rawHeadInput, rawHeadCandidate, qualityArgs.quality, repoArgs.repoRoot);
+      renderValidatedArchitecture(
+        rawHeadInput,
+        rawHeadCandidate,
+        qualityArgs.quality,
+        repoArgs.repoRoot,
+        captureCompareStagingFile,
+      );
     } catch (error) {
       const diagnosticEntry = error.diagnostics?.[0];
       reportCompareFailure({
@@ -3549,10 +3914,26 @@ async function commandCompare(args) {
     const canonicalHead = canonicalArchitecture(head);
     canonicalBase.meta.output = base.meta.output;
     canonicalHead.meta.output = head.meta.output;
-    fs.writeFileSync(canonicalBaseInput, JSON.stringify(canonicalBase));
-    fs.writeFileSync(canonicalHeadInput, JSON.stringify(canonicalHead));
-    baseResult = renderValidatedArchitecture(canonicalBaseInput, baseCandidate, qualityArgs.quality, repoArgs.repoRoot);
-    headResult = renderValidatedArchitecture(canonicalHeadInput, headCandidate, qualityArgs.quality, repoArgs.repoRoot);
+    const canonicalBaseBytes = Buffer.from(JSON.stringify(canonicalBase));
+    const canonicalHeadBytes = Buffer.from(JSON.stringify(canonicalHead));
+    fs.writeFileSync(canonicalBaseInput, canonicalBaseBytes);
+    captureCompareStagingFile(canonicalBaseInput, artifactIdentity(canonicalBaseBytes));
+    fs.writeFileSync(canonicalHeadInput, canonicalHeadBytes);
+    captureCompareStagingFile(canonicalHeadInput, artifactIdentity(canonicalHeadBytes));
+    baseResult = renderValidatedArchitecture(
+      canonicalBaseInput,
+      baseCandidate,
+      qualityArgs.quality,
+      repoArgs.repoRoot,
+      captureCompareStagingFile,
+    );
+    headResult = renderValidatedArchitecture(
+      canonicalHeadInput,
+      headCandidate,
+      qualityArgs.quality,
+      repoArgs.repoRoot,
+      captureCompareStagingFile,
+    );
 
     const semanticHash = (diagram) => createHash('sha256').update(canonicalArchitectureJson(diagram)).digest('hex');
     let compareIr;
@@ -3597,7 +3978,9 @@ async function commandCompare(args) {
     });
     const deltaValidation = validateArchitectureDeltaHtml(html, artifactIr);
     fs.writeFileSync(htmlCandidate, html);
+    if (outputCapture.mode !== null) fs.chmodSync(htmlCandidate, outputCapture.mode);
     const artifact = fs.readFileSync(htmlCandidate);
+    captureCompareStagingFile(htmlCandidate, artifactIdentity(artifact));
     const baseChecks = baseResult.checks.checks.filter((check) => check.ok).length;
     const headChecks = headResult.checks.checks.filter((check) => check.ok).length;
     const finalReceipt = {
@@ -3612,6 +3995,8 @@ async function commandCompare(args) {
     };
     const receiptBytes = Buffer.from(`${JSON.stringify(finalReceipt, null, 2)}\n`);
     fs.writeFileSync(receiptCandidate, receiptBytes);
+    if (receiptCapture.mode !== null) fs.chmodSync(receiptCandidate, receiptCapture.mode);
+    captureCompareStagingFile(receiptCandidate, artifactIdentity(receiptBytes));
 
     try {
       const currentOutput = resolveOutputPath({
@@ -3643,7 +4028,7 @@ async function commandCompare(args) {
       return;
     }
 
-    commitComparePair({
+    const committed = commitComparePair({
       htmlCandidate,
       htmlContent: finalReceipt.artifact,
       receiptCandidate,
@@ -3654,6 +4039,7 @@ async function commandCompare(args) {
       verifyAtomicOutput,
       fileBindingRuntime,
     });
+    stagingOwnership.push(...committed.ownedBackupEntries);
     if (options.json) console.log(JSON.stringify(finalReceipt, null, 2));
     else {
       console.log(`compared architecture ${requestedOutputPath}`);
@@ -3677,7 +4063,16 @@ async function commandCompare(args) {
     }
   } finally {
     try {
-      if (!preserveRecoveryDirectory) fs.rmSync(stagingDirectory, { recursive: true, force: true });
+      if (!preserveRecoveryDirectory) {
+        cleanupOwnedStagingDirectory(
+          stagingDirectory,
+          stagingIdentity,
+          stagingOwnership,
+          fileBindingRuntime,
+        );
+      } else {
+        releaseOwnedStagingBindings(stagingOwnership, fileBindingRuntime);
+      }
     } catch (error) {
       console.error(`Warning: could not remove compare staging directory: ${error.message}`);
     }
@@ -3861,6 +4256,7 @@ async function commandDeliver(args) {
   let deliveryOwnership;
   let recoveryRequired = false;
   let stagingDirectory;
+  let stagingIdentity;
   let deliveryAliasOutput;
   const reportDeliveryFailure = (options) => {
     const ownership = deliveryOwnership;
@@ -4063,7 +4459,11 @@ async function commandDeliver(args) {
   // same-filesystem commit. A render or artifact-check failure never touches
   // an existing trusted output.
   try {
-    stagingDirectory = fs.mkdtempSync(path.join(outputDirectory, '.archify-delivery-'));
+    const staging = createOwnedEmptyStagingDirectory(
+      path.join(outputDirectory, '.archify-delivery-'),
+    );
+    stagingDirectory = staging.directory;
+    stagingIdentity = staging.identity;
   } catch (error) {
     const message = `Could not create a delivery candidate beside "${outputPath}": ${error.message}`;
     reportDeliveryFailure({
@@ -4087,6 +4487,13 @@ async function commandDeliver(args) {
   const specificationSnapshotPath = path.join(stagingDirectory, 'specification.snapshot.json');
   const provenanceCandidatePath = path.join(stagingDirectory, 'delivery-provenance.json');
   let commitRecoveryBackups = [];
+  const stagingOwnership = [];
+  const captureDeliveryStagingFile = (filePath, content) => captureOwnedStagingFile(
+    stagingOwnership,
+    filePath,
+    fileBindingRuntime,
+    { subject: 'delivery-staging-entry', content },
+  );
 
   try {
     try {
@@ -4221,6 +4628,10 @@ async function commandDeliver(args) {
 
     try {
       fs.writeFileSync(specificationSnapshotPath, specification, { flag: 'wx' });
+      captureDeliveryStagingFile(
+        specificationSnapshotPath,
+        artifactIdentity(Buffer.from(specification)),
+      );
     } catch (error) {
       const message = `Could not freeze the delivery specification: ${error.message}`;
       reportDeliveryFailure({
@@ -4258,6 +4669,16 @@ async function commandDeliver(args) {
         status: render.status ?? 1,
       });
       return;
+    }
+    try {
+      const renderedCandidate = fs.readFileSync(candidatePath);
+      if (preparedDeliveryTargets.artifact.mode !== null) {
+        fs.chmodSync(candidatePath, preparedDeliveryTargets.artifact.mode);
+      }
+      captureDeliveryStagingFile(candidatePath, artifactIdentity(renderedCandidate));
+    } catch {
+      // The commit path performs the authoritative candidate classification.
+      // Leave an unbound entry untouched during private-directory cleanup.
     }
 
     const check = runNode([path.join(skillRoot, 'scripts/check-render-output.mjs'), candidatePath], {
@@ -4389,6 +4810,18 @@ async function commandDeliver(args) {
     const provenanceBytes = Buffer.from(`${JSON.stringify(deliverySuccessProvenance(receipt), null, 2)}\n`);
     try {
       fs.writeFileSync(provenanceCandidatePath, provenanceBytes, { flag: 'wx' });
+      if (preparedDeliveryTargets.provenance.mode !== null) {
+        fs.chmodSync(provenanceCandidatePath, preparedDeliveryTargets.provenance.mode);
+      }
+      try {
+        captureDeliveryStagingFile(
+          provenanceCandidatePath,
+          artifactIdentity(provenanceBytes),
+        );
+      } catch {
+        // commitDeliveryPair classifies this path against the expected bytes;
+        // cleanup must not claim a candidate that could not be bound here.
+      }
     } catch (error) {
       reportDeliveryFailure({
         json,
@@ -4455,6 +4888,7 @@ async function commandDeliver(args) {
         fileBindingRuntime,
       });
       commitRecoveryBackups = committed.recoverableBackups;
+      stagingOwnership.push(...committed.ownedBackupEntries);
     } catch (error) {
       if (error.deliveryOwnershipCode === 'delivery/ownership-lost' && !error.deliveryCommitDetails) {
         error.deliveryCommitDetails = {
@@ -4603,10 +5037,16 @@ async function commandDeliver(args) {
       }
     }
     if (recoveryRequired) {
+      releaseOwnedStagingBindings(stagingOwnership, fileBindingRuntime);
       console.error(`Recovery required: delivery backups were retained at "${stagingDirectory}".`);
     } else {
       try {
-        fs.rmSync(stagingDirectory, { recursive: true, force: true });
+        cleanupOwnedStagingDirectory(
+          stagingDirectory,
+          stagingIdentity,
+          stagingOwnership,
+          fileBindingRuntime,
+        );
       } catch (error) {
         console.error(`Warning: could not remove delivery staging directory "${stagingDirectory}": ${error.message}`);
       }
@@ -5493,8 +5933,10 @@ async function commandMigrate(args) {
   }
   const { pathsAlias, validateAuthoredOutputPath } = await import('../renderers/shared/output-path.mjs');
   const {
+    backupPublicRegularFileBinding,
     captureAtomicOutput,
     captureRegularFileBinding,
+    quarantineRemoveRegularFileBinding,
     releaseRegularFileBinding,
     verifyAtomicOutput,
     verifyRegularFileBinding,
@@ -5570,6 +6012,7 @@ async function commandMigrate(args) {
 
   const destinationDirectory = path.dirname(destinationPath);
   let stagingDirectory;
+  let stagingIdentity;
   let destinationCapture;
   try {
     fs.mkdirSync(destinationDirectory, { recursive: true });
@@ -5589,7 +6032,11 @@ async function commandMigrate(args) {
       });
       return;
     }
-    stagingDirectory = fs.mkdtempSync(path.join(destinationDirectory, '.archify-migration-'));
+    const staging = createOwnedEmptyStagingDirectory(
+      path.join(destinationDirectory, '.archify-migration-'),
+    );
+    stagingDirectory = staging.directory;
+    stagingIdentity = staging.identity;
   } catch (error) {
     reportMigrationFailure({
       ...migration,
@@ -5608,8 +6055,27 @@ async function commandMigrate(args) {
   const artifactPath = path.join(stagingDirectory, 'migration-check.html');
   const destinationBytes = Buffer.from(serializeMigratedWorkflow(migration.document));
   let candidateBinding = null;
+  let previousDestinationBinding = null;
+  let preserveRecoveryDirectory = false;
+  const fileBindingRuntime = {
+    captureRegularFileBinding,
+    quarantineRemoveRegularFileBinding,
+    releaseRegularFileBinding,
+  };
+  const stagingOwnership = [];
   try {
     fs.writeFileSync(candidatePath, destinationBytes, { flag: 'wx' });
+    if (destinationCapture.mode !== null) fs.chmodSync(candidatePath, destinationCapture.mode);
+    const candidateCapture = captureOwnedStagingFile(
+      stagingOwnership,
+      candidatePath,
+      fileBindingRuntime,
+      {
+        subject: 'migration-candidate',
+        content: artifactIdentity(destinationBytes),
+      },
+    );
+    candidateBinding = candidateCapture.binding;
     const render = runNode([rendererPath('workflow'), candidatePath, artifactPath], {
       stdio: 'pipe',
       env: rendererEnv(activeQualityProfile, repoArgs.repoRoot, true),
@@ -5623,6 +6089,11 @@ async function commandMigrate(args) {
       });
       return;
     }
+    const migrationArtifact = fs.readFileSync(artifactPath);
+    captureOwnedStagingFile(stagingOwnership, artifactPath, fileBindingRuntime, {
+      subject: 'migration-check-artifact',
+      content: artifactIdentity(migrationArtifact),
+    });
 
     const check = runNode([path.join(skillRoot, 'scripts/check-render-output.mjs'), artifactPath], {
       stdio: 'pipe',
@@ -5671,29 +6142,6 @@ async function commandMigrate(args) {
       return;
     }
 
-    if (destinationCapture.mode !== null) fs.chmodSync(candidatePath, destinationCapture.mode);
-    const expectedCandidate = artifactIdentity(destinationBytes);
-    const candidateCapture = captureRegularFileBinding(candidatePath, {
-      subject: 'migration-candidate',
-      expectedSha256: expectedCandidate.sha256,
-      expectedBytes: expectedCandidate.bytes,
-      ...(destinationCapture.mode === null ? {} : { expectedMode: destinationCapture.mode }),
-      expectedLinks: 1,
-    });
-    if (candidateCapture.status !== 'captured') {
-      reportMigrationFailure({
-        ...migration,
-        migrationDiagnostics: [...migration.migrationDiagnostics, diagnostic({
-          code: 'migration/candidate-changed',
-          message: 'Workflow migration candidate changed before the destination commit.',
-          subject: { destination: destinationPath },
-          evidence: { candidateState: candidateCapture.reason },
-          supportedFixes: ['retry the migration from a stable workflow source and destination'],
-        })],
-      });
-      return;
-    }
-    candidateBinding = candidateCapture.binding;
     const candidateVerification = verifyRegularFileBinding(candidateBinding, { expectedLinks: 1 });
     if (candidateVerification.status !== 'match') {
       reportMigrationFailure({
@@ -5704,21 +6152,6 @@ async function commandMigrate(args) {
           subject: { destination: destinationPath },
           evidence: { candidateState: candidateVerification.reason },
           supportedFixes: ['retry the migration from a stable workflow source and destination'],
-        })],
-      });
-      return;
-    }
-    const candidateRelease = releaseRegularFileBinding(candidateBinding);
-    candidateBinding = null;
-    if (candidateRelease.status !== 'released') {
-      reportMigrationFailure({
-        ...migration,
-        migrationDiagnostics: [...migration.migrationDiagnostics, diagnostic({
-          code: 'migration/candidate-changed',
-          message: 'Workflow migration candidate could not be finalized before the destination commit.',
-          subject: { destination: destinationPath },
-          evidence: { candidateState: candidateRelease.reason },
-          supportedFixes: ['retry the migration after resolving the candidate filesystem error'],
         })],
       });
       return;
@@ -5738,7 +6171,175 @@ async function commandMigrate(args) {
       });
       return;
     }
-    fs.renameSync(candidatePath, destinationCapture.commitPath);
+    const backupPath = path.join(stagingDirectory, '.previous-destination');
+    let backupPresent = false;
+    if (destinationCapture.snapshot.target.kind === 'file') {
+      const expected = destinationCapture.snapshot.target;
+      const previousCapture = captureRegularFileBinding(destinationCapture.commitPath, {
+        subject: 'previous-migration-destination',
+        expectedIdentity: { device: expected.device, inode: expected.inode },
+        expectedMode: expected.mode,
+        expectedLinks: 1,
+      });
+      if (previousCapture.status !== 'captured') {
+        reportMigrationFailure({
+          ...migration,
+          migrationDiagnostics: [...migration.migrationDiagnostics, diagnostic({
+            code: 'migration/destination-changed',
+            message: 'Workflow migration destination changed before publication.',
+            subject: { destination: destinationPath },
+            evidence: { targetState: previousCapture.reason },
+            supportedFixes: ['retry only after other processes stop changing the destination'],
+          })],
+        });
+        return;
+      }
+      previousDestinationBinding = previousCapture.binding;
+      const backedUp = backupPublicRegularFileBinding(
+        previousDestinationBinding,
+        destinationCapture.commitPath,
+        backupPath,
+        { subject: 'previous-migration-destination' },
+      );
+      backupPresent = backedUp.backupCreated === true;
+      if (backedUp.status !== 'backed-up') {
+        preserveRecoveryDirectory = backupPresent || backedUp.status === 'recovery-required';
+        reportMigrationFailure({
+          ...migration,
+          migrationDiagnostics: [...migration.migrationDiagnostics, diagnostic({
+            code: 'migration/destination-changed',
+            message: 'Workflow migration destination changed while its previous value was being preserved.',
+            subject: { destination: destinationPath },
+            evidence: {
+              targetState: backedUp.reason,
+              ...(backedUp.recoveryFile ? { recoveryFile: backedUp.recoveryFile } : {}),
+            },
+            supportedFixes: ['inspect the retained recovery entry before retrying'],
+          })],
+        });
+        return;
+      }
+    }
+
+    const candidateBeforePublish = verifyRegularFileBinding(candidateBinding, {
+      filePath: candidatePath,
+      expectedLinks: 1,
+    });
+    if (candidateBeforePublish.status !== 'match') {
+      preserveRecoveryDirectory = backupPresent;
+      reportMigrationFailure({
+        ...migration,
+        migrationDiagnostics: [...migration.migrationDiagnostics, diagnostic({
+          code: 'migration/candidate-changed',
+          message: 'Workflow migration candidate changed before publication.',
+          subject: { destination: destinationPath },
+          evidence: { candidateState: candidateBeforePublish.reason },
+          supportedFixes: ['inspect any retained previous destination, then retry'],
+        })],
+      });
+      return;
+    }
+    try {
+      fs.linkSync(candidatePath, destinationCapture.commitPath);
+    } catch (error) {
+      preserveRecoveryDirectory = backupPresent;
+      reportMigrationFailure({
+        ...migration,
+        migrationDiagnostics: [...migration.migrationDiagnostics, diagnostic({
+          code: 'migration/destination-changed',
+          message: 'Workflow migration destination was claimed during publication.',
+          subject: { destination: destinationPath },
+          evidence: {
+            ...(error?.code ? { systemCode: error.code } : {}),
+            ...(backupPresent ? { recoveryFile: backupPath } : {}),
+          },
+          supportedFixes: backupPresent
+            ? ['preserve the claimant and inspect the retained previous destination before retrying']
+            : ['preserve the claimant and retry with a different destination'],
+        })],
+      });
+      return;
+    }
+    const published = verifyRegularFileBinding(candidateBinding, {
+      filePath: destinationCapture.commitPath,
+      expectedLinks: 2,
+    });
+    if (published.status !== 'match') {
+      preserveRecoveryDirectory = backupPresent;
+      reportMigrationFailure({
+        ...migration,
+        migrationDiagnostics: [...migration.migrationDiagnostics, diagnostic({
+          code: 'migration/destination-changed',
+          message: 'Workflow migration destination changed during publication.',
+          subject: { destination: destinationPath },
+          evidence: { targetState: published.reason },
+          supportedFixes: ['preserve the current claimant and inspect any retained recovery entry'],
+        })],
+      });
+      return;
+    }
+    const removedCandidate = quarantineRemoveRegularFileBinding(candidateBinding, candidatePath, {
+      subject: 'migration-candidate',
+      expectedLinks: 2,
+    });
+    if (removedCandidate.status !== 'removed') {
+      preserveRecoveryDirectory = backupPresent || removedCandidate.status === 'recovery-required';
+      reportMigrationFailure({
+        ...migration,
+        migrationDiagnostics: [...migration.migrationDiagnostics, diagnostic({
+          code: 'migration/candidate-changed',
+          message: 'Workflow migration candidate changed while publication was finalized.',
+          subject: { destination: destinationPath },
+          evidence: { candidateState: removedCandidate.reason },
+          supportedFixes: ['preserve the candidate claimant and inspect the published destination'],
+        })],
+      });
+      return;
+    }
+    const finalized = verifyRegularFileBinding(candidateBinding, {
+      filePath: destinationCapture.commitPath,
+      expectedLinks: 1,
+    });
+    if (finalized.status !== 'match') {
+      preserveRecoveryDirectory = backupPresent;
+      reportMigrationFailure({
+        ...migration,
+        migrationDiagnostics: [...migration.migrationDiagnostics, diagnostic({
+          code: 'migration/destination-changed',
+          message: 'Published workflow migration changed before final verification.',
+          subject: { destination: destinationPath },
+          evidence: { targetState: finalized.reason },
+          supportedFixes: ['preserve the current claimant and inspect any retained recovery entry'],
+        })],
+      });
+      return;
+    }
+    if (backupPresent) {
+      const removedBackup = quarantineRemoveRegularFileBinding(
+        previousDestinationBinding,
+        backupPath,
+        { subject: 'previous-migration-destination', expectedLinks: 1 },
+      );
+      if (removedBackup.status === 'removed') backupPresent = false;
+    }
+    const finalPublishedState = verifyRegularFileBinding(candidateBinding, {
+      filePath: destinationCapture.commitPath,
+      expectedLinks: 1,
+    });
+    if (finalPublishedState.status !== 'match') {
+      preserveRecoveryDirectory = backupPresent;
+      reportMigrationFailure({
+        ...migration,
+        migrationDiagnostics: [...migration.migrationDiagnostics, diagnostic({
+          code: 'migration/destination-changed',
+          message: 'Published workflow migration did not remain stable through finalization.',
+          subject: { destination: destinationPath },
+          evidence: { targetState: finalPublishedState.reason },
+          supportedFixes: ['preserve the current destination and inspect any retained recovery entry'],
+        })],
+      });
+      return;
+    }
     const report = migrationReport({
       ...migration,
       sourcePath,
@@ -5768,16 +6369,25 @@ async function commandMigrate(args) {
       migrationDiagnostics: [...migration.migrationDiagnostics, ...migrationDiagnostics],
     });
   } finally {
-    if (candidateBinding) releaseRegularFileBinding(candidateBinding);
+    if (previousDestinationBinding) releaseRegularFileBinding(previousDestinationBinding);
     try {
-      fs.rmSync(stagingDirectory, { recursive: true, force: true });
+      if (preserveRecoveryDirectory) {
+        releaseOwnedStagingBindings(stagingOwnership, fileBindingRuntime);
+      } else {
+        cleanupOwnedStagingDirectory(
+          stagingDirectory,
+          stagingIdentity,
+          stagingOwnership,
+          fileBindingRuntime,
+        );
+      }
     } catch (error) {
       console.error(`Warning: could not remove workflow migration staging directory "${stagingDirectory}": ${error.message}`);
     }
   }
 }
 
-function commandValidate(args) {
+async function commandValidate(args) {
   const qualityArgs = extractQualityArgs(args);
   const repoArgs = extractRepoRootArgs(qualityArgs.rest);
   args = repoArgs.rest;
@@ -5806,6 +6416,29 @@ function commandValidate(args) {
       subject: { option: '--layout-json', type },
       supportedFixes: ['remove --layout-json or use an architecture or workflow diagram'],
     });
+  }
+
+  const inputPath = path.resolve(input);
+  try {
+    const document = JSON.parse(fs.readFileSync(inputPath, 'utf8'));
+    const [{ validateAuthoredOutputPath }, { validateSchema }] = await Promise.all([
+      import('../renderers/shared/output-path.mjs'),
+      import('../renderers/shared/validator.mjs'),
+    ]);
+    if (document?.meta?.output === undefined) validateSchema(type, document);
+    else validateAuthoredOutputPath(document.meta.output);
+  } catch (error) {
+    const diagnostics = error.archifyDiagnostics || [inputDiagnostic(error, inputPath)];
+    reportValidateFailure({
+      json,
+      stage: diagnostics.some((entry) => entry.code.startsWith('input/')) ? 'input' : 'render',
+      type,
+      input: inputPath,
+      error: error.message,
+      diagnostics,
+      status: 1,
+    });
+    return;
   }
 
   if (layoutJson) {
@@ -5937,7 +6570,7 @@ try {
       await commandPreview(args);
       break;
     case 'validate':
-      commandValidate(args);
+      await commandValidate(args);
       break;
     case 'migrate':
       await commandMigrate(args);

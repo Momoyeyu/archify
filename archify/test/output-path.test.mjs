@@ -616,7 +616,7 @@ for (const slot of ['artifact', 'receipt']) {
 }
 
 for (const slot of ['artifact', 'receipt']) {
-  test(`compare rejects a same-inode ${slot} candidate byte mutation before publish and restores the old pair`, () => {
+  test(`compare rejects and preserves a same-inode ${slot} candidate byte mutation before publish`, () => {
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), `archify-output-compare-candidate-bytes-${slot}-`));
     const output = path.join(cwd, 'delta.html');
     const receiptPath = path.join(cwd, 'delta.receipt.json');
@@ -665,7 +665,11 @@ for (const slot of ['artifact', 'receipt']) {
     );
     assert.equal(fs.readFileSync(output, 'utf8'), outputBytes);
     assert.equal(fs.readFileSync(receiptPath, 'utf8'), receiptBytes);
-    assert.equal(fs.readdirSync(cwd).some((name) => name.startsWith('.archify-compare-')), false);
+    const recoveryDirectories = fs.readdirSync(cwd)
+      .filter((name) => name.startsWith('.archify-compare-'));
+    assert.equal(recoveryDirectories.length, 1);
+    const preservedCandidate = path.join(cwd, recoveryDirectories[0], candidateName);
+    assert.match(fs.readFileSync(preservedCandidate, 'utf8'), /externally mutated candidate bytes/);
   });
 }
 
@@ -735,7 +739,7 @@ test('compare preserves a same-inode edit to the first published member when the
 });
 
 for (const slot of ['artifact', 'receipt']) {
-  test(`compare rejects a same-inode ${slot} candidate mode mutation before publish`, { skip: process.platform === 'win32' }, () => {
+  test(`compare rejects and preserves a same-inode ${slot} candidate mode mutation before publish`, { skip: process.platform === 'win32' }, () => {
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), `archify-output-compare-candidate-mode-${slot}-`));
     const output = path.join(cwd, 'delta.html');
     const receiptPath = path.join(cwd, 'delta.receipt.json');
@@ -788,7 +792,11 @@ for (const slot of ['artifact', 'receipt']) {
     assert.equal(fs.readFileSync(receiptPath, 'utf8'), receiptBytes);
     assert.equal(fs.statSync(output).mode & 0o777, 0o640);
     assert.equal(fs.statSync(receiptPath).mode & 0o777, 0o640);
-    assert.equal(fs.readdirSync(cwd).some((name) => name.startsWith('.archify-compare-')), false);
+    const recoveryDirectories = fs.readdirSync(cwd)
+      .filter((name) => name.startsWith('.archify-compare-'));
+    assert.equal(recoveryDirectories.length, 1);
+    const preservedCandidate = path.join(cwd, recoveryDirectories[0], candidateName);
+    assert.equal(fs.statSync(preservedCandidate).mode & 0o777, 0o600);
   });
 }
 
@@ -812,7 +820,8 @@ for (const slot of ['artifact', 'receipt']) {
       fs.unlinkSync = function(file, ...args) {
         if (!rejected
           && path.basename(String(file)) === ${JSON.stringify(candidateName)}
-          && path.basename(path.dirname(String(file))).startsWith('.archify-compare-')) {
+          && path.basename(path.dirname(String(file))).startsWith('.archify-remove-')
+          && path.basename(path.dirname(path.dirname(String(file)))).startsWith('.archify-compare-')) {
           rejected = true;
           const error = new Error('injected candidate unlink failure');
           error.code = 'EACCES';
@@ -831,11 +840,24 @@ for (const slot of ['artifact', 'receipt']) {
     assert.equal(result.status, 1, result.stdout + result.stderr);
     const failure = JSON.parse(result.stdout);
     assert.equal(failure.stage, 'commit');
-    assert.equal(failure.diagnostics[0].code, 'delta/commit-failed');
-    assert.match(failure.diagnostics[0].evidence.reason, /injected candidate unlink failure/);
+    assert.equal(failure.diagnostics[0].code, 'output/target-indeterminate');
+    assert.match(
+      failure.diagnostics[0].evidence.reason,
+      /target identity could not be verified safely/,
+    );
     assert.equal(fs.readFileSync(output, 'utf8'), outputBytes);
     assert.equal(fs.readFileSync(receiptPath, 'utf8'), receiptBytes);
-    assert.equal(fs.readdirSync(cwd).some((name) => name.startsWith('.archify-compare-')), false);
+    const [recoveryDirectory] = fs.readdirSync(cwd)
+      .filter((name) => name.startsWith('.archify-compare-'));
+    assert.ok(recoveryDirectory);
+    const recoveryRoot = path.join(cwd, recoveryDirectory);
+    const [quarantineDirectory] = fs.readdirSync(recoveryRoot)
+      .filter((name) => name.startsWith('.archify-remove-'));
+    assert.ok(quarantineDirectory);
+    assert.equal(
+      fs.statSync(path.join(recoveryRoot, quarantineDirectory, candidateName)).isFile(),
+      true,
+    );
   });
 }
 

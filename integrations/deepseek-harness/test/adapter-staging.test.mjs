@@ -38,8 +38,10 @@ function fixture() {
   const contractFiles = [
     'scripts/stage-clean-skill.mjs',
     'archify/renderers/shared/atomic-output.mjs',
+    'archify/renderers/shared/output-path.mjs',
     'archify/renderers/shared/path-semantics.mjs',
     'archify/renderers/shared/portable-path.mjs',
+    'archify/renderers/shared/sidecar-path.mjs',
     'integrations/deepseek-harness/scripts/release-source.mjs',
   ];
   for (const relative of contractFiles) {
@@ -125,6 +127,16 @@ test('DSH workflow runs when the shared portable-path contract changes', () => {
     workflow.match(/archify\/renderers\/shared\/path-semantics\.mjs/g)?.length,
     2,
     'pull requests and branch pushes must both watch the staging identity runtime',
+  );
+  assert.equal(
+    workflow.match(/archify\/renderers\/shared\/output-path\.mjs/g)?.length,
+    2,
+    'pull requests and branch pushes must both watch the native output runtime',
+  );
+  assert.equal(
+    workflow.match(/archify\/renderers\/shared\/sidecar-path\.mjs/g)?.length,
+    2,
+    'pull requests and branch pushes must both watch the bounded sidecar runtime',
   );
 });
 

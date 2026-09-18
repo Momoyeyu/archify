@@ -34,6 +34,7 @@ function mockWindowsFilesystem(t, {
   t.after(() => Object.defineProperty(process, 'platform', platform));
 
   const realpathCalls = [];
+  const lstatCalls = [];
   const identities = new Map();
   let nextIdentity = 1n;
   const canonicalPath = (targetPath) => {
@@ -77,6 +78,7 @@ function mockWindowsFilesystem(t, {
   });
   t.mock.method(fs, 'statSync', statFor);
   t.mock.method(fs, 'lstatSync', (targetPath) => {
+    lstatCalls.push(String(targetPath));
     if (entriesExist) {
       const stat = statFor(targetPath);
       const key = canonicalPath(targetPath).toLocaleLowerCase('en-US');
@@ -98,7 +100,7 @@ function mockWindowsFilesystem(t, {
     error.code = 'EINVAL';
     throw error;
   });
-  return { realpathCalls };
+  return { lstatCalls, realpathCalls };
 }
 
 test('Windows drive and share roots reach native resolution as complete filesystem roots', (t) => {
@@ -109,6 +111,14 @@ test('Windows drive and share roots reach native resolution as complete filesyst
   const extendedDrive = String.raw`\\?\C:\reports\diagram.html`;
 
   expectResult(sameLocation(ordinaryUnc, extendedUnc), 'match');
+  expectResult(
+    sameLocation(String.raw`\\server\CON\reports`, String.raw`\\?\UNC\server\CON\reports`),
+    'match',
+  );
+  expectResult(
+    sameLocation(String.raw`\\CON\share\reports`, String.raw`\\?\UNC\CON\share\reports`),
+    'match',
+  );
   expectResult(
     sameLocation(String.raw`\\server\share`, String.raw`\\?\UNC\server\share`),
     'match',
@@ -122,13 +132,21 @@ test('Windows drive and share roots reach native resolution as complete filesyst
 });
 
 test('Windows device and malformed extended namespaces fail closed before filesystem access', (t) => {
-  const { realpathCalls } = mockWindowsFilesystem(t);
+  const { lstatCalls, realpathCalls } = mockWindowsFilesystem(t);
   for (const [targetPath, reason] of [
     [String.raw`\\.\NUL`, 'windows-namespace-unsupported'],
     ['//./NUL', 'windows-namespace-unsupported'],
     [String.raw`\\?\GLOBALROOT\Device\HarddiskVolume1\diagram.html`, 'windows-namespace-unsupported'],
     ['//?/GLOBALROOT/Device/HarddiskVolume1/diagram.html', 'windows-namespace-unsupported'],
     [String.raw`\\?\Volume{01234567-89AB-CDEF-0123-456789ABCDEF}\diagram.html`, 'windows-namespace-unsupported'],
+    [String.raw`\\server\IPC$\diagram.html`, 'windows-namespace-unsupported'],
+    [String.raw`\\server\pipe\diagram.html`, 'windows-namespace-unsupported'],
+    [String.raw`\\server\mailslot\diagram.html`, 'windows-namespace-unsupported'],
+    [String.raw`\\?\UNC\server\IPC$\diagram.html`, 'windows-namespace-unsupported'],
+    [String.raw`\\?\UNC\server\pipe\diagram.html`, 'windows-namespace-unsupported'],
+    [String.raw`\\?\UNC\server\mailslot\diagram.html`, 'windows-namespace-unsupported'],
+    [String.raw`\\server\bad+share\diagram.html`, 'windows-root-invalid'],
+    [String.raw`\\?\UNC\server\trailing.\diagram.html`, 'windows-root-invalid'],
     [String.raw`\\?\UNC\server`, 'windows-root-invalid'],
     [String.raw`\\?\other\diagram.html`, 'windows-root-invalid'],
     [String.raw`\\server`, 'windows-root-invalid'],
@@ -140,6 +158,7 @@ test('Windows device and malformed extended namespaces fail closed before filesy
     assert.equal(comparison.reason.code, reason);
   }
   assert.deepEqual(realpathCalls, []);
+  assert.deepEqual(lstatCalls, []);
 });
 
 test('Windows extended dot segments fail closed before filesystem access', (t) => {

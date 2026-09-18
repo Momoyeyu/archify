@@ -238,7 +238,9 @@ function semanticEnvelope(value, profile, index) {
   const transforms = [
     (candidate) => candidate.normalize('NFC'),
     (candidate) => candidate.normalize('NFD'),
+    // path-contract-allow: portable-logical-path -- Archive names require conservative case-collision closure.
     (candidate) => candidate.toLocaleLowerCase('en-US'),
+    // path-contract-allow: portable-logical-path -- Archive names require conservative case-collision closure.
     (candidate) => candidate.toLocaleUpperCase('en-US'),
   ];
 

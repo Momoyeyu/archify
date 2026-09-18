@@ -118,6 +118,103 @@ test('copySiteAssets preflights both asset targets before publishing either one'
   assert.equal(fs.readFileSync(external, 'utf8'), 'external navigation remains unchanged\n');
 });
 
+test('copySiteAssets rolls back the pair when publishing the second asset fails', (t) => {
+  const root = workspace(t, 'archify-copy-site-assets-pair-rollback-');
+  const outputParent = path.join(root, 'site');
+  const assets = path.join(outputParent, 'assets');
+  const language = path.join(assets, 'site-language.js');
+  const navigation = path.join(assets, 'site-navigation.css');
+  fs.mkdirSync(assets, { recursive: true });
+  fs.writeFileSync(language, 'previous language asset\n');
+  fs.writeFileSync(navigation, 'previous navigation asset\n');
+
+  const linkSync = fs.linkSync.bind(fs);
+  let injected = false;
+  t.mock.method(fs, 'linkSync', (source, destination) => {
+    if (!injected
+      && path.basename(destination) === 'site-navigation.css'
+      && path.basename(source).startsWith('.site-navigation.css.archify-')) {
+      injected = true;
+      throw Object.assign(new Error('injected second publication failure'), { code: 'EIO' });
+    }
+    return linkSync(source, destination);
+  });
+
+  assertThrowsWithCauseCode(
+    () => copySiteAssets(path.join(outputParent, 'index.html')),
+    'site-asset-publish-failed',
+  );
+  assert.equal(injected, true, 'the second publication must reach the injected failure');
+  assert.equal(fs.readFileSync(language, 'utf8'), 'previous language asset\n');
+  assert.equal(fs.readFileSync(navigation, 'utf8'), 'previous navigation asset\n');
+  assert.deepEqual(
+    fs.readdirSync(assets).sort(),
+    ['site-language.js', 'site-navigation.css'],
+    'rollback must not leave candidates or backups behind',
+  );
+});
+
+test('copySiteAssets keeps the committed pair when retiring a previous backup needs recovery', (t) => {
+  const root = workspace(t, 'archify-copy-site-assets-backup-recovery-');
+  const outputParent = path.join(root, 'site');
+  const assets = path.join(outputParent, 'assets');
+  const language = path.join(assets, 'site-language.js');
+  const navigation = path.join(assets, 'site-navigation.css');
+  fs.mkdirSync(assets, { recursive: true });
+  fs.writeFileSync(language, 'previous language asset\n');
+  fs.writeFileSync(navigation, 'previous navigation asset\n');
+
+  const unlinkSync = fs.unlinkSync.bind(fs);
+  let injected = false;
+  t.mock.method(fs, 'unlinkSync', (file, ...args) => {
+    if (!injected
+      && path.basename(String(file)).startsWith('.archify-site-backup-')
+      && path.basename(path.dirname(String(file))).startsWith('.archify-remove-')) {
+      injected = true;
+      throw Object.assign(new Error('injected previous-backup cleanup failure'), { code: 'EIO' });
+    }
+    return unlinkSync(file, ...args);
+  });
+
+  assertThrowsWithCauseCode(
+    () => copySiteAssets(path.join(outputParent, 'index.html')),
+    'previous-site-asset-target-quarantine-cleanup-failed',
+  );
+  assert.equal(injected, true, 'the previous-backup retirement must reach the injected failure');
+  assert.deepEqual(fs.readFileSync(language), fs.readFileSync(path.join(canonicalAssets, 'site-language.js')));
+  assert.deepEqual(fs.readFileSync(navigation), fs.readFileSync(path.join(canonicalAssets, 'site-navigation.css')));
+});
+
+test('copySiteAssets rolls back the first asset and preserves a claimant of the second target', (t) => {
+  const root = workspace(t, 'archify-copy-site-assets-second-claimant-');
+  const outputParent = path.join(root, 'site');
+  const assets = path.join(outputParent, 'assets');
+  const language = path.join(assets, 'site-language.js');
+  const navigation = path.join(assets, 'site-navigation.css');
+  fs.mkdirSync(assets, { recursive: true });
+
+  const linkSync = fs.linkSync.bind(fs);
+  let injected = false;
+  t.mock.method(fs, 'linkSync', (source, destination) => {
+    if (!injected
+      && path.basename(destination) === 'site-navigation.css'
+      && path.basename(source).startsWith('.site-navigation.css.archify-')) {
+      fs.writeFileSync(navigation, 'concurrent navigation claimant\n', { flag: 'wx' });
+      injected = true;
+    }
+    return linkSync(source, destination);
+  });
+
+  assertThrowsWithCauseCode(
+    () => copySiteAssets(path.join(outputParent, 'index.html')),
+    'site-asset-target-claimed-during-publish',
+  );
+  assert.equal(injected, true, 'the second target must be claimed after the first publish');
+  assert.equal(fs.existsSync(language), false, 'the first publication must roll back to absence');
+  assert.equal(fs.readFileSync(navigation, 'utf8'), 'concurrent navigation claimant\n');
+  assert.deepEqual(fs.readdirSync(assets), ['site-navigation.css']);
+});
+
 test('copySiteAssets preserves a target introduced after capture and before publication', (t) => {
   const root = workspace(t, 'archify-copy-site-assets-target-swap-');
   const outputParent = path.join(root, 'site');

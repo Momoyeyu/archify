@@ -12,6 +12,7 @@ import {
   backupPublicRegularFileBinding,
   captureAtomicOutput,
   captureRegularFileBinding,
+  quarantineRemoveLinkedRegularFileAlias,
   quarantineRemoveRegularFileBinding,
   releaseRegularFileBinding,
   verifyAtomicOutput,
@@ -159,6 +160,30 @@ function resolvedSidecarNamespace(artifact, component) {
   throw error;
 }
 
+function portableSidecarComponentKey(component) {
+  return component
+    .normalize('NFC')
+    .toLocaleUpperCase('en-US')
+    .toLocaleLowerCase('en-US')
+    .normalize('NFC');
+}
+
+function targetSidecarNamespace(directory, component) {
+  const namespace = sidecarNamespaceComponentKey(directory, component);
+  if (namespace.status === 'resolved') return namespace.componentKey;
+  if (namespace.reason?.code === 'sidecar-directory-missing') {
+    // A pure path calculation must not create --out-dir. Use the portable
+    // collision envelope until the directory exists and can be probed.
+    return portableSidecarComponentKey(component);
+  }
+  const error = new Error(
+    `Could not establish target sidecar semantics (${namespace.reason?.code || 'unknown'}).`,
+  );
+  error.code = 'ARCHIFY_SIDECAR_NAMESPACE_INDETERMINATE';
+  error.sidecarNamespaceReason = namespace.reason;
+  throw error;
+}
+
 export function sidecarPaths(artifactPath, { outDir } = {}) {
   let artifact = path.resolve(artifactPath);
   try {
@@ -172,12 +197,23 @@ export function sidecarPaths(artifactPath, { outDir } = {}) {
   const namespace = resolvedSidecarNamespace(artifact, path.basename(artifact));
   artifact = path.join(namespace.directoryPath, path.basename(artifact));
   const namespaceStem = sidecarStemFromComponent(namespace.componentKey);
+  const directory = outDir ? path.resolve(outDir) : path.dirname(artifact);
+  const targetComponentKey = outDir
+    ? targetSidecarNamespace(directory, namespace.componentKey)
+    : namespace.componentKey;
+  const portableTargetKey = outDir
+    ? portableSidecarComponentKey(namespace.componentKey)
+    : namespace.componentKey;
+  const targetAliasesSourceSpelling = targetComponentKey !== namespace.componentKey
+    || portableTargetKey !== namespace.componentKey;
   const stem = boundedSidecarStem(
     namespaceStem.stem,
     VISUAL_SIDECAR_SUFFIXES,
-    namespaceStem.options,
+    targetAliasesSourceSpelling ? {
+      force: true,
+      hashDomain: `visual-check-artifact\0${artifact}\0target-component\0${portableTargetKey}`,
+    } : namespaceStem.options,
   );
-  const directory = outDir ? path.resolve(outDir) : path.dirname(artifact);
   const base = path.join(directory, `${stem}.visual-check`);
   const screenshots = CAPTURE_VIEWPORTS.flatMap(({ width, height }) => THEMES.map((theme) => ({
     width,
@@ -367,65 +403,50 @@ function unlinkOwnedEntry(file, identity, {
   evidence,
   expectedLinks,
 } = {}) {
-  let stat;
-  try {
-    stat = fs.lstatSync(file, { bigint: true });
-  } catch (error) {
-    return error?.code === 'ENOENT'
-      ? { status: 'absent' }
-      : { status: 'unknown', error };
-  }
-  if (!identityMatches(stat, identity)
-    || (expectedLinks !== undefined && stat.nlink !== BigInt(expectedLinks))) {
-    return { status: 'different', reason: 'identity' };
-  }
-  const verifiedLinks = expectedLinks ?? stat.nlink;
-  if (evidence && !currentEvidenceMatches(
-    file,
-    identity,
-    evidence,
-    { expectedLinks: verifiedLinks },
-  )) {
-    return { status: 'different', reason: 'content' };
-  }
-  try {
-    stat = fs.lstatSync(file, { bigint: true });
-  } catch (error) {
-    return error?.code === 'ENOENT'
-      ? { status: 'absent' }
-      : { status: 'unknown', error };
-  }
-  if (!identityMatches(stat, identity) || stat.nlink !== BigInt(verifiedLinks)) {
-    return { status: 'different', reason: 'identity' };
-  }
-  try {
-    fs.unlinkSync(file);
-    return { status: 'removed' };
-  } catch (error) {
-    return { status: 'unknown', error };
-  }
-}
-
-function quarantineOwnedPublishedEntry(file, identity, evidence, expectedLinks) {
-  const captured = captureRegularFileBinding(file, {
-    subject: 'published-evidence',
+  const verifiedLinks = Number(expectedLinks ?? identity.links ?? 1);
+  let captured = captureRegularFileBinding(file, {
+    subject: 'visual-cleanup',
     expectedIdentity: identity,
     expectedMode: identity.mode,
-    expectedSha256: evidence.sha256,
-    expectedBytes: evidence.bytes,
-    expectedLinks,
+    expectedLinks: verifiedLinks,
+    ...(evidence ? {
+      expectedSha256: evidence.sha256,
+      expectedBytes: evidence.bytes,
+    } : {}),
   });
+  const reportedLinks = Number(captured.reason?.links);
+  if (captured.status === 'unsupported'
+    && captured.reason?.code === 'visual-cleanup-hardlinked'
+    && Number.isSafeInteger(reportedLinks)
+    && reportedLinks > verifiedLinks) {
+    captured = captureRegularFileBinding(file, {
+      subject: 'visual-cleanup',
+      expectedIdentity: identity,
+      expectedMode: identity.mode,
+      expectedLinks: reportedLinks,
+      ...(evidence ? {
+        expectedSha256: evidence.sha256,
+        expectedBytes: evidence.bytes,
+      } : {}),
+    });
+  }
   if (captured.status !== 'captured') {
-    return captured.reason?.systemCode === 'ENOENT'
-      ? { status: 'absent', reason: captured.reason }
-      : captured;
+    if (captured.reason?.systemCode === 'ENOENT') return { status: 'absent' };
+    return {
+      status: captured.status === 'different' || captured.status === 'unsupported'
+        ? 'different'
+        : 'unknown',
+      reason: captured.reason?.code?.includes('content-changed') ? 'content' : 'identity',
+      error: new Error(captured.reason?.code || 'visual cleanup binding failed'),
+      bindingState: captured.reason,
+    };
   }
   let removal;
   let released;
   try {
     removal = quarantineRemoveRegularFileBinding(captured.binding, file, {
-      subject: 'published-evidence',
-      expectedLinks,
+      subject: 'visual-cleanup',
+      expectedLinks: captured.identity?.links ? Number(captured.identity.links) : verifiedLinks,
     });
   } finally {
     released = releaseRegularFileBinding(captured.binding);
@@ -433,18 +454,23 @@ function quarantineOwnedPublishedEntry(file, identity, evidence, expectedLinks) 
   if (released.status !== 'released') {
     return {
       status: 'unknown',
-      reason: released.reason,
-      removalStatus: removal?.status,
-      ...(removal?.recoveryDirectory
-        ? {
-          recoveryDirectory: removal.recoveryDirectory,
-          recoveryFile: removal.recoveryFile,
-          target: removal.target,
-        }
-        : {}),
+      reason: 'identity',
+      error: new Error(released.reason?.code || 'visual cleanup binding release failed'),
+      bindingState: released.reason,
     };
   }
-  return removal;
+  if (removal.status === 'removed' || removal.status === 'absent') return removal;
+  return {
+    status: removal.status === 'preserved' || removal.status === 'different'
+      || removal.status === 'unsupported' ? 'different' : 'unknown',
+    reason: 'identity',
+    error: new Error(removal.reason?.code || 'visual cleanup quarantine failed'),
+    bindingState: removal.reason,
+    ...(removal.recoveryDirectory ? {
+      recoveryDirectory: removal.recoveryDirectory,
+      recoveryFile: removal.recoveryFile,
+    } : {}),
+  };
 }
 
 function backupOwnedPublishedEntry(file, backupPath, identity, evidence) {
@@ -775,15 +801,6 @@ function recordVisualEvidenceFiles(receipt, outputs, ownership) {
   receipt.sidecars.files = files;
 }
 
-function currentUniqueEntryMatches(file, identity) {
-  try {
-    const stat = fs.lstatSync(file, { bigint: true });
-    return stat.nlink === 1n && identityMatches(stat, identity);
-  } catch {
-    return false;
-  }
-}
-
 function currentEvidenceMatches(file, identity, evidence, {
   expectedLinks = identity.links ?? 1,
 } = {}) {
@@ -793,19 +810,6 @@ function currentEvidenceMatches(file, identity, evidence, {
     && evidenceIdentityMatches(current.identity, identity, expectedLinks)
     && current.evidence.sha256 === evidence.sha256
     && current.evidence.bytes === evidence.bytes;
-}
-
-function linkedEntriesMatch(stagedPath, finalPath, identity) {
-  try {
-    const staged = fs.lstatSync(stagedPath, { bigint: true });
-    const published = fs.lstatSync(finalPath, { bigint: true });
-    return staged.nlink === 2n
-      && published.nlink === 2n
-      && identityMatches(staged, identity)
-      && identityMatches(published, identity);
-  } catch {
-    return false;
-  }
 }
 
 function restoreOwnedBackup(backup, errors) {
@@ -895,7 +899,10 @@ function restoreOwnedBackup(backup, errors) {
         });
         return;
       }
-      const removed = unlinkOwnedEntry(backup.path, backup.identity);
+      const removed = unlinkOwnedEntry(backup.path, backup.identity, {
+        evidence: captured.content,
+        expectedLinks: linkedCount,
+      });
       const finalMatches = verifyRegularFileBinding(captured.binding, {
         filePath: backup.finalPath,
         expectedLinks: expectedLinkCount,
@@ -937,18 +944,43 @@ function commitVisualEvidence(artifactPath, outputs, ownership, desiredPaths) {
   }
 
   const desired = new Set(desiredPaths);
+  const stagedBindings = new Map();
+  const releaseStagedBindings = () => {
+    const failures = [];
+    for (const [finalPath, binding] of stagedBindings) {
+      const released = releaseRegularFileBinding(binding);
+      if (released.status !== 'released') {
+        failures.push({ file: finalPath, reason: released.reason?.code });
+      }
+    }
+    stagedBindings.clear();
+    return failures;
+  };
   for (const finalPath of desired) {
     const staged = ownership.stagedEntries.get(finalPath);
-    if (!staged || !currentEvidenceMatches(staged.path, staged.identity, staged.evidence)) {
+    const captured = staged ? captureRegularFileBinding(staged.path, {
+      subject: 'staged-evidence',
+      expectedIdentity: staged.identity,
+      expectedMode: staged.identity.mode,
+      expectedSha256: staged.evidence?.sha256,
+      expectedBytes: staged.evidence?.bytes,
+      expectedLinks: 1,
+    }) : null;
+    if (!staged || captured?.status !== 'captured') {
       const failure = evidenceWriteFailure(
         artifactPath,
         'visual-check could not verify its staged evidence before publication.',
-        [{ file: staged?.path || stagedPathFor(ownership, finalPath), reason: 'staged entry missing or changed' }],
+        [{
+          file: staged?.path || stagedPathFor(ownership, finalPath),
+          reason: captured?.reason?.code || 'staged entry missing or changed',
+        }],
       );
+      releaseStagedBindings();
       cleanupStagedEvidence(ownership, { removeDirectory: true });
       ownership.active = false;
       return failure;
     }
+    stagedBindings.set(finalPath, captured.binding);
   }
 
   const backups = [];
@@ -1009,9 +1041,16 @@ function commitVisualEvidence(artifactPath, outputs, ownership, desiredPaths) {
     for (const target of publicationOrder) {
       const captured = ownership.targets.get(target.path);
       const staged = ownership.stagedEntries.get(target.path);
-      if (!currentEvidenceMatches(staged.path, staged.identity, staged.evidence)) {
+      const stagedBinding = stagedBindings.get(target.path);
+      const beforeLink = verifyRegularFileBinding(stagedBinding, {
+        filePath: staged.path,
+        expectedLinks: 1,
+      });
+      if (beforeLink.status !== 'match') {
         conflict = evidencePathConflict(artifactPath, outputs, target.path, {
-          code: 'staged-evidence-content-mismatch',
+          code: beforeLink.reason?.code?.includes('content-changed')
+            ? 'staged-evidence-content-mismatch'
+            : beforeLink.reason?.code || 'staged-evidence-content-mismatch',
         });
         throw new Error(conflict.error);
       }
@@ -1030,40 +1069,43 @@ function commitVisualEvidence(artifactPath, outputs, ownership, desiredPaths) {
         stagedPath: staged.path,
         identity: staged.identity,
         evidence: staged.evidence,
+        binding: stagedBinding,
       });
-      if (!linkedEntriesMatch(staged.path, captured.commitPath, staged.identity)) {
-        conflict = evidencePathConflict(artifactPath, outputs, target.path, {
-          code: 'published-entry-identity-mismatch',
-        });
-        throw new Error(conflict.error);
-      }
-      if (!currentEvidenceMatches(
-        staged.path,
-        staged.identity,
-        staged.evidence,
-        { expectedLinks: 2 },
-      )) {
-        conflict = evidencePathConflict(artifactPath, outputs, target.path, {
-          code: 'published-entry-content-mismatch',
-        });
-        throw new Error(conflict.error);
-      }
-      const removed = unlinkOwnedEntry(staged.path, staged.identity, {
-        evidence: staged.evidence,
+      const stagedLinked = verifyRegularFileBinding(stagedBinding, {
+        filePath: staged.path,
         expectedLinks: 2,
       });
-      if (removed.status !== 'removed') {
+      const publishedLinked = verifyRegularFileBinding(stagedBinding, {
+        filePath: captured.commitPath,
+        expectedLinks: 2,
+      });
+      if (stagedLinked.status !== 'match' || publishedLinked.status !== 'match') {
         conflict = evidencePathConflict(artifactPath, outputs, target.path, {
-          code: removed.reason === 'content'
-            ? 'published-entry-content-mismatch'
-            : 'published-entry-identity-mismatch',
+          code: 'published-entry-identity-mismatch',
+          stagedState: stagedLinked.reason,
+          publishedState: publishedLinked.reason,
+        });
+        throw new Error(conflict.error);
+      }
+      const removed = quarantineRemoveRegularFileBinding(stagedBinding, staged.path, {
+        subject: 'staged-evidence',
+        expectedLinks: 2,
+      });
+      if (removed.status !== 'removed' && removed.status !== 'preserved') {
+        conflict = evidencePathConflict(artifactPath, outputs, target.path, {
+          code: removed.reason?.code || 'published-entry-identity-mismatch',
         });
         throw new Error(`visual-check could not retire staged evidence "${staged.path}".`);
       }
-      ownership.stagedEntries.delete(target.path);
-      if (!currentUniqueEntryMatches(captured.commitPath, staged.identity)) {
+      if (removed.status === 'removed') ownership.stagedEntries.delete(target.path);
+      const finalized = verifyRegularFileBinding(stagedBinding, {
+        filePath: captured.commitPath,
+        expectedLinks: 1,
+      });
+      if (finalized.status !== 'match') {
         conflict = evidencePathConflict(artifactPath, outputs, target.path, {
           code: 'published-entry-link-count-mismatch',
+          bindingState: finalized.reason,
         });
         throw new Error(conflict.error);
       }
@@ -1073,15 +1115,14 @@ function commitVisualEvidence(artifactPath, outputs, ownership, desiredPaths) {
     // Recheck every earlier member afterwards so a writer that replaces a PNG
     // or the contact sheet while later members publish cannot yield success.
     for (const entry of published) {
-      if (!currentUniqueEntryMatches(entry.finalPath, entry.identity)) {
+      const finalState = verifyRegularFileBinding(entry.binding, {
+        filePath: entry.finalPath,
+        expectedLinks: 1,
+      });
+      if (finalState.status !== 'match') {
         conflict = evidencePathConflict(artifactPath, outputs, entry.finalPath, {
           code: 'published-set-identity-mismatch',
-        });
-        throw new Error(conflict.error);
-      }
-      if (!currentEvidenceMatches(entry.finalPath, entry.identity, entry.evidence)) {
-        conflict = evidencePathConflict(artifactPath, outputs, entry.finalPath, {
-          code: 'published-set-content-mismatch',
+          bindingState: finalState.reason,
         });
         throw new Error(conflict.error);
       }
@@ -1136,49 +1177,55 @@ function commitVisualEvidence(artifactPath, outputs, ownership, desiredPaths) {
     };
   } catch (error) {
     const rollbackErrors = [];
-    const conflictReason = conflict?.diagnostic?.evidence?.reason?.code;
     for (const entry of [...published].reverse()) {
-      let stagingLinkRemains = false;
-      try {
-        const staged = fs.lstatSync(entry.stagedPath, { bigint: true });
-        stagingLinkRemains = identityMatches(staged, entry.identity);
-      } catch {}
-      const mayRetireHardlinkedPublication = stagingLinkRemains
-        && conflictReason === 'published-entry-identity-mismatch';
-      let expectedLinks = stagingLinkRemains ? 2 : 1;
       let removed;
-      if (mayRetireHardlinkedPublication) {
-        try {
-          const current = fs.lstatSync(entry.finalPath, { bigint: true });
-          const currentLinks = Number(current.nlink);
-          if (!identityMatches(current, entry.identity)
-            || !Number.isSafeInteger(currentLinks)
-            || currentLinks < 1) {
-            removed = {
-              status: 'different',
-              reason: { code: 'published-evidence-identity-changed' },
-            };
-          } else {
-            expectedLinks = currentLinks;
+      let ownedMismatch;
+      for (const expectedLinks of [2, 1]) {
+        const matches = verifyRegularFileBinding(entry.binding, {
+          filePath: entry.finalPath,
+          expectedLinks,
+        });
+        if (matches.status === 'match') {
+          removed = quarantineRemoveRegularFileBinding(
+            entry.binding,
+            entry.finalPath,
+            { subject: 'published-evidence', expectedLinks },
+          );
+          break;
+        }
+        if (matches.reason?.code?.includes('content-changed')
+          || matches.reason?.code?.includes('mode-changed')) {
+          ownedMismatch = matches;
+        } else {
+          ownedMismatch ||= matches;
+        }
+        const reportedLinks = Number(matches.reason?.links);
+        if (matches.status === 'unsupported'
+          && matches.reason?.code === 'staged-evidence-hardlinked'
+          && Number.isSafeInteger(reportedLinks)
+          && reportedLinks > expectedLinks) {
+          const current = verifyRegularFileBinding(entry.binding, {
+            filePath: entry.finalPath,
+            expectedLinks: reportedLinks,
+          });
+          if (current.status === 'match') {
+            removed = quarantineRemoveRegularFileBinding(
+              entry.binding,
+              entry.finalPath,
+              { subject: 'published-evidence', expectedLinks: reportedLinks },
+            );
+            break;
           }
-        } catch (inspectionError) {
-          removed = inspectionError?.code === 'ENOENT'
-            ? { status: 'absent' }
-            : {
-              status: 'unknown',
-              reason: {
-                code: 'published-evidence-inspection-failed',
-                ...(inspectionError?.code ? { systemCode: inspectionError.code } : {}),
-              },
-            };
         }
       }
-      removed ||= quarantineOwnedPublishedEntry(
-        entry.finalPath,
-        entry.identity,
-        entry.evidence,
-        expectedLinks,
-      );
+      if (!removed) {
+        const claimantRemoval = quarantineRemoveLinkedRegularFileAlias(
+          entry.stagedPath,
+          entry.finalPath,
+          { subject: 'published-evidence-claimant' },
+        );
+        removed = claimantRemoval.status === 'removed' ? claimantRemoval : ownedMismatch;
+      }
       if (removed.status !== 'removed' && removed.status !== 'absent') {
         rollbackErrors.push(publishedRemovalError(entry.finalPath, removed));
       }
@@ -1195,6 +1242,8 @@ function commitVisualEvidence(artifactPath, outputs, ownership, desiredPaths) {
       'visual-check could not atomically publish its evidence set.',
       [{ reason: error.message }, ...rollbackErrors],
     );
+  } finally {
+    releaseStagedBindings();
   }
 }
 

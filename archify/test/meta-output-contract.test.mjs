@@ -39,8 +39,8 @@ function writeDocumentWithoutValidOutput(directory, name, source, output = undef
   return target;
 }
 
-function run(args, cwd) {
-  return spawnSync(process.execPath, [cli, ...args], { cwd, encoding: 'utf8' });
+function run(args, cwd, { env = process.env } = {}) {
+  return spawnSync(process.execPath, [cli, ...args], { cwd, encoding: 'utf8', env });
 }
 
 function jsonOutput(result) {
@@ -101,6 +101,94 @@ test('an explicit CLI output does not hide an invalid durable authored output', 
   assert.match(result.stderr, /output\/meta-path-syntax/);
   assert.equal(fs.existsSync(override), false);
 });
+
+test('validate rejects an invalid durable output before allocating temporary staging', t => {
+  const directory = workspace(t);
+  const input = writeDocument(
+    directory,
+    'invalid-before-staging.architecture.json',
+    architectureExample,
+    'reports\\diagram.html',
+  );
+  const unavailableTemp = path.join(directory, 'missing-temporary-root');
+  const result = run(['validate', 'architecture', input, '--json'], directory, {
+    env: {
+      ...process.env,
+      TMPDIR: unavailableTemp,
+      TMP: unavailableTemp,
+      TEMP: unavailableTemp,
+    },
+  });
+
+  assert.equal(result.status, 1, result.stderr || result.stdout);
+  const failure = jsonOutput(result);
+  assert.equal(failure.diagnostics[0].code, 'output/meta-path-syntax');
+  assert.equal(failure.diagnostics[0].subject.path, '/meta/output');
+  assert.equal(fs.existsSync(unavailableTemp), false);
+});
+
+for (const boundary of [
+  {
+    label: 'escapes through a directory symlink',
+    output: 'reports/diagram.html',
+    expected: /meta\.output must stay inside the current working directory/i,
+    prepare(directory, outside) {
+      fs.symlinkSync(outside, path.join(directory, 'reports'), 'dir');
+    },
+  },
+  {
+    label: 'resolves through a file symlink to a non-HTML target',
+    output: 'diagram.html',
+    expected: /meta\.output must resolve to an? \.html file/i,
+    prepare(directory) {
+      fs.writeFileSync(path.join(directory, 'diagram.json'), 'trusted target\n');
+      fs.symlinkSync(path.join(directory, 'diagram.json'), path.join(directory, 'diagram.html'), 'file');
+    },
+  },
+]) {
+  test(`every command rejects durable meta.output that ${boundary.label}, even with a CLI target`, t => {
+    const directory = workspace(t);
+    const outside = path.join(directory, '..', `${path.basename(directory)}-outside`);
+    fs.mkdirSync(outside);
+    t.after(() => fs.rmSync(outside, { recursive: true, force: true }));
+    boundary.prepare(directory, outside);
+    const architecture = writeDocument(
+      directory,
+      'invalid.architecture.json',
+      architectureExample,
+      boundary.output,
+    );
+    const peer = writeDocument(
+      directory,
+      'peer.architecture.json',
+      architectureExample,
+      'peer.html',
+    );
+    const workflow = writeDocument(
+      directory,
+      'invalid.workflow.json',
+      workflowFixture,
+      boundary.output,
+    );
+    const explicitDirectory = path.join(directory, 'explicit');
+    const commands = [
+      ['validate', ['validate', 'architecture', architecture, '--json']],
+      ['render', ['render', 'architecture', architecture, path.join(explicitDirectory, 'render.html')]],
+      ['deliver', ['deliver', 'architecture', architecture, path.join(explicitDirectory, 'deliver.html'), '--json']],
+      ['preview', ['preview', 'architecture', architecture, path.join(explicitDirectory, 'preview.html'), '--no-open']],
+      ['compare', ['compare', 'architecture', architecture, peer, path.join(explicitDirectory, 'compare.html'), '--json']],
+      ['migrate', ['migrate', 'workflow', workflow, path.join(explicitDirectory, 'migrated.workflow.json'), '--to-schema', '2', '--json']],
+    ];
+
+    for (const [command, args] of commands) {
+      const result = run(args, directory);
+      assert.equal(result.status, 1, `${command}: ${result.stderr || result.stdout}`);
+      assert.match(`${result.stdout}\n${result.stderr}`, boundary.expected, command);
+      assert.equal(fs.existsSync(explicitDirectory), false, `${command} created its CLI target directory`);
+    }
+    assert.equal(fs.existsSync(path.join(outside, 'diagram.html')), false);
+  });
+}
 
 for (const [label, output] of [['missing', undefined], ['non-string', 42]]) {
   test(`all artifact commands reject ${label} durable meta.output before creating outputs`, t => {
@@ -177,7 +265,10 @@ for (const [label, output] of [['missing', undefined], ['non-string', 42]]) {
       'migrate', 'workflow', source, destination, '--to-schema', '2', '--json',
     ], directory);
     assert.equal(result.status, 1, result.stderr || result.stdout);
-    assert.equal(jsonOutput(result).diagnostics[0].code, 'output/meta-path-syntax');
+    assert.equal(
+      jsonOutput(result).diagnostics[0].code,
+      label === 'missing' ? 'schema/required' : 'output/meta-path-syntax',
+    );
     assert.equal(fs.existsSync(destinationDirectory), false, 'migration created its destination directory');
   });
 }

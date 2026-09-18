@@ -11,10 +11,10 @@ import { sameLocation } from '../renderers/shared/path-semantics.mjs';
 import {
   captureAtomicOutput,
   captureRegularFileBinding,
+  publishRegularFileBinding,
   releaseRegularFileBinding,
   removeOwnedRegularFile,
   verifyAtomicOutput,
-  verifyRegularFileBinding,
 } from '../renderers/shared/atomic-output.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -666,12 +666,18 @@ export async function startPreview(options) {
       commitCandidateBinding = candidateCapture.binding;
       const beforeCommit = verifyAtomicOutput(outputCapture.snapshot);
       if (beforeCommit.status !== 'match') throw atomicOutputError(beforeCommit);
-      const verifiedCandidate = verifyRegularFileBinding(commitCandidateBinding);
-      if (verifiedCandidate.status !== 'match') throw atomicOutputError(verifiedCandidate);
+      const publication = publishRegularFileBinding(
+        commitCandidateBinding,
+        commitCandidatePath,
+        outputCapture.snapshot,
+        { subject: 'candidate' },
+      );
+      if (!['committed', 'committed-with-warning'].includes(publication.status)) {
+        throw atomicOutputError(publication);
+      }
       const releasedCandidate = releaseRegularFileBinding(commitCandidateBinding);
       commitCandidateBinding = undefined;
       if (releasedCandidate.status !== 'released') throw atomicOutputError(releasedCandidate);
-      fs.renameSync(commitCandidatePath, outputCapture.commitPath);
       commitCandidatePath = undefined;
       commitCandidateIdentity = undefined;
       artifactBuffer = candidate;
