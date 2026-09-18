@@ -27,6 +27,7 @@ function expectResult(value, expectedStatus) {
 function mockWindowsFilesystem(t, {
   entriesExist = true,
   preserveExtendedRealpaths = false,
+  extendedDriveRootRealpathIsDirectory = false,
   symbolicLinks = [],
 } = {}) {
   const platform = Object.getOwnPropertyDescriptor(process, 'platform');
@@ -72,6 +73,12 @@ function mockWindowsFilesystem(t, {
 
   t.mock.method(fs.realpathSync, 'native', (targetPath) => {
     realpathCalls.push(String(targetPath));
+    if (extendedDriveRootRealpathIsDirectory
+      && /^\\\\\?\\[A-Za-z]:\\$/u.test(String(targetPath))) {
+      const error = new Error(`virtual Windows extended drive root is a directory: ${targetPath}`);
+      error.code = 'EISDIR';
+      throw error;
+    }
     return preserveExtendedRealpaths
       ? path.win32.normalize(String(targetPath))
       : canonicalPath(targetPath);
@@ -129,6 +136,17 @@ test('Windows drive and share roots reach native resolution as complete filesyst
   assert.ok(realpathCalls.includes(`${String.raw`\\?\UNC\server\share`}\\`));
   assert.ok(realpathCalls.includes('C:\\'));
   assert.ok(realpathCalls.includes(`${String.raw`\\?\C:`}\\`));
+});
+
+test('Windows extended drive roots retain stable identity when native realpath reports EISDIR', (t) => {
+  mockWindowsFilesystem(t, { extendedDriveRootRealpathIsDirectory: true });
+  expectResult(
+    sameLocation(
+      String.raw`\\?\C:\reports\diagram.html`,
+      String.raw`C:\reports\diagram.html`,
+    ),
+    'match',
+  );
 });
 
 test('Windows device and malformed extended namespaces fail closed before filesystem access', (t) => {

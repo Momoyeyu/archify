@@ -329,10 +329,29 @@ function resolvePlan({ root, segments }, side, depth) {
     current = fs.realpathSync.native(root);
     currentStat = statBigInt(current);
   } catch (error) {
-    return {
-      ok: false,
-      failure: systemFailure('root-resolution-failed', error, { side }),
-    };
+    // Node on Windows can report EISDIR while resolving a valid extended
+    // drive root (for example \\?\C:\). The namespace was already validated by
+    // splitWindowsAbsolute, so retain its exact spelling and bind traversal to
+    // the root's stable filesystem identity instead of discarding long-path
+    // semantics by converting it back to an ordinary drive path.
+    if (process.platform === 'win32'
+      && error?.code === 'EISDIR'
+      && root.startsWith('\\\\?\\')) {
+      try {
+        current = root;
+        currentStat = statBigInt(current);
+      } catch (statError) {
+        return {
+          ok: false,
+          failure: systemFailure('root-resolution-failed', statError, { side }),
+        };
+      }
+    } else {
+      return {
+        ok: false,
+        failure: systemFailure('root-resolution-failed', error, { side }),
+      };
+    }
   }
 
   for (let index = 0; index < segments.length; index += 1) {
