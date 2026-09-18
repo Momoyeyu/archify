@@ -59,10 +59,12 @@ export function loadDiagram({ rendererDir, diagramType, defaultExample, argv = p
       supportedFixes: ['repair the JSON syntax and run validation again'],
     }]);
   }
-  if (typeof diagram?.meta?.output === 'string') {
-    validateAuthoredOutputPath(diagram.meta.output);
-  }
+  const authoredOutput = diagram?.meta?.output;
+  if (authoredOutput !== undefined) validateAuthoredOutputPath(authoredOutput);
   validateSchema(diagramType, diagram);
+  if (authoredOutput === undefined && process.env.ARCHIFY_REQUIRE_META_OUTPUT === '1') {
+    validateAuthoredOutputPath(authoredOutput);
+  }
   validateGuidedViews(diagramType, diagram);
   validateRelationshipIds(diagramType, diagram);
   validateEngineeringProfile(diagramType, diagram);
@@ -163,7 +165,21 @@ function stageRenderedHtml(outputPath, html, mode) {
         fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | noFollow,
         mode ?? 0o666,
       );
-      const metadata = fs.fstatSync(descriptor, { bigint: true });
+      let metadata;
+      try {
+        metadata = fs.fstatSync(descriptor, { bigint: true });
+      } catch (error) {
+        // A transient first inspection failure must not strand the exclusive
+        // candidate. A successful retry binds cleanup to the still-open file;
+        // if both inspections fail, preserving the unknown entry is safer.
+        try {
+          const retry = fs.fstatSync(descriptor, { bigint: true });
+          if (retry.isFile() && retry.ino !== 0n) {
+            identity = { device: retry.dev, inode: retry.ino };
+          }
+        } catch {}
+        throw error;
+      }
       if (!metadata.isFile() || metadata.ino === 0n) {
         throw new Error('Temporary render candidate identity could not be verified safely.');
       }

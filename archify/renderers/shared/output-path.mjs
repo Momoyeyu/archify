@@ -114,6 +114,12 @@ function windowsExtendedTailComponents(rawOutput, tail) {
   return authoredComponents.filter(Boolean);
 }
 
+function rejectWindowsIpcShare(rawOutput, share) {
+  if (/^(?:pipe|mailslot)$/iu.test(share)) {
+    throwNativeOutputDiagnostic(rawOutput, 'windows-ipc-namespace', { share });
+  }
+}
+
 function validateWindowsNativeComponent(rawOutput, component, componentIndex) {
   try {
     // Prefix the component so a colon is classified as an ADS separator,
@@ -169,6 +175,7 @@ function windowsExtendedPathComponents(rawOutput) {
     if (components.length < 2 || components[0].length === 0 || components[1].length === 0) {
       throwNativeOutputDiagnostic(rawOutput, 'windows-extended-root');
     }
+    rejectWindowsIpcShare(rawOutput, components[1]);
     return windowsExtendedTailComponents(rawOutput, authoredTail);
   }
 
@@ -195,6 +202,7 @@ function windowsPathComponents(rawOutput, normalized) {
   if (normalized.startsWith('\\\\')) {
     const unc = normalized.match(/^\\\\([^\\]+)\\([^\\]+)(?:\\|$)/u);
     if (!unc) throwNativeOutputDiagnostic(rawOutput, 'windows-unc-root');
+    rejectWindowsIpcShare(rawOutput, unc[2]);
     validateWindowsNativeComponent(rawOutput, unc[1], 0);
     validateWindowsNativeComponent(rawOutput, unc[2], 1);
     return normalized.slice(unc[0].length).split('\\').filter(Boolean);
@@ -380,7 +388,13 @@ export function resolveOutputPath({
   // Alias checks above retain priority when a target would overwrite an input.
   if (source === 'cli') {
     const resolvedOutput = canonicalFuturePath(outputPath);
-    const authoredMatches = path.extname(rawOutput).toLowerCase() === requiredExtension;
+    const authoredExtension = path.extname(rawOutput).toLowerCase();
+    const existingWindowsHtmlAlias = platform === 'win32'
+      && requiredExtension === '.html'
+      && authoredExtension === '.htm'
+      && path.extname(resolvedOutput).toLowerCase() === requiredExtension
+      && pathsAlias(outputPath, resolvedOutput);
+    const authoredMatches = authoredExtension === requiredExtension || existingWindowsHtmlAlias;
     const resolvedMatches = path.extname(resolvedOutput).toLowerCase() === requiredExtension;
     if (!authoredMatches || !resolvedMatches) {
       const message = `CLI output must ${authoredMatches ? 'resolve to' : 'target'} a ${requiredExtension} file.`;

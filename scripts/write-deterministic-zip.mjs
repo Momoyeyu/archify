@@ -269,7 +269,18 @@ try {
     fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | noFollow,
     0o666,
   );
-  const candidateMetadata = fs.fstatSync(descriptor, { bigint: true });
+  let candidateMetadata;
+  try {
+    candidateMetadata = fs.fstatSync(descriptor, { bigint: true });
+  } catch (error) {
+    try {
+      const retry = fs.fstatSync(descriptor, { bigint: true });
+      if (retry.isFile() && retry.ino !== 0n) {
+        candidateIdentity = { device: retry.dev, inode: retry.ino };
+      }
+    } catch {}
+    throw error;
+  }
   if (!candidateMetadata.isFile() || candidateMetadata.ino === 0n) {
     throw new Error(`archive candidate identity is unavailable: ${temporary}`);
   }

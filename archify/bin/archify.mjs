@@ -6,7 +6,6 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const skillRoot = path.resolve(__dirname, '..');
 
@@ -18,37 +17,19 @@ const DELIVERY_SIDECAR_SUFFIXES = Object.freeze([
 ]);
 const COMPARE_SIDECAR_SUFFIXES = Object.freeze(['.receipt.json']);
 const DELIVERY_DIRECTORY_LOCK = '.archify-delivery-lock.json';
-const SIDECAR_STEM_NAMESPACE = /\.~archify-[0-9a-f]{64}$/iu;
 let sidecarNamespaceComponentKeyRuntime;
+let boundedSidecarStem;
+let isBoundedSidecarStem;
+let sidecarStemFromComponent;
+let sidecarStemNeedsBounding;
 
-function sidecarStemNeedsBounding(stem, suffixes) {
-  const fits = (value) => value.length <= 255 && Buffer.byteLength(value, 'utf8') <= 255;
-  return !suffixes.every((suffix) => fits(`${stem}${suffix}`));
-}
-
-function boundedSidecarStem(stem, suffixes, { force = false, hashDomain } = {}) {
-  if (!force && !sidecarStemNeedsBounding(stem, suffixes)
-    && !SIDECAR_STEM_NAMESPACE.test(stem)) return stem;
-  const hashInput = hashDomain ? `${hashDomain}\0${stem}` : stem;
-  const marker = `.~archify-${createHash('sha256').update(hashInput).digest('hex')}`;
-  const codePoints = [...stem];
-  while (codePoints.length && sidecarStemNeedsBounding(`${codePoints.join('')}${marker}`, suffixes)) {
-    codePoints.pop();
-  }
-  return `${codePoints.join('')}${marker}`;
-}
-
-function sidecarStemFromComponent(component) {
-  if (component.endsWith('.html')) {
-    return {
-      stem: component.slice(0, -'.html'.length),
-      options: undefined,
-    };
-  }
-  return {
-    stem: component,
-    options: { force: true, hashDomain: 'full-component' },
-  };
+async function loadSidecarPathRuntime() {
+  ({
+    boundedSidecarStem,
+    isBoundedSidecarStem,
+    sidecarStemFromComponent,
+    sidecarStemNeedsBounding,
+  } = await import('../renderers/shared/sidecar-path.mjs'));
 }
 
 function deliverySidecarNamespace(artifactPath) {
@@ -96,7 +77,7 @@ function rawHeadDeliverySidecarPath(artifactPath, suffix) {
   const { directory, stem, options } = deliverySidecarNamespace(artifactPath);
   if (options?.force) return undefined;
   if (sidecarStemNeedsBounding(stem, DELIVERY_SIDECAR_SUFFIXES)
-    || !SIDECAR_STEM_NAMESPACE.test(stem)) return undefined;
+    || !isBoundedSidecarStem(stem)) return undefined;
   return path.join(directory, `${stem}${suffix}`);
 }
 
@@ -106,6 +87,22 @@ function rawHeadDeliveryProvenancePath(artifactPath) {
 
 function rawHeadDeliveryPendingPath(artifactPath) {
   return rawHeadDeliverySidecarPath(artifactPath, '.delivery-pending.json');
+}
+
+function legacyExtensionDeliverySidecarPath(artifactPath, suffix) {
+  let artifact = path.resolve(artifactPath);
+  try {
+    artifact = fs.realpathSync.native(artifact);
+  } catch (error) {
+    if (error?.code !== 'ENOENT' && error?.code !== 'ENOTDIR') throw error;
+  }
+  const component = path.basename(artifact);
+  if (!/\.html$/iu.test(component) || component.endsWith('.html')) return undefined;
+  const legacyComponent = `${component.slice(0, -'.html'.length)}${suffix}`;
+  if (legacyComponent.length > 255 || Buffer.byteLength(legacyComponent, 'utf8') > 255) {
+    return undefined;
+  }
+  return path.join(path.dirname(artifact), legacyComponent);
 }
 
 function canonicalExistingDeliveryOutput(outputPath) {
@@ -586,7 +583,18 @@ function acquireDeliveryLock(
     rejectExistingDeliveryLock(existingLegacyLocks[0], output, fileBindingRuntime);
   }
   const openedLocks = [];
-  let ownership;
+  const ownership = Object.freeze({});
+  deliveryOwnershipStates.set(ownership, {
+    output: stableOutput,
+    lockPath,
+    pendingPath,
+    provenancePath,
+    receiptId,
+    pid: process.pid,
+    ownedLocks: openedLocks,
+    fileBindingRuntime,
+    phase: 'acquiring',
+  });
   let collisionPath;
   try {
     const openOwnedLock = (ownedLockPath, { allowOwnedAlias = false } = {}) => {
@@ -608,28 +616,39 @@ function acquireDeliveryLock(
         if (error.code === 'EEXIST') collisionPath = ownedLockPath;
         throw error;
       }
+      let handleIdentity;
+      let handleIdentityError;
+      try {
+        handleIdentity = fs.fstatSync(descriptor, { bigint: true });
+      } catch (error) {
+        // A transient first inspection failure must not strand the public
+        // lock. Bind ownership from the still-open handle before cleanup.
+        try {
+          handleIdentity = fs.fstatSync(descriptor, { bigint: true });
+        } catch {}
+        if (!handleIdentity) throw error;
+        handleIdentityError = error;
+      }
       const ownedLock = {
         path: ownedLockPath,
-        identity: fs.fstatSync(descriptor, { bigint: true }),
+        identity: handleIdentity,
         descriptor,
       };
       openedLocks.push(ownedLock);
+      const pathIdentity = fs.lstatSync(ownedLockPath, { bigint: true });
+      if (!handleIdentity.isFile()
+        || handleIdentity.ino === 0n
+        || !pathIdentity.isFile()
+        || pathIdentity.isSymbolicLink()
+        || pathIdentity.ino === 0n
+        || !sameFileIdentity(pathIdentity, handleIdentity)) {
+        throw new Error('Delivery lock path identity could not be verified safely.');
+      }
+      if (handleIdentityError) throw handleIdentityError;
       return ownedLock;
     };
 
     openOwnedLock(lockPath);
-    ownership = Object.freeze({});
-    deliveryOwnershipStates.set(ownership, {
-      output: stableOutput,
-      lockPath,
-      pendingPath,
-      provenancePath,
-      receiptId,
-      pid: process.pid,
-      ownedLocks: openedLocks,
-      fileBindingRuntime,
-      phase: 'acquiring',
-    });
     for (const legacyLockPath of legacyLockPaths) {
       openOwnedLock(legacyLockPath, { allowOwnedAlias: true });
     }
@@ -663,41 +682,37 @@ function acquireDeliveryLock(
         error.lockCleanupError = closeError.message;
       }
     }
-    if (ownership) {
-      const state = deliveryOwnershipStates.get(ownership);
-      let preserveOwnership = false;
-      try {
-        if (state.phase === 'initializing') {
-          assertDeliveryOwnership(ownership, 'record a lock initialization failure', { allowInitializing: true });
-          error.deliveryFailureRecord = recordInitializationFailure?.(error, ownership);
-          if (error.deliveryFailureRecord?.journalRecovery) {
-            error.deliveryJournalRecovery = error.deliveryFailureRecord.journalRecovery.deliveryJournalRecovery;
-            preserveOwnership = true;
-          }
-          if (error.deliveryFailureRecord?.provenanceRecovery) {
-            error.deliveryProvenanceRecovery = error.deliveryFailureRecord.provenanceRecovery.deliveryProvenanceRecovery;
-            preserveOwnership = true;
-          }
+    const state = deliveryOwnershipStates.get(ownership);
+    let preserveOwnership = false;
+    try {
+      if (state.phase === 'initializing') {
+        assertDeliveryOwnership(ownership, 'record a lock initialization failure', { allowInitializing: true });
+        error.deliveryFailureRecord = recordInitializationFailure?.(error, ownership);
+        if (error.deliveryFailureRecord?.journalRecovery) {
+          error.deliveryJournalRecovery = error.deliveryFailureRecord.journalRecovery.deliveryJournalRecovery;
+          preserveOwnership = true;
         }
-        if (!preserveOwnership) {
-          releaseDeliveryOwnership(ownership, { allowInitializing: true });
+        if (error.deliveryFailureRecord?.provenanceRecovery) {
+          error.deliveryProvenanceRecovery = error.deliveryFailureRecord.provenanceRecovery.deliveryProvenanceRecovery;
+          preserveOwnership = true;
         }
-      } catch (cleanupError) {
-        if (cleanupError.deliveryOwnershipCode) {
-          cleanupError.deliveryOwnershipDetails = {
-            ...(cleanupError.deliveryOwnershipDetails || {}),
-            initializationError: error.message,
-            ...(error?.code ? { initializationSystemCode: error.code } : {}),
-          };
-          if (cleanupError.deliveryOwnershipCode === 'delivery/lock-release' && error.deliveryFailureRecord) {
-            cleanupError.deliveryFailureRecord = error.deliveryFailureRecord;
-          }
-          throw cleanupError;
-        }
-        error.lockCleanupError = cleanupError.message;
       }
-      if (collisionPath) rejectExistingDeliveryLock(collisionPath, output, fileBindingRuntime);
-      throw error;
+      if (!preserveOwnership) {
+        releaseDeliveryOwnership(ownership, { allowInitializing: true });
+      }
+    } catch (cleanupError) {
+      if (cleanupError.deliveryOwnershipCode) {
+        cleanupError.deliveryOwnershipDetails = {
+          ...(cleanupError.deliveryOwnershipDetails || {}),
+          initializationError: error.message,
+          ...(error?.code ? { initializationSystemCode: error.code } : {}),
+        };
+        if (cleanupError.deliveryOwnershipCode === 'delivery/lock-release' && error.deliveryFailureRecord) {
+          cleanupError.deliveryFailureRecord = error.deliveryFailureRecord;
+        }
+        throw cleanupError;
+      }
+      error.lockCleanupError = cleanupError.message;
     }
     if (collisionPath) rejectExistingDeliveryLock(collisionPath, output, fileBindingRuntime);
     throw error;
@@ -1555,6 +1570,14 @@ function inspectDeliveryProvenance(artifactPath, artifact, {
   const rawHeadSidecar = rawHeadDeliveryProvenancePath(artifactPath);
   const pending = deliveryPendingPath(artifactPath);
   const rawHeadPending = rawHeadDeliveryPendingPath(artifactPath);
+  const legacyExtensionPending = legacyExtensionDeliverySidecarPath(
+    artifactPath,
+    '.delivery-pending.json',
+  );
+  const legacyExtensionSidecar = legacyExtensionDeliverySidecarPath(
+    artifactPath,
+    '.delivery.json',
+  );
   const stableOutput = canonicalExistingDeliveryOutput(artifactPath);
   const locks = [
     deliveryLockPath(stableOutput),
@@ -1562,7 +1585,11 @@ function inspectDeliveryProvenance(artifactPath, artifact, {
   ];
   let foundPending;
   try {
-    for (const candidate of [pending, rawHeadPending].filter(Boolean)) {
+    for (const candidate of [...new Set([
+      pending,
+      rawHeadPending,
+      legacyExtensionPending,
+    ].filter(Boolean))]) {
       if (pathEntryExists(candidate)) {
         foundPending = candidate;
         break;
@@ -1613,6 +1640,14 @@ function inspectDeliveryProvenance(artifactPath, artifact, {
       if (found) sidecar = rawHeadSidecar;
     } catch (error) {
       return invalidProvenance(artifactPath, rawHeadSidecar, error.message);
+    }
+  }
+  if (!found && legacyExtensionSidecar) {
+    try {
+      found = pathEntryExists(legacyExtensionSidecar);
+      if (found) sidecar = legacyExtensionSidecar;
+    } catch (error) {
+      return invalidProvenance(artifactPath, legacyExtensionSidecar, error.message);
     }
   }
   if (!found) {
@@ -1962,6 +1997,7 @@ function extractOutDirArgs(args) {
 
 function rendererEnv(quality, repoRoot, diagnosticJson = false) {
   return {
+    ARCHIFY_REQUIRE_META_OUTPUT: '1',
     ...(quality ? { ARCHIFY_QUALITY_PROFILE: quality } : {}),
     ...(repoRoot ? { ARCHIFY_REPO_ROOT: repoRoot } : {}),
     ...(diagnosticJson ? { ARCHIFY_DIAGNOSTIC_FORMAT: 'json' } : {}),
@@ -3108,7 +3144,12 @@ function renderValidatedArchitecture(inputPath, outputPath, quality, repoRoot) {
 }
 
 async function commandCompare(args) {
-  const { canonicalFuturePath, resolveOutputPath } = await import('../renderers/shared/output-path.mjs');
+  await loadSidecarPathRuntime();
+  const {
+    canonicalFuturePath,
+    resolveOutputPath,
+    validateAuthoredOutputPath,
+  } = await import('../renderers/shared/output-path.mjs');
   const {
     captureAtomicOutput,
     verifyAtomicOutput,
@@ -3258,6 +3299,27 @@ async function commandCompare(args) {
   } catch (error) {
     reportCompareFailure({ json: options.json, stage: 'input', error: `Could not read head input: ${error.message}`, code: 'delta/head-input', details: { side: 'head', reason: error.message } });
     return;
+  }
+
+  for (const [side, document] of [['base', base], ['head', head]]) {
+    try {
+      validateAuthoredOutputPath(document?.meta?.output);
+    } catch (error) {
+      const diagnosticEntry = error.archifyDiagnostics?.[0];
+      reportCompareFailure({
+        json: options.json,
+        stage: 'input',
+        error: `${side === 'base' ? 'Base' : 'Head'} snapshot failed validation: ${error.message}`,
+        code: diagnosticEntry?.code || `delta/${side}-validation`,
+        details: {
+          side,
+          ...(diagnosticEntry?.subject?.path ? { path: diagnosticEntry.subject.path } : {}),
+          ...(diagnosticEntry?.evidence || {}),
+          supportedFixes: diagnosticEntry?.supportedFixes || [],
+        },
+      });
+      return;
+    }
   }
 
   let outputDirectory = path.dirname(outputPath);
@@ -3483,8 +3545,12 @@ async function commandCompare(args) {
     // Validation must see the exact authored inputs. Only after both sides
     // pass do we canonicalize their collection order for deterministic SVG
     // geometry and stable artifact bytes.
-    fs.writeFileSync(canonicalBaseInput, JSON.stringify(canonicalArchitecture(base)));
-    fs.writeFileSync(canonicalHeadInput, JSON.stringify(canonicalArchitecture(head)));
+    const canonicalBase = canonicalArchitecture(base);
+    const canonicalHead = canonicalArchitecture(head);
+    canonicalBase.meta.output = base.meta.output;
+    canonicalHead.meta.output = head.meta.output;
+    fs.writeFileSync(canonicalBaseInput, JSON.stringify(canonicalBase));
+    fs.writeFileSync(canonicalHeadInput, JSON.stringify(canonicalHead));
     baseResult = renderValidatedArchitecture(canonicalBaseInput, baseCandidate, qualityArgs.quality, repoArgs.repoRoot);
     headResult = renderValidatedArchitecture(canonicalHeadInput, headCandidate, qualityArgs.quality, repoArgs.repoRoot);
 
@@ -3748,6 +3814,7 @@ function engineeringProfileFromArtifact(artifact) {
 }
 
 async function commandDeliver(args) {
+  await loadSidecarPathRuntime();
   const qualityArgs = extractQualityArgs(args);
   const repoArgs = extractRepoRootArgs(qualityArgs.rest);
   const json = repoArgs.rest.includes('--json');
@@ -3770,6 +3837,7 @@ async function commandDeliver(args) {
     canonicalFuturePath,
     pathsAlias,
     resolveOutputPath,
+    validateAuthoredOutputPath,
   } = await import('../renderers/shared/output-path.mjs');
   const {
     captureAtomicOutput,
@@ -3833,13 +3901,12 @@ async function commandDeliver(args) {
     return;
   }
 
-  const authoredOutput = typeof diagram?.meta?.output === 'string'
-    ? diagram.meta.output
-    : undefined;
+  const authoredOutput = diagram?.meta?.output;
   let outputPath;
   let provenancePath;
   let preparedDeliveryTargets;
   try {
+    validateAuthoredOutputPath(authoredOutput);
     ({ outputPath } = resolveOutputPath({
       requestedOutput,
       authoredOutput,
@@ -3852,7 +3919,11 @@ async function commandDeliver(args) {
     // spelling. That keeps its realpath-derived sidecars discoverable.
     outputPath = canonicalFuturePath(outputPath);
   } catch (error) {
-    const attemptedOutput = path.resolve(requestedOutput || authoredOutput || `${type}.html`);
+    const attemptedOutput = path.resolve(
+      requestedOutput
+      || (typeof authoredOutput === 'string' && authoredOutput)
+      || `${type}.html`,
+    );
     const failure = {
       json,
       stage: 'prepare',
@@ -4555,6 +4626,17 @@ async function commandPreview(args) {
   if (!type || !input || positional.length > 3) fail(usage());
   rendererPath(type);
 
+  try {
+    const source = JSON.parse(fs.readFileSync(path.resolve(input), 'utf8'));
+    const { validateAuthoredOutputPath } = await import('../renderers/shared/output-path.mjs');
+    validateAuthoredOutputPath(source?.meta?.output);
+  } catch (error) {
+    // Preserve live repair for unreadable or malformed JSON. A parsed document,
+    // however, must already carry the durable output contract before preview
+    // allocates a server, watcher, or staging directory.
+    if (error?.archifyDiagnostics) fail(`Could not start live preview: ${error.message}`, 1);
+  }
+
   let runPreview;
   try {
     ({ runPreview } = await import('./preview.mjs'));
@@ -4577,6 +4659,7 @@ async function commandPreview(args) {
 
 async function loadPathIdentityRuntime() {
   try {
+    await loadSidecarPathRuntime();
     const {
       sameEntry,
       sidecarNamespaceComponentKey,
@@ -5023,6 +5106,13 @@ async function commandDoctor(args) {
     missing: fs.existsSync(pathSemanticsRuntime) ? 0 : 1,
   });
 
+  const sidecarPathRuntime = path.join(skillRoot, 'renderers/shared/sidecar-path.mjs');
+  checks.push({
+    label: 'Sidecar path naming runtime',
+    ok: fs.existsSync(sidecarPathRuntime),
+    missing: fs.existsSync(sidecarPathRuntime) ? 0 : 1,
+  });
+
   const portablePathRuntime = path.join(skillRoot, 'renderers/shared/portable-path.mjs');
   checks.push({
     label: 'Portable path contract runtime',
@@ -5409,7 +5499,7 @@ async function commandMigrate(args) {
     verifyAtomicOutput,
     verifyRegularFileBinding,
   } = await import('../renderers/shared/atomic-output.mjs');
-  if (typeof sourceDocument?.meta?.output === 'string') {
+  if (sourceDocument?.meta?.output !== undefined) {
     try {
       validateAuthoredOutputPath(sourceDocument.meta.output);
     } catch (error) {
@@ -5464,6 +5554,18 @@ async function commandMigrate(args) {
   if (!migration.ok) {
     reportMigrationFailure(migration);
     return;
+  }
+
+  if (sourceDocument?.meta?.output === undefined) {
+    try {
+      validateAuthoredOutputPath(sourceDocument?.meta?.output);
+    } catch (error) {
+      reportMigrationFailure({
+        ...migration,
+        preExistingDiagnostics: migrationPathDiagnostics(error, sourcePath, destinationPath),
+      });
+      return;
+    }
   }
 
   const destinationDirectory = path.dirname(destinationPath);

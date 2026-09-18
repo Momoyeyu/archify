@@ -23,6 +23,10 @@ import {
   sameParent,
   sidecarNamespaceComponentKey,
 } from '../renderers/shared/path-semantics.mjs';
+import {
+  boundedSidecarStem,
+  sidecarStemFromComponent,
+} from '../renderers/shared/sidecar-path.mjs';
 
 export const VISUAL_CHECK_VIEWPORTS = Object.freeze([
   DESKTOP_READABILITY_VIEWPORT,
@@ -45,7 +49,6 @@ const VISUAL_SIDECAR_SUFFIXES = Object.freeze([
     (theme) => `.visual-check.${width}x${height}.${theme}.png`,
   )),
 ]);
-const SIDECAR_STEM_NAMESPACE = /\.~archify-[0-9a-f]{64}$/iu;
 const visualEvidenceOwnerships = new WeakSet();
 
 function sha256(buffer) {
@@ -145,21 +148,6 @@ function screenshotKey(width, height, theme) {
   return `${width}x${height}:${theme}`;
 }
 
-function boundedSidecarStem(stem, { force = false, hashDomain } = {}) {
-  const fits = (value) => value.length <= 255 && Buffer.byteLength(value, 'utf8') <= 255;
-  const needsBounding = (value) => !VISUAL_SIDECAR_SUFFIXES.every(
-    (suffix) => fits(`${value}${suffix}`),
-  );
-  if (!force && !needsBounding(stem) && !SIDECAR_STEM_NAMESPACE.test(stem)) return stem;
-  const hashInput = hashDomain ? `${hashDomain}\0${stem}` : stem;
-  const marker = `.~archify-${sha256(Buffer.from(hashInput, 'utf8'))}`;
-  const codePoints = [...stem];
-  while (codePoints.length && needsBounding(`${codePoints.join('')}${marker}`)) {
-    codePoints.pop();
-  }
-  return `${codePoints.join('')}${marker}`;
-}
-
 function resolvedSidecarNamespace(artifact, component) {
   const namespace = sidecarNamespaceComponentKey(path.dirname(artifact), component);
   if (namespace.status === 'resolved') return namespace;
@@ -169,19 +157,6 @@ function resolvedSidecarNamespace(artifact, component) {
   error.code = 'ARCHIFY_SIDECAR_NAMESPACE_INDETERMINATE';
   error.sidecarNamespaceReason = namespace.reason;
   throw error;
-}
-
-function sidecarStemFromComponent(component) {
-  if (component.endsWith('.html')) {
-    return {
-      stem: component.slice(0, -'.html'.length),
-      options: undefined,
-    };
-  }
-  return {
-    stem: component,
-    options: { force: true, hashDomain: 'full-component' },
-  };
 }
 
 export function sidecarPaths(artifactPath, { outDir } = {}) {
@@ -197,7 +172,11 @@ export function sidecarPaths(artifactPath, { outDir } = {}) {
   const namespace = resolvedSidecarNamespace(artifact, path.basename(artifact));
   artifact = path.join(namespace.directoryPath, path.basename(artifact));
   const namespaceStem = sidecarStemFromComponent(namespace.componentKey);
-  const stem = boundedSidecarStem(namespaceStem.stem, namespaceStem.options);
+  const stem = boundedSidecarStem(
+    namespaceStem.stem,
+    VISUAL_SIDECAR_SUFFIXES,
+    namespaceStem.options,
+  );
   const directory = outDir ? path.resolve(outDir) : path.dirname(artifact);
   const base = path.join(directory, `${stem}.visual-check`);
   const screenshots = CAPTURE_VIEWPORTS.flatMap(({ width, height }) => THEMES.map((theme) => ({
@@ -1484,7 +1463,7 @@ export class ChromeVisualBrowser {
     return attached.sessionId;
   }
 
-  async inspect({ artifactPath, width, height, theme, screenshotPath }) {
+  async inspect({ artifactPath, width, height, theme, screenshotPath, writeScreenshot }) {
     const sessionId = await this.sessionPromise;
     await this.cdp.send('Emulation.setDeviceMetricsOverride', {
       width,
@@ -1496,6 +1475,10 @@ export class ChromeVisualBrowser {
     const url = new URL(pathToFileURL(artifactPath).href);
     url.searchParams.set('theme', theme);
     const loaded = this.cdp.waitFor('Page.loadEventFired', sessionId);
+    // Navigation can fail before this waiter is awaited. Attach a rejection
+    // handler immediately so a later load failure never escapes as an
+    // unhandled rejection; awaiting `loaded` below still reports it normally.
+    loaded.catch(() => {});
     const navigation = await this.cdp.send('Page.navigate', { url: url.href }, sessionId);
     if (navigation.errorText) throw new Error(`Chrome navigation failed: ${navigation.errorText}`);
     await loaded;
@@ -1638,7 +1621,9 @@ export class ChromeVisualBrowser {
         captureBeyondViewport: false,
       }, sessionId, 20000);
       if (!capture.data) throw new Error('Chrome returned an empty screenshot.');
-      fs.writeFileSync(screenshotPath, Buffer.from(capture.data, 'base64'), { flag: 'wx' });
+      const screenshot = Buffer.from(capture.data, 'base64');
+      if (writeScreenshot) writeScreenshot(screenshot);
+      else fs.writeFileSync(screenshotPath, screenshot, { flag: 'wx' });
     }
     return metrics;
   }
@@ -2072,6 +2057,31 @@ export async function runVisualCheck({
     return { exitCode: EXIT.fail, receipt };
   }
   const ownership = preflight.ownership;
+  const inspectionArtifact = path.join(ownership.stagingDirectory, 'artifact-snapshot.html');
+  ownership.stagingPaths.set(artifact, inspectionArtifact);
+  try {
+    writeStagedEvidence(ownership, artifact, artifactBytes);
+  } catch (error) {
+    return { exitCode: EXIT.fail, receipt: persistVisualCheckFailure(artifact, {
+      ...receipt,
+      status: 'fail',
+      ok: false,
+      error: `visual-check could not stage its private artifact snapshot: ${error.message}`,
+      diagnostics: [failureDiagnostic({
+        code: 'viewer/artifact-snapshot',
+        message: 'visual-check could not bind a private artifact snapshot.',
+        subject: { artifact },
+        evidence: { reason: error.message },
+        supportedFixes: ['retry after resolving the reported staging filesystem error'],
+      })],
+    }, { outDir, compareSidecarParents, ownership }) };
+  }
+  const verifyInspectionArtifact = () => {
+    const entry = ownership.stagedEntries.get(artifact);
+    if (!entry || !currentEvidenceMatches(entry.path, entry.identity, entry.evidence)) {
+      throw new Error('The private visual-check artifact snapshot changed during inspection.');
+    }
+  };
   try {
     verifyArtifact?.(artifactBytes);
   } catch (error) {
@@ -2127,24 +2137,46 @@ export async function runVisualCheck({
       const key = screenshotKey(viewport.width, viewport.height, 'light');
       const screenshot = screenshotsByKey.get(key);
       const metrics = await browser.inspect({
-        artifactPath: artifact,
+        artifactPath: inspectionArtifact,
         ...viewport,
         theme: 'light',
-        ...(screenshot ? { screenshotPath: screenshot.stagedPath } : {}),
+        ...(screenshot ? {
+          screenshotPath: screenshot.stagedPath,
+          writeScreenshot: (bytes) => writeStagedEvidence(ownership, screenshot.path, bytes),
+        } : {}),
       });
-      if (screenshot) registerStagedEvidence(ownership, screenshot.path);
+      verifyInspectionArtifact();
+      if (screenshot) {
+        if (!ownership.stagedEntries.has(screenshot.path)) {
+          registerStagedEvidence(ownership, screenshot.path);
+        } else {
+          const staged = ownership.stagedEntries.get(screenshot.path);
+          if (!currentEvidenceMatches(staged.path, staged.identity, staged.evidence)) {
+            throw new Error('The staged visual-check screenshot changed after capture.');
+          }
+        }
+      }
       observations.set(key, observation({ ...viewport, theme: 'light', metrics }));
     }
     for (const viewport of CAPTURE_VIEWPORTS) {
       const key = screenshotKey(viewport.width, viewport.height, 'dark');
       const screenshot = screenshotsByKey.get(key);
       const metrics = await browser.inspect({
-        artifactPath: artifact,
+        artifactPath: inspectionArtifact,
         ...viewport,
         theme: 'dark',
         screenshotPath: screenshot.stagedPath,
+        writeScreenshot: (bytes) => writeStagedEvidence(ownership, screenshot.path, bytes),
       });
-      registerStagedEvidence(ownership, screenshot.path);
+      verifyInspectionArtifact();
+      if (!ownership.stagedEntries.has(screenshot.path)) {
+        registerStagedEvidence(ownership, screenshot.path);
+      } else {
+        const staged = ownership.stagedEntries.get(screenshot.path);
+        if (!currentEvidenceMatches(staged.path, staged.identity, staged.evidence)) {
+          throw new Error('The staged visual-check screenshot changed after capture.');
+        }
+      }
       observations.set(key, observation({ ...viewport, theme: 'dark', metrics }));
     }
 

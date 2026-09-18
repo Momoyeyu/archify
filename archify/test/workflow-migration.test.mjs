@@ -75,6 +75,7 @@ function explicitPinConflictWorkflow() {
     diagram_type: 'workflow',
     meta: {
       title: 'Unmappable explicit label pin',
+      output: 'unmappable-explicit-label-pin.html',
       viewBox: [900, 420],
       legend: { mode: 'hidden' },
     },
@@ -99,6 +100,7 @@ function heightConstrainedWorkflow() {
     diagram_type: 'workflow',
     meta: {
       title: 'Legacy height capacity',
+      output: 'legacy-height-capacity.html',
       viewBox: [720, 240],
       legend: { mode: 'hidden' },
     },
@@ -120,6 +122,7 @@ function profileDivergenceWorkflow() {
     diagram_type: 'workflow',
     meta: {
       title: 'profile divergence',
+      output: 'profile-divergence.html',
       quality_profile: 'showcase',
       legend: { mode: 'hidden' },
     },
@@ -494,7 +497,12 @@ test('fallback planning preserves straight-edge rank constraints when mapping ab
   const document = {
     schema_version: 1,
     diagram_type: 'workflow',
-    meta: { title: 'Fallback rank mapping', viewBox: [720, 520], legend: { mode: 'hidden' } },
+    meta: {
+      title: 'Fallback rank mapping',
+      output: 'fallback-rank-mapping.html',
+      viewBox: [720, 520],
+      legend: { mode: 'hidden' },
+    },
     lanes: [
       { id: 'pin', label: 'Pinned label' },
       { id: 'straight', label: 'Straight constraint' },

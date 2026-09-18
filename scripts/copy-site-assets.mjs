@@ -43,7 +43,18 @@ function stageSiteAsset(source, commitPath, mode) {
         fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | noFollow,
         mode ?? 0o666,
       );
-      const metadata = fs.fstatSync(descriptor, { bigint: true });
+      let metadata;
+      try {
+        metadata = fs.fstatSync(descriptor, { bigint: true });
+      } catch (error) {
+        try {
+          const retry = fs.fstatSync(descriptor, { bigint: true });
+          if (retry.isFile() && retry.ino !== 0n) {
+            identity = { device: retry.dev, inode: retry.ino };
+          }
+        } catch {}
+        throw error;
+      }
       if (!metadata.isFile() || metadata.ino === 0n) {
         throw new Error('Temporary site asset identity could not be verified safely.');
       }

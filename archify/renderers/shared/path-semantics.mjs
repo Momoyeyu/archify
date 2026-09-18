@@ -189,6 +189,7 @@ function compareKnownEntries(left, right, operation) {
     });
   }
 
+  // path-contract-allow: lexical-capability -- Canonical paths are compared inside the identity primitive.
   if (left.realPath === right.realPath) {
     return result('match', 'native-realpath-match', {
       operation,
@@ -829,6 +830,7 @@ export function sameParent(leftPath, rightPath) {
 
 function parentEntry(entry) {
   const parentPath = hostPath().dirname(entry.realPath);
+  // path-contract-allow: lexical-capability -- Both values are canonical paths captured by this primitive.
   if (parentPath === entry.realPath) return null;
   try {
     const realPath = fs.realpathSync.native(parentPath);

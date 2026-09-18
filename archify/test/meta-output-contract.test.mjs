@@ -30,6 +30,15 @@ function writeDocument(directory, name, source, output) {
   return target;
 }
 
+function writeDocumentWithoutValidOutput(directory, name, source, output = undefined) {
+  const document = JSON.parse(fs.readFileSync(source, 'utf8'));
+  if (output === undefined) delete document.meta.output;
+  else document.meta.output = output;
+  const target = path.join(directory, name);
+  fs.writeFileSync(target, `${JSON.stringify(document, null, 2)}\n`);
+  return target;
+}
+
 function run(args, cwd) {
   return spawnSync(process.execPath, [cli, ...args], { cwd, encoding: 'utf8' });
 }
@@ -92,6 +101,86 @@ test('an explicit CLI output does not hide an invalid durable authored output', 
   assert.match(result.stderr, /output\/meta-path-syntax/);
   assert.equal(fs.existsSync(override), false);
 });
+
+for (const [label, output] of [['missing', undefined], ['non-string', 42]]) {
+  test(`all artifact commands reject ${label} durable meta.output before creating outputs`, t => {
+    const directory = workspace(t);
+    const input = writeDocumentWithoutValidOutput(
+      directory,
+      `${label}.architecture.json`,
+      architectureExample,
+      output,
+    );
+
+    for (const command of ['validate', 'render', 'deliver']) {
+      const commandDirectory = path.join(directory, command);
+      const artifact = path.join(commandDirectory, 'override.html');
+      const args = command === 'validate'
+        ? [command, 'architecture', input, '--json']
+        : command === 'deliver'
+          ? [command, 'architecture', input, artifact, '--json']
+          : [command, 'architecture', input, artifact];
+      const result = run(args, directory);
+      assert.equal(result.status, 1, `${command}: ${result.stderr || result.stdout}`);
+      assert.equal(fs.existsSync(commandDirectory), false, `${command} created its output directory`);
+      assert.equal(
+        fs.readdirSync(directory).some((entry) => /delivery|archify-render/u.test(entry)),
+        false,
+        `${command} left a sidecar or staging entry`,
+      );
+    }
+  });
+
+  test(`compare and preview reject ${label} durable meta.output before creating outputs`, t => {
+    const directory = workspace(t);
+    const input = writeDocumentWithoutValidOutput(
+      directory,
+      `${label}.architecture.json`,
+      architectureExample,
+      output,
+    );
+    const peer = writeDocument(
+      directory,
+      'peer.architecture.json',
+      architectureExample,
+      'peer.html',
+    );
+
+    const compareDirectory = path.join(directory, 'compare');
+    const compare = run([
+      'compare', 'architecture', input, peer, path.join(compareDirectory, 'delta.html'), '--json',
+    ], directory);
+    assert.equal(compare.status, 1, compare.stderr || compare.stdout);
+    assert.equal(jsonOutput(compare).diagnostics[0].code, 'output/meta-path-syntax');
+    assert.equal(fs.existsSync(compareDirectory), false, 'compare created its output directory');
+
+    const previewDirectory = path.join(directory, 'preview');
+    const preview = run([
+      'preview', 'architecture', input, path.join(previewDirectory, 'diagram.html'), '--no-open',
+    ], directory);
+    assert.equal(preview.status, 1, preview.stderr || preview.stdout);
+    assert.match(preview.stderr, /meta\.output must be a portable POSIX-relative path/);
+    assert.equal(fs.existsSync(previewDirectory), false, 'preview created its output directory');
+  });
+
+  test(`migration rejects ${label} durable meta.output before creating its destination`, t => {
+    const directory = workspace(t);
+    const source = writeDocumentWithoutValidOutput(
+      directory,
+      `${label}.workflow.json`,
+      workflowFixture,
+      output,
+    );
+    const destinationDirectory = path.join(directory, 'migration');
+    const destination = path.join(destinationDirectory, 'migrated.workflow.json');
+    const result = run([
+      'migrate', 'workflow', source, destination, '--to-schema', '2', '--json',
+    ], directory);
+    assert.equal(result.status, 1, result.stderr || result.stdout);
+    assert.equal(jsonOutput(result).diagnostics[0].code, 'output/meta-path-syntax');
+    assert.equal(fs.existsSync(destinationDirectory), false, 'migration created its destination directory');
+  });
+}
 
 test('migration rejects a non-portable authored output without mutating its destination', t => {
   const directory = workspace(t);

@@ -198,6 +198,7 @@ function adjacentWorkflow({
   nodeLabels = ['A', 'B'],
   viewBox,
   frames = false,
+  output,
 } = {}) {
   const workflow = {
     schema_version: 2,
@@ -206,6 +207,7 @@ function adjacentWorkflow({
       title: `Adjacent ranks ${fromCol} to ${toCol}`,
       legend: { mode: 'hidden' },
       ...(viewBox ? { viewBox } : {}),
+      ...(output ? { output } : {}),
     },
     lanes: [{ id: 'main', label: 'Main' }],
     nodes: [
@@ -1322,6 +1324,7 @@ test('CLI validate workflow --layout-json prints the stable compiler receipt', (
     fromCol: 3,
     label: 'liga',
     viewBox: [1080, 420],
+    output: 'layout-json.html',
   })));
 
   const result = spawnSync(process.execPath, [
@@ -1348,7 +1351,11 @@ test('CLI validate workflow --layout-json returns only the causal compiler failu
   fs.writeFileSync(input, JSON.stringify({
     schema_version: 1,
     diagram_type: 'workflow',
-    meta: { title: 'Issue 126 failure receipt', legend: { mode: 'hidden' } },
+    meta: {
+      title: 'Issue 126 failure receipt',
+      output: 'layout-json-failure.html',
+      legend: { mode: 'hidden' },
+    },
     lanes: [{ id: 'main', label: 'Main' }],
     nodes: [
       { id: 'a', lane: 'main', col: 1, type: 'backend', label: 'A' },

@@ -103,7 +103,12 @@ test('render layout rejection exposes the existing diagnostic and preserves an e
   fs.writeFileSync(input, JSON.stringify({
     schema_version: 1,
     diagram_type: 'architecture',
-    meta: { title: 'Wide label', quality_profile: 'standard', viewBox: [975, 395] },
+    meta: {
+      title: 'Wide label',
+      output: 'wide-label.html',
+      quality_profile: 'standard',
+      viewBox: [975, 395],
+    },
     components: [{ id: 'node', type: 'security', label: '字'.repeat(40), pos: [40, 40], size: [88, 71] }],
   }));
   fs.writeFileSync(output, 'trusted artifact');

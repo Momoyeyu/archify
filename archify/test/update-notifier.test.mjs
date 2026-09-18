@@ -1773,6 +1773,43 @@ test('a symlink cache root cannot write into its target', async (t) => {
   assert.deepEqual(fs.readdirSync(protectedTarget), ['settings.json']);
 });
 
+test('a cache path equal to a trusted directory through a symlink is still rejected', async (t) => {
+  const testFixture = fixture();
+  const originalTmpdir = os.tmpdir;
+  const protectedTarget = path.join(testFixture.root, 'trusted-target');
+  const authoredAlias = path.join(testFixture.root, 'trusted-alias');
+  fs.mkdirSync(protectedTarget);
+  fs.writeFileSync(path.join(protectedTarget, 'settings.json'), '{"protected":true}\n');
+  try {
+    fs.symlinkSync(
+      protectedTarget,
+      authoredAlias,
+      process.platform === 'win32' ? 'junction' : 'dir',
+    );
+  } catch (error) {
+    if (['EPERM', 'EACCES', 'ENOTSUP'].includes(error?.code)) {
+      t.skip(`directory symlinks are unavailable: ${error.code}`);
+      return;
+    }
+    throw error;
+  }
+  os.tmpdir = () => protectedTarget;
+  t.after(() => {
+    os.tmpdir = originalTmpdir;
+    fs.rmSync(testFixture.root, { recursive: true, force: true });
+  });
+  let requests = 0;
+
+  const result = await checkForUpdate(options(testFixture, async () => {
+    requests += 1;
+    return response(remoteRelease());
+  }, { cacheDirectory: authoredAlias }));
+
+  assert.deepEqual(result, { status: 'silent', reason: 'cache-unavailable' });
+  assert.equal(requests, 0);
+  assert.deepEqual(fs.readdirSync(protectedTarget), ['settings.json']);
+});
+
 test('a symlink cache ancestor cannot redirect cache writes', async (t) => {
   const testFixture = fixture();
   t.after(() => fs.rmSync(testFixture.root, { recursive: true, force: true }));
@@ -1993,7 +2030,7 @@ test('a cache ancestor replacement restored after reservation creation fails clo
   assert.deepEqual(fs.readdirSync(path.join(replacementVersion, reservations[0])), []);
 });
 
-test('a trusted cache prefix switched after validation cannot redirect later writes', async (t) => {
+test('an authored symlink is rejected even when it is also reported as a trusted prefix', async (t) => {
   const testFixture = fixture();
   const originalHomedir = os.homedir;
   const originalLstat = fsPromises.lstat;
@@ -2051,12 +2088,10 @@ test('a trusted cache prefix switched after validation cannot redirect later wri
     cacheDirectory,
   }));
 
-  assert.equal(switched, true);
-  assert.equal(result.status, 'update_available');
+  assert.equal(switched, false);
+  assert.deepEqual(result, { status: 'silent', reason: 'cache-unavailable' });
   assert.deepEqual(fs.readdirSync(protectedTarget), ['settings.json']);
-  assert.ok(fs.readdirSync(canonicalVersionDirectory).some(
-    (entry) => entry.startsWith('committed-'),
-  ));
+  assert.equal(fs.existsSync(canonicalVersionDirectory), false);
 });
 
 test('concurrent checks use one writer and leave a valid cache', async (t) => {

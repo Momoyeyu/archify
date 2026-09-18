@@ -54,7 +54,9 @@ function render(mode, doc) {
 
 function validateCli(mode, doc, quality = 'showcase') {
   const input = path.join(tmp, `${mode}-cli-${Math.abs(hash(JSON.stringify(doc)))}.json`);
-  fs.writeFileSync(input, JSON.stringify(doc));
+  const cliDoc = structuredClone(doc);
+  cliDoc.meta = { ...cliDoc.meta, output: `${mode}-validation.html` };
+  fs.writeFileSync(input, JSON.stringify(cliDoc));
   try {
     const stdout = execFileSync('node', [
       path.join(skillRoot, 'bin', 'archify.mjs'),
@@ -77,7 +79,9 @@ function validateCli(mode, doc, quality = 'showcase') {
 function deliverCli(mode, doc, quality = 'showcase') {
   const input = path.join(tmp, `${mode}-deliver-${Math.abs(hash(JSON.stringify(doc)))}.json`);
   const outPath = path.join(tmp, `${mode}-deliver-${Math.abs(hash(JSON.stringify(doc)))}.html`);
-  fs.writeFileSync(input, JSON.stringify(doc));
+  const cliDoc = structuredClone(doc);
+  cliDoc.meta = { ...cliDoc.meta, output: `${mode}-delivery.html` };
+  fs.writeFileSync(input, JSON.stringify(cliDoc));
   try {
     const stdout = execFileSync('node', [
       path.join(skillRoot, 'bin', 'archify.mjs'),

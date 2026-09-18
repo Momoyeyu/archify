@@ -28,7 +28,9 @@ function render(mode, doc) {
 
 function validate(mode, doc) {
   const input = path.join(tmp, `${mode}-validate.json`);
-  fs.writeFileSync(input, JSON.stringify(doc));
+  const cliDoc = structuredClone(doc);
+  cliDoc.meta = { ...cliDoc.meta, output: `${mode}-v1-validation.html` };
+  fs.writeFileSync(input, JSON.stringify(cliDoc));
   try {
     execFileSync('node', [
       path.join(skillRoot, 'bin/archify.mjs'),

@@ -289,6 +289,10 @@ test('deliver rechecks aliases immediately before committing a verified candidat
     path.join(skillRoot, 'renderers/shared/atomic-output.mjs'),
     path.join(installedShared, 'atomic-output.mjs'),
   );
+  fs.copyFileSync(
+    path.join(skillRoot, 'renderers/shared/sidecar-path.mjs'),
+    path.join(installedShared, 'sidecar-path.mjs'),
+  );
   fs.writeFileSync(path.join(installedRenderer, 'render-workflow.mjs'), `
 import fs from 'node:fs';
 const [, output] = process.argv.slice(2);
@@ -316,7 +320,7 @@ console.log(JSON.stringify({
   fs.symlinkSync(initialOutputDirectory, linkedDirectory, 'dir');
   const input = path.join(inputDirectory, 'diagram.html');
   const output = path.join(linkedDirectory, 'diagram.html');
-  const source = Buffer.from('{"meta":{"title":"race input"}}');
+  const source = Buffer.from('{"meta":{"title":"race input","output":"diagram.html"}}');
   fs.writeFileSync(input, source);
   const marker = path.join(cwd, 'renderer-started');
 
@@ -979,6 +983,10 @@ test('compare rechecks every target immediately before committing the artifact p
     path.join(skillRoot, 'renderers/shared/atomic-output.mjs'),
     path.join(installedShared, 'atomic-output.mjs'),
   );
+  fs.copyFileSync(
+    path.join(skillRoot, 'renderers/shared/sidecar-path.mjs'),
+    path.join(installedShared, 'sidecar-path.mjs'),
+  );
   fs.writeFileSync(path.join(installedRenderer, 'render-architecture.mjs'), `
 import fs from 'node:fs';
 import path from 'node:path';
@@ -1031,9 +1039,9 @@ export const validateArchitectureDeltaHtml = () => ({ checksPassed: 1, checkCoun
   const base = path.join(inputDirectory, 'diagram.html');
   const head = path.join(cwd, 'head.json');
   const output = path.join(linkedDirectory, 'diagram.html');
-  const source = Buffer.from('{"side":"base"}');
+  const source = Buffer.from('{"meta":{"output":"base.html"},"side":"base"}');
   fs.writeFileSync(base, source);
-  fs.writeFileSync(head, '{"side":"head"}');
+  fs.writeFileSync(head, '{"meta":{"output":"head.html"},"side":"head"}');
   const marker = path.join(cwd, 'renderer-started');
 
   const child = spawn(process.execPath, [
@@ -1090,6 +1098,7 @@ test('doctor reports a missing output-path safety runtime in an installed skill'
 for (const [relative, label] of [
   ['renderers/shared/path-semantics.mjs', 'Physical path semantics runtime'],
   ['renderers/shared/portable-path.mjs', 'Portable path contract runtime'],
+  ['renderers/shared/sidecar-path.mjs', 'Sidecar path naming runtime'],
 ]) {
   test(`doctor reports a missing ${path.basename(relative)} runtime without crashing`, () => {
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-output-doctor-dependency-'));

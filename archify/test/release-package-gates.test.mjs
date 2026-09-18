@@ -637,6 +637,7 @@ canonicalZipTest('built archives contain the embedded notifier runtime', () => {
     assert.ok(entries.has('archify/scripts/check-update.mjs'));
     assert.ok(entries.has('archify/scripts/update-contract.mjs'));
     assert.ok(entries.has('archify/renderers/shared/atomic-output.mjs'));
+    assert.ok(entries.has('archify/renderers/shared/sidecar-path.mjs'));
   } finally {
     fs.rmSync(fixture, { recursive: true, force: true });
   }
@@ -1376,7 +1377,8 @@ test('CI and tagged releases share the maintained Windows path contract on Node 
   assert.match(runner, /updater rejects a case-only alias/);
   assert.match(runner, /symlink cache root/);
   assert.match(runner, /symlink cache ancestor/);
-  assert.match(runner, /trusted cache prefix switched/);
+  assert.match(runner, /authored symlink is rejected/);
+  assert.match(runner, /trusted directory through a symlink/);
   assert.match(runner, /preview runs from an installed skill/);
   assert.match(runner, /watcher accepts/);
   assert.match(runner, /findChrome/);
@@ -1397,6 +1399,11 @@ test('CI and tagged releases share the maintained Windows path contract on Node 
   assert.match(runner, /fs\.linkSync\(fileTarget, hardlink\)/);
   assert.match(runner, /runCli\(\[\s*'visual-check'/);
   assert.match(runner, /--require-provenance/);
+  assert.match(runner, /architecture compare to extended UNC/);
+  assert.match(runner, /repository root through drive-letter case alias/);
+  assert.match(runner, /stageCleanSkill\(\{ repoRoot: driveCaseRepoRoot/);
+  assert.match(runner, /checkForUpdate\(\{/);
+  assert.match(runner, /delivery beyond traditional MAX_PATH/);
   assert.match(runner, /build-zip[.]sh/);
 
   const previewSuite = fs.readFileSync(path.join(repoRoot, 'archify', 'test', 'preview.test.mjs'), 'utf8');

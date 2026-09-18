@@ -55,6 +55,36 @@ function createFifo(target) {
   return true;
 }
 
+test('a first candidate handle identity failure removes the exclusive render candidate', (t) => {
+  const root = workspace(t, 'archify-render-atomic-first-fstat-');
+  const input = path.join(root, 'diagram.workflow.json');
+  const output = path.join(root, 'diagram.html');
+  fs.copyFileSync(workflowFixture, input);
+  const loaded = loadWorkflow(input, output);
+  const openSync = fs.openSync;
+  const fstatSync = fs.fstatSync;
+  let candidateDescriptor;
+  let injected = false;
+  t.mock.method(fs, 'openSync', (target, ...args) => {
+    const descriptor = openSync(target, ...args);
+    if (path.basename(String(target)).startsWith('.archify-render-')) {
+      candidateDescriptor = descriptor;
+    }
+    return descriptor;
+  });
+  t.mock.method(fs, 'fstatSync', (descriptor, ...args) => {
+    if (!injected && descriptor === candidateDescriptor) {
+      injected = true;
+      throw Object.assign(new Error('injected first candidate fstat failure'), { code: 'EIO' });
+    }
+    return fstatSync(descriptor, ...args);
+  });
+
+  assert.throws(() => writeWorkflow(loaded), /injected first candidate fstat failure/);
+  assert.equal(fs.existsSync(output), false);
+  assert.deepEqual(renderCandidates(root), []);
+});
+
 function fileSymlinksAvailable(t, root) {
   const target = path.join(root, 'symlink-capability-target');
   const link = path.join(root, 'symlink-capability-link');

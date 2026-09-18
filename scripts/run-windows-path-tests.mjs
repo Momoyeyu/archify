@@ -7,6 +7,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { sameLocation } from '../archify/renderers/shared/path-semantics.mjs';
+import { checkForUpdate } from '../archify/scripts/check-update.mjs';
+import { stageCleanSkill } from './stage-clean-skill.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const skillRoot = path.join(repoRoot, 'archify');
@@ -115,6 +117,8 @@ async function runControlledWindowsPathE2E() {
   const token = `archify-windows-${process.pid}-${Date.now().toString(36)}`;
   const architectureInput = path.join(skillRoot, 'examples', 'web-app.architecture.json');
   const workflowInput = path.join(skillRoot, 'examples', 'agent-tool-call.workflow.json');
+  const comparisonBase = path.join(skillRoot, 'examples', 'checkout-platform.base.architecture.json');
+  const comparisonHead = path.join(skillRoot, 'examples', 'checkout-platform.head.architecture.json');
   let preview;
   try {
     const aliasRoot = path.join(caseRoot, `${token}-native-aliases`);
@@ -168,6 +172,30 @@ async function runControlledWindowsPathE2E() {
     requireSuccess('strict check through drive-letter case alias', strictDriveCaseCheck);
     assert.equal(JSON.parse(strictDriveCaseCheck.stdout).provenance, 'current');
 
+    const driveCaseRepoRoot = driveLetterCaseAlias(repoRoot);
+    const revision = spawnSync('git', ['-C', repoRoot, 'rev-parse', 'HEAD'], {
+      encoding: 'utf8',
+    });
+    requireSuccess('repository revision discovery', revision);
+    const evidenceDiagram = JSON.parse(fs.readFileSync(architectureInput, 'utf8'));
+    evidenceDiagram.meta.repository = {
+      url: 'https://github.com/tt-a1i/archify',
+      revision: revision.stdout.trim(),
+    };
+    evidenceDiagram.components[0].sources = [{
+      path: 'archify/bin/archify.mjs',
+      line: 1,
+      label: 'CLI entry point',
+    }];
+    const evidenceInput = path.join(caseRoot, `${token}-repository-evidence.architecture.json`);
+    fs.writeFileSync(evidenceInput, `${JSON.stringify(evidenceDiagram, null, 2)}\n`);
+    const repositoryValidation = runCli([
+      'validate', 'architecture', evidenceInput,
+      '--repo-root', driveCaseRepoRoot, '--json',
+    ]);
+    requireSuccess('repository root through drive-letter case alias', repositoryValidation);
+    assert.equal(JSON.parse(repositoryValidation.stdout).ok, true);
+
     const ordinaryRender = path.win32.join(uncRoot, `${token}-ordinary-render.html`);
     const extendedRender = path.win32.join(extendedUncRoot, `${token}-extended-render.html`);
     requireSuccess('ordinary UNC render', runCli([
@@ -209,6 +237,58 @@ async function runControlledWindowsPathE2E() {
     ]);
     requireSuccess('strict check through ordinary UNC alias', strictOrdinaryCheck);
     assert.equal(JSON.parse(strictOrdinaryCheck.stdout).provenance, 'current');
+
+    const compareOutput = path.win32.join(extendedUncRoot, `${token}-compare.html`);
+    const compared = runCli([
+      'compare', 'architecture', comparisonBase, comparisonHead, compareOutput, '--json',
+    ]);
+    requireSuccess('architecture compare to extended UNC', compared);
+    assert.equal(JSON.parse(compared.stdout).ok, true);
+    assert.ok(fs.existsSync(path.win32.join(uncRoot, path.win32.basename(compareOutput))));
+
+    const stagedSkill = path.win32.join(uncRoot, `${token}-staged-skill`);
+    stageCleanSkill({ repoRoot: driveCaseRepoRoot, destination: stagedSkill });
+    assert.ok(fs.existsSync(path.join(stagedSkill, 'renderers', 'shared', 'sidecar-path.mjs')));
+
+    const localRelease = JSON.parse(fs.readFileSync(path.join(skillRoot, 'skill-release.json'), 'utf8'));
+    localRelease.channel = 'stable';
+    localRelease.version = '2.15.0';
+    const releasePath = path.join(caseRoot, `${token}-skill-release.json`);
+    fs.writeFileSync(releasePath, `${JSON.stringify(localRelease)}\n`);
+    const stableManifest = fs.readFileSync(
+      path.join(repoRoot, 'docs', 'skill-updates', 'archify', 'stable.json'),
+      'utf8',
+    );
+    const updateCache = path.win32.join(eightDotThreeShortRoot, `${token}-update-cache`);
+    const update = await checkForUpdate({
+      releasePath,
+      cacheDirectory: updateCache,
+      fetchImpl: async () => new Response(stableManifest, {
+        status: 200,
+        headers: {
+          'content-type': 'application/json',
+          etag: `"${token}"`,
+        },
+      }),
+      now: () => Date.parse('2026-09-18T12:00:00Z'),
+      random: () => 0.5,
+    });
+    assert.equal(update.status, 'update_available');
+
+    let longDirectory = extendedUncRoot;
+    for (let index = 0; longDirectory.length <= 320; index += 1) {
+      longDirectory = path.win32.join(longDirectory, `${token.slice(0, 24)}-${index}-long-path`);
+    }
+    fs.mkdirSync(longDirectory, { recursive: true });
+    const longOutput = path.win32.join(longDirectory, 'diagram.html');
+    assert.ok(longOutput.length > 320, 'controlled path must exceed the traditional MAX_PATH limit');
+    const longDelivery = runCli([
+      'deliver', 'workflow', workflowInput, longOutput,
+      '--quality', 'showcase', '--json',
+    ]);
+    requireSuccess('delivery beyond traditional MAX_PATH', longDelivery);
+    assert.equal(JSON.parse(longDelivery.stdout).ok, true);
+    assert.ok(fs.existsSync(longOutput));
 
     const evidenceDirectory = path.win32.join(uncRoot, `${token}-visual-evidence`);
     const visual = runCli([
@@ -313,7 +393,7 @@ const portabilityPattern = [
   'updater rejects a case-only alias',
   'symlink cache root',
   'symlink cache ancestor',
-  'trusted cache prefix switched',
+  'authored symlink is rejected|trusted directory through a symlink',
   'findChrome',
   'visual-check',
   'doctor identifies an incomplete installation',

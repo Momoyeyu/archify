@@ -23,6 +23,7 @@ const RUNTIME_DEPENDENCIES = Object.freeze([
   'archify/renderers/shared/output-path.mjs',
   'archify/renderers/shared/path-semantics.mjs',
   'archify/renderers/shared/portable-path.mjs',
+  'archify/renderers/shared/sidecar-path.mjs',
 ]);
 const EXCLUDED_FILES = new Set([
   'archify/package-lock.json',

@@ -57,7 +57,7 @@ function provenanceFixture() {
   const diagram = {
     schema_version: 1,
     diagram_type: 'architecture',
-    meta: { title: 'Provenance-only delta' },
+    meta: { title: 'Provenance-only delta', output: 'provenance-only-delta.html' },
     components: [{
       id: 'service',
       type: 'backend',
@@ -176,7 +176,7 @@ test('compare reports brand-only changes in the receipt and exact review target'
   const base = {
     schema_version: 1,
     diagram_type: 'architecture',
-    meta: { title: 'Cache' },
+    meta: { title: 'Cache', output: 'cache.html' },
     components: [{ id: 'cache', type: 'database', label: 'Cache', pos: [100, 100], size: [160, 80] }],
   };
   const basePath = path.join(tmp, 'brand-base.json');
@@ -309,7 +309,12 @@ test('baseline boundary title masks stay below current components and carry delt
   const documentAt = (pos, pad) => ({
     schema_version: 1,
     diagram_type: 'architecture',
-    meta: { title: 'Boundary mask z-order', quality_profile: 'standard', viewBox: [600, 400] },
+    meta: {
+      title: 'Boundary mask z-order',
+      output: 'boundary-mask-z-order.html',
+      quality_profile: 'standard',
+      viewBox: [600, 400],
+    },
     components: [{ id: 'node', type: 'backend', label: 'Current node', pos, size: [120, 60] }],
     connections: [],
     boundaries: [{ kind: 'region', label: 'Boundary label', wraps: ['node'], pad }],

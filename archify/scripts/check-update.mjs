@@ -254,7 +254,7 @@ function isWithinDirectory(directory, target) {
     || (!path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`));
 }
 
-function physicalDirectorySuffix(directory, target) {
+async function physicalDirectorySuffix(directory, target) {
   const absoluteTarget = path.resolve(target);
   const parsed = path.parse(absoluteTarget);
   const segments = absoluteTarget.slice(parsed.root.length).split(path.sep).filter(Boolean);
@@ -262,7 +262,13 @@ function physicalDirectorySuffix(directory, target) {
   for (let index = 0; index < segments.length; index += 1) {
     prefix = path.join(prefix, segments[index]);
     const relation = sameEntry(directory, prefix);
-    if (relation.status === 'match') return segments.slice(index + 1);
+    if (relation.status === 'match') {
+      const metadata = await fs.lstat(prefix, { bigint: true });
+      if (metadata.isSymbolicLink()) {
+        throw new Error(`trusted cache prefix is a symbolic link or junction: ${prefix}`);
+      }
+      return segments.slice(index + 1);
+    }
     if (relation.status === 'unknown' && relation.reason.code === 'entry-missing') break;
   }
   return null;
@@ -274,7 +280,7 @@ async function canonicalizeTrustedDirectoryPrefix(target) {
     path.resolve(directory)
   )))].sort((left, right) => right.length - left.length);
   for (const trustedDirectory of trustedDirectories) {
-    const suffix = physicalDirectorySuffix(trustedDirectory, absoluteTarget);
+    const suffix = await physicalDirectorySuffix(trustedDirectory, absoluteTarget);
     if (suffix === null) continue;
     try {
       const canonicalDirectory = await fs.realpath(trustedDirectory);

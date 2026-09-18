@@ -52,6 +52,10 @@ test('Windows CLI outputs reject ambiguous or special namespace forms', () => {
     String.raw`C:\reports\CON.html`,
     String.raw`C:\reports\diagram .html `,
     String.raw`C:\reports\bad?.html`,
+    String.raw`\\localhost\pipe\diagram.html`,
+    String.raw`\\server\mailslot\diagram.html`,
+    String.raw`\\?\UNC\localhost\pipe\diagram.html`,
+    String.raw`\\?\UNC\server\MAILSLOT\diagram.html`,
   ]) nativeFailure(value, { platform: 'win32' });
 });
 

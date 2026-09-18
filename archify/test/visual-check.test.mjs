@@ -47,12 +47,15 @@ function fakeBrowser({ overflowAt, unreadableAt, chromeCollisionAt, stageCollisi
   const calls = [];
   return {
     calls,
-    async inspect({ width, height, theme, screenshotPath }) {
+    async inspect({ width, height, theme, screenshotPath, writeScreenshot }) {
       calls.push({ width, height, theme, screenshotPath });
       if (screenshotPath && screenshotFailure?.({ width, height, theme })) {
         throw new Error('synthetic screenshot failure');
       }
-      if (screenshotPath) fs.writeFileSync(screenshotPath, png, { flag: 'wx' });
+      if (screenshotPath) {
+        if (writeScreenshot) writeScreenshot(png);
+        else fs.writeFileSync(screenshotPath, png, { flag: 'wx' });
+      }
       const overflow = overflowAt?.({ width, height, theme }) || false;
       const unreadable = unreadableAt?.({ width, height, theme }) || false;
       const chromeCollision = chromeCollisionAt?.({ width, height, theme }) || false;
@@ -297,6 +300,75 @@ test('visual-check records four containment viewports and four endpoint theme ca
     assert.match(contactSheet, new RegExp(path.basename(screenshot.path).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     assert.doesNotMatch(contactSheet, new RegExp(screenshot.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
+});
+
+test('visual-check inspects a private snapshot even if the public artifact is replaced and restored', async () => {
+  const input = artifact('private-inspection-snapshot.html');
+  const original = fs.readFileSync(input);
+  const displaced = path.join(tmp, 'private-inspection-original.html');
+  const replacement = Buffer.from('<!doctype html><title>replacement must not be inspected</title>');
+  const browser = fakeBrowser();
+  const inspect = browser.inspect.bind(browser);
+  const inspectedPaths = [];
+  let calls = 0;
+  browser.inspect = async (args) => {
+    inspectedPaths.push(path.resolve(args.artifactPath));
+    assert.deepEqual(fs.readFileSync(args.artifactPath), original);
+    calls += 1;
+    if (calls === 1) {
+      fs.renameSync(input, displaced);
+      fs.writeFileSync(input, replacement, { flag: 'wx' });
+    }
+    if (calls === 6) {
+      fs.unlinkSync(input);
+      fs.renameSync(displaced, input);
+    }
+    return inspect(args);
+  };
+
+  const result = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => browser,
+  });
+
+  assert.equal(result.exitCode, 0, JSON.stringify(result.receipt.diagnostics));
+  assert.equal(inspectedPaths.length, 6);
+  assert.equal(inspectedPaths.every((candidate) => candidate !== path.resolve(input)), true);
+  assert.deepEqual(fs.readFileSync(input), original);
+});
+
+test('visual-check preserves a regular screenshot claimant swapped before registration', async (t) => {
+  const input = artifact('staged-screenshot-regular-claimant.html');
+  const outputs = sidecarPaths(input);
+  const browser = fakeBrowser();
+  const inspect = browser.inspect.bind(browser);
+  const sentinel = Buffer.from('external regular screenshot claimant\n');
+  let claimantPath;
+  browser.inspect = async (args) => {
+    const metrics = await inspect(args);
+    if (!claimantPath && args.screenshotPath) {
+      claimantPath = args.screenshotPath;
+      fs.unlinkSync(claimantPath);
+      fs.writeFileSync(claimantPath, sentinel, { flag: 'wx' });
+    }
+    return metrics;
+  };
+  t.after(() => {
+    for (const directory of stagingDirectories(path.dirname(outputs.receipt))) {
+      fs.rmSync(path.join(path.dirname(outputs.receipt), directory), { recursive: true, force: true });
+    }
+  });
+
+  const result = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => browser,
+  });
+
+  assert.equal(result.exitCode, 1);
+  assert.deepEqual(fs.readFileSync(claimantPath), sentinel);
+  assert.equal(fs.existsSync(outputs.receipt), false);
 });
 
 test('sidecarPaths places outputs in outDir instead of beside the artifact', () => {

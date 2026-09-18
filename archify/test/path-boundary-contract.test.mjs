@@ -33,7 +33,7 @@ const protectedCallers = productionSourceRoots.flatMap(productionSources).sort()
 const exemption = /path-contract-allow:\s*(?:git-path|portable-logical-path|url-path|lexical-capability)\s+--\s+\S/u;
 const exemptionMarker = /path-contract-allow:/u;
 const pathIdentifier = String.raw`(?:[$A-Z_a-z][$\w]*(?:Path|Root|Directory|Dir|File|Canonical|Location)|path|root|directory|dir|file|output|input|target|destination|artifact|receipt|relative|resolved|canonical)`;
-const pathProperty = String.raw`(?:[$A-Z_a-z][$\w.]*\.(?:path|root|directory|dir|file|output|input|target|source|destination|artifact|receipt))`;
+const pathProperty = String.raw`(?:[$A-Z_a-z][$\w.]*\.(?:path|realPath|canonicalPath|root|directory|dir|file|output|input|target|source|destination|artifact|receipt))`;
 const pathOperand = String.raw`(?:${pathIdentifier}|${pathProperty})`;
 const rawPathEquality = new RegExp(String.raw`\b${pathOperand}\s*(?:===|!==)\s*${pathOperand}\b`, 'u');
 const nativePathCall = String.raw`(?:path\.(?:resolve|normalize|dirname|relative|basename)|fs\.realpathSync(?:\.native)?)\s*\(`;
@@ -85,6 +85,20 @@ function inspectPathBoundarySource(source, file = '<fixture>') {
       violations.push({ file, line: index + 1, rule: 'native-path-string-prefix-containment' });
     }
   }
+  for (const rule of [
+    ['native-path-raw-equality', rawPathEquality],
+    ['native-path-raw-equality', directNativeEquality],
+  ]) {
+    const pattern = new RegExp(rule[1].source, 'gu');
+    for (const match of source.matchAll(pattern)) {
+      if (!match[0].includes('\n')) continue;
+      const line = source.slice(0, match.index).split(/\r?\n/u).length;
+      if (hasValidExemption(lines, line - 1)) continue;
+      if (!violations.some((entry) => entry.line === line && entry.rule === rule[0])) {
+        violations.push({ file, line, rule: rule[0] });
+      }
+    }
+  }
   return violations;
 }
 
@@ -103,6 +117,19 @@ test('path-boundary detector rejects the three native-path regression patterns',
     'native-path-case-fold-key',
     'native-path-string-prefix-containment',
     'native-path-string-prefix-containment',
+  ]);
+});
+
+test('path-boundary detector rejects multiline equality and canonical-path properties', () => {
+  const violations = inspectPathBoundarySource([
+    'if (outputPath ===',
+    '    inputPath) fail();',
+    'if (left.realPath === right.realPath) fail();',
+  ].join('\n'));
+
+  assert.deepEqual(violations.map(({ rule }) => rule), [
+    'native-path-raw-equality',
+    'native-path-raw-equality',
   ]);
 });
 

@@ -83,6 +83,38 @@ test('delivery keeps every derived sidecar component within portable limits', ()
   assert.equal(JSON.parse(checked.stdout).provenance, 'current');
 });
 
+test('strict provenance recognizes legacy sidecars for mixed-case HTML extensions', (t) => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-legacy-extension-sidecar-'));
+  t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
+  const caseProbe = path.join(cwd, 'case-probe');
+  fs.writeFileSync(caseProbe, 'probe');
+  if (fs.existsSync(path.join(cwd, 'CASE-PROBE'))) {
+    t.skip('requires a case-sensitive filesystem');
+    return;
+  }
+  fs.unlinkSync(caseProbe);
+  const output = path.join(cwd, 'diagram.HTML');
+  const delivered = run(['deliver', 'workflow', input, output, '--json'], cwd);
+  assert.equal(delivered.status, 0, delivered.stderr || delivered.stdout);
+  const currentProvenance = fs.readdirSync(cwd)
+    .map((name) => path.join(cwd, name))
+    .find((candidate) => candidate.endsWith('.delivery.json'));
+  assert.ok(currentProvenance);
+  const legacyProvenance = path.join(cwd, 'diagram.delivery.json');
+  assert.notEqual(currentProvenance, legacyProvenance);
+  fs.renameSync(currentProvenance, legacyProvenance);
+
+  const checked = run(['check', output, '--require-provenance'], cwd);
+  assert.equal(checked.status, 0, checked.stderr || checked.stdout);
+  assert.equal(JSON.parse(checked.stdout).provenance, 'current');
+
+  const legacyPending = path.join(cwd, 'diagram.delivery-pending.json');
+  fs.writeFileSync(legacyPending, '{"status":"pending"}\n');
+  const blocked = run(['check', output, '--require-provenance'], cwd);
+  assert.equal(blocked.status, 1, blocked.stderr || blocked.stdout);
+  assert.equal(JSON.parse(blocked.stdout).diagnostics[0].code, 'delivery/provenance-failed');
+});
+
 test('delivery rejects an illegal output extension before preparing its missing parent', () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-illegal-output-parent-'));
   const parent = path.join(cwd, 'must-remain-absent');
@@ -963,16 +995,11 @@ test('Windows delivery accepts an existing 8.3 artifact alias and keeps strict p
     ? fs.mkdtempSync(path.join(controlledRoot.root, 'delivery-'))
     : fs.mkdtempSync(path.join(os.tmpdir(), 'archify-delivery-eight-dot-three-'));
   t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
-  const shortCwd = controlledRoot
-    ? path.win32.join(controlledRoot.shortRoot, path.basename(cwd))
-    : null;
   const directory = path.join(cwd, 'directory name requiring short alias');
   fs.mkdirSync(directory);
   const output = path.join(directory, 'diagram artifact with long name.html');
   assert.equal(run(['deliver', 'workflow', input, output, '--json'], cwd).status, 0);
-  const shortOutput = shortCwd
-    ? path.win32.join(shortCwd, path.basename(directory), path.basename(output))
-    : windowsShortPath(output);
+  const shortOutput = windowsShortPath(output);
   if (!shortOutput) {
     t.skip('the Windows volume does not expose a distinct 8.3 artifact alias');
     return;
@@ -981,6 +1008,11 @@ test('Windows delivery accepts an existing 8.3 artifact alias and keeps strict p
     fs.realpathSync.native(shortOutput).toLowerCase(),
     fs.realpathSync.native(output).toLowerCase(),
     'the artifact path must resolve through the controlled explicit 8.3 alias',
+  );
+  assert.equal(
+    path.win32.extname(shortOutput).toLowerCase(),
+    '.htm',
+    'the regression must exercise the three-character 8.3 file extension',
   );
 
   const redelivered = run(['deliver', 'workflow', input, shortOutput, '--json'], cwd);

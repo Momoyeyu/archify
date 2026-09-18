@@ -236,7 +236,18 @@ function stagePreviewCommit(commitPath, artifact, mode) {
         fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | noFollow,
         mode ?? 0o666,
       );
-      const metadata = fs.fstatSync(descriptor, { bigint: true });
+      let metadata;
+      try {
+        metadata = fs.fstatSync(descriptor, { bigint: true });
+      } catch (error) {
+        try {
+          const retry = fs.fstatSync(descriptor, { bigint: true });
+          if (retry.isFile() && retry.ino !== 0n) {
+            identity = { device: retry.dev, inode: retry.ino };
+          }
+        } catch {}
+        throw error;
+      }
       if (!metadata.isFile() || metadata.ino === 0n) {
         throw new Error('Preview commit candidate identity could not be verified safely.');
       }
@@ -262,13 +273,6 @@ function stagePreviewCommit(commitPath, artifact, mode) {
   });
 }
 
-function cleanupIdentity(filePath, subject = 'candidate') {
-  const captured = captureRegularFileBinding(filePath, { subject });
-  if (captured.status !== 'captured') return null;
-  const released = releaseRegularFileBinding(captured.binding);
-  return released.status === 'released' ? captured.identity : null;
-}
-
 function captureOwnedDirectory(directoryPath) {
   const metadata = fs.lstatSync(directoryPath, { bigint: true });
   if (!metadata.isDirectory() || metadata.ino === 0n) {
@@ -291,7 +295,52 @@ function cleanupOwnedDirectory(directoryPath, identity) {
     || current.ino === 0n
     || current.dev !== identity.device
     || current.ino !== identity.inode) return;
-  fs.rmSync(directoryPath, { recursive: true, force: false });
+  try {
+    fs.rmdirSync(directoryPath);
+  } catch (error) {
+    // An entry whose identity was never bound to this preview may be an
+    // external claimant. Preserve the private directory as recovery material
+    // instead of recursively deleting unknown contents.
+    if (error?.code !== 'ENOTEMPTY' && error?.code !== 'EEXIST') throw error;
+  }
+}
+
+function captureOwnedDeliverySidecars(candidatePath, snapshotPath, receipt) {
+  const suffixes = ['.delivery.json', '.delivery-pending.json'];
+  const capturedSidecars = [];
+  for (const suffix of suffixes) {
+    const sidecarPath = candidatePath.replace(/\.html$/iu, suffix);
+    const captured = captureRegularFileBinding(sidecarPath, {
+      subject: 'preview-delivery-sidecar',
+      expectedLinks: 1,
+      includeContent: true,
+    });
+    if (captured.status !== 'captured') continue;
+    try {
+      const sidecar = JSON.parse(captured.content.buffer.toString('utf8'));
+      const commonMatches = sidecar?.schemaVersion === 1
+        && sidecar.command === 'deliver'
+        && sameLocation(sidecar.output, candidatePath).status === 'match'
+        && (!receipt?.receiptId || sidecar.receiptId === receipt.receiptId);
+      const currentMatches = suffix === '.delivery.json'
+        && commonMatches
+        && sidecar.status === 'current'
+        && receipt?.artifact?.sha256
+        && sidecar.artifact?.sha256 === receipt.artifact.sha256;
+      const pendingMatches = suffix === '.delivery-pending.json'
+        && commonMatches
+        && sidecar.status === 'pending'
+        && sameLocation(sidecar.input, snapshotPath).status === 'match';
+      if (currentMatches || pendingMatches) {
+        capturedSidecars.push({ path: sidecarPath, identity: captured.identity });
+      }
+    } catch {
+      // Preserve malformed or claimant-controlled sidecars for recovery.
+    } finally {
+      releaseRegularFileBinding(captured.binding);
+    }
+  }
+  return capturedSidecars;
 }
 
 export async function startPreview(options) {
@@ -735,6 +784,11 @@ export async function startPreview(options) {
       const stale = generationEpoch !== sourceEpoch;
       let supersededBy = null;
       let candidateIdentity;
+      const deliverySidecars = captureOwnedDeliverySidecars(
+        candidatePath,
+        snapshotPath,
+        receipt,
+      );
       child = null;
       clearTimeout(stopGraceTimer);
       clearTimeout(stopKillTimer);
@@ -747,12 +801,26 @@ export async function startPreview(options) {
           generationHash,
           outputCapture,
         ));
+      } else if (code === 0 && receipt?.ok) {
+        const abandonedCandidate = captureRegularFileBinding(candidatePath, {
+          subject: 'abandoned-preview-candidate',
+          expectedSha256: receipt.artifact?.sha256,
+          expectedBytes: receipt.artifact?.bytes,
+        });
+        if (abandonedCandidate.status === 'captured') {
+          candidateIdentity = abandonedCandidate.identity;
+          releaseRegularFileBinding(abandonedCandidate.binding);
+        }
       } else if (!stopping && !stale) {
         publishFailure(receipt, stdout, stderr, candidatePath, snapshotPath);
       }
-      candidateIdentity ||= cleanupIdentity(candidatePath);
       if (candidateIdentity) removeOwnedRegularFile(candidatePath, candidateIdentity);
       if (snapshotIdentity) removeOwnedRegularFile(snapshotPath, snapshotIdentity, { subject: 'snapshot' });
+      for (const deliverySidecar of deliverySidecars) {
+        removeOwnedRegularFile(deliverySidecar.path, deliverySidecar.identity, {
+          subject: 'preview-delivery-sidecar',
+        });
+      }
 
       if (stopping) {
         finishStop();

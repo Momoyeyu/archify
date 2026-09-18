@@ -599,6 +599,53 @@ test('preview: replacing the staged commit candidate preserves the claimant', { 
   }
 });
 
+test('preview: replacing the delivered source candidate preserves the claimant', { timeout: 10000 }, async (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-preview-source-replacement-'));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  const input = path.join(tmp, 'diagram.json');
+  const output = path.join(tmp, 'diagram.html');
+  const deliveryCli = path.join(tmp, 'delivery.mjs');
+  const marker = path.join(tmp, 'delivery-started');
+  const detachedCandidate = path.join(tmp, 'detached-delivery-candidate.html');
+  const sentinel = '<!doctype html><title>delivery claimant must survive</title>';
+  fs.writeFileSync(input, '{}');
+  writeDelayedDeliveryCli(deliveryCli, marker, 'Delivered source identity binding');
+
+  const lstatSync = fs.lstatSync;
+  let candidatePath;
+  let replaced = false;
+  t.mock.method(fs, 'lstatSync', (target, ...args) => {
+    if (!replaced
+      && path.basename(String(target)) === 'generation-1.html'
+      && fs.existsSync(target)) {
+      candidatePath = path.resolve(target);
+      fs.renameSync(candidatePath, detachedCandidate);
+      fs.writeFileSync(candidatePath, sentinel, { flag: 'wx' });
+      replaced = true;
+    }
+    return lstatSync(target, ...args);
+  });
+
+  const preview = await startPreview({
+    type: 'architecture', input, output, open: false, watch: false,
+    pollMs: 60_000, debounceMs: 10, deliveryCli,
+  });
+  try {
+    await waitForState(
+      preview.url,
+      (candidate) => candidate.status === 'needs-fix',
+      'source candidate replacement did not fail preview',
+    );
+    assert.equal(replaced, true);
+    assert.equal(fs.readFileSync(candidatePath, 'utf8'), sentinel);
+    assert.equal(fs.existsSync(output), false);
+  } finally {
+    await preview.stop();
+  }
+  assert.equal(fs.readFileSync(candidatePath, 'utf8'), sentinel);
+  assert.equal(fs.existsSync(detachedCandidate), true);
+});
+
 test('preview: a delivery candidate replaced by a symlink is rejected without following it', { timeout: 10000 }, async (t) => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-preview-source-symlink-'));
   t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));

@@ -195,6 +195,7 @@ test('cli: doctor reports a complete installation is ready', () => {
   assert.match(result.stdout, /\[ok\] Example renderer/);
   assert.match(result.stdout, /\[ok\] Live preview runtime/);
   assert.match(result.stdout, /\[ok\] Atomic output safety runtime/);
+  assert.match(result.stdout, /\[ok\] Sidecar path naming runtime/);
   assert.match(result.stdout, /\[ok\] Scenario recipe guide/);
   assert.match(result.stdout, /\[ok\] Progressive authoring references/);
   assert.match(result.stdout, /\[ok\] Architecture compare runtime and proof fixtures/);
@@ -2373,7 +2374,44 @@ await import(${JSON.stringify(pathToFileURL(cli).href)});
   assert.equal(fs.existsSync(fake.log), false);
 });
 
-for (const failureMode of ['empty-write', 'partial-write', 'close', 'replacement', 'zero-identity-replacement', 'cleanup-failure']) {
+test('cli: a first lock handle identity failure leaves no public lock and permits retry', () => {
+  const input = path.join(skillRoot, 'examples/agent-tool-call.workflow.json');
+  const out = path.join(tmp, 'delivery-lock-first-fstat.html');
+  const lockPath = deliveryLockPath(out);
+  const wrapper = path.join(tmp, 'delivery-lock-first-fstat.mjs');
+  fs.writeFileSync(wrapper, `
+import fs from 'node:fs';
+const openSync = fs.openSync;
+const fstatSync = fs.fstatSync;
+let lockDescriptor;
+let injected = false;
+fs.openSync = (file, ...args) => {
+  const descriptor = openSync(file, ...args);
+  if (lockDescriptor === undefined && String(file) === ${JSON.stringify(lockPath)}) {
+    lockDescriptor = descriptor;
+  }
+  return descriptor;
+};
+fs.fstatSync = (descriptor, ...args) => {
+  if (descriptor === lockDescriptor && !injected) {
+    injected = true;
+    throw Object.assign(new Error('injected first lock fstat failure'), { code: 'EIO' });
+  }
+  return fstatSync(descriptor, ...args);
+};
+process.argv = [process.execPath, ${JSON.stringify(cli)}, 'deliver', 'workflow', ${JSON.stringify(input)}, ${JSON.stringify(out)}, '--json'];
+await import(${JSON.stringify(pathToFileURL(cli).href)});
+`);
+
+  const failed = spawnSync(process.execPath, [wrapper], { cwd: skillRoot, encoding: 'utf8' });
+  assert.equal(failed.status, 1, failed.stderr || failed.stdout);
+  assert.equal(JSON.parse(failed.stdout).diagnostics[0].code, 'delivery/lock-acquire');
+  assert.equal(fs.existsSync(lockPath), false, 'failed identity capture leaked the public lock');
+  const retry = run(['deliver', 'workflow', input, out, '--json']);
+  assert.equal(retry.status, 0, retry.stderr || retry.stdout);
+});
+
+for (const failureMode of ['empty-write', 'partial-write', 'close', 'replacement', 'cleanup-failure']) {
   test(`cli: portable delivery lock: failed lock initialization is cleaned up and delivery can retry (${failureMode})`, () => {
     const input = path.join(skillRoot, 'examples/agent-tool-call.workflow.json');
     const out = path.join(tmp, `lock-init-${failureMode}.html`);
@@ -2948,7 +2986,7 @@ await import(${JSON.stringify(pathToFileURL(cli).href)});
   );
 });
 
-test('cli: using the existing receipt as input preserves it and invalidates the previous delivery', () => {
+test('cli: using the existing receipt as input fails before invalidating the previous delivery', () => {
   const input = path.join(skillRoot, 'examples/agent-tool-call.workflow.json');
   const out = path.join(tmp, 'receipt-as-input.html');
   assert.equal(run(['deliver', 'workflow', input, out, '--json']).status, 0);
@@ -2956,12 +2994,14 @@ test('cli: using the existing receipt as input preserves it and invalidates the 
   const prior = fs.readFileSync(sidecar);
   const failed = run(['deliver', 'workflow', sidecar, out, '--json']);
   assert.equal(failed.status, 1);
-  assert.equal(JSON.parse(failed.stdout).provenance, 'unrecorded');
+  const failure = JSON.parse(failed.stdout);
+  assert.equal(failure.stage, 'prepare');
+  assert.equal(failure.diagnostics[0].code, 'output/meta-path-syntax');
   assert.deepEqual(fs.readFileSync(sidecar), prior);
   for (const flags of [[], ['--require-provenance']]) {
     const checked = run(['check', out, ...flags]);
-    assert.equal(checked.status, 1);
-    assert.equal(JSON.parse(checked.stdout).provenance, 'failed');
+    assert.equal(checked.status, 0);
+    assert.equal(JSON.parse(checked.stdout).provenance, 'current');
   }
   assert.equal(run(['deliver', 'workflow', input, out, '--json']).status, 0);
   assert.equal(run(['check', out, '--require-provenance']).status, 0);
@@ -3227,7 +3267,7 @@ test('cli: deliver reports unreadable input as json without touching the target'
   assert.equal(fs.readFileSync(out, 'utf8'), trustedPriorArtifact);
 });
 
-test('cli: invalid source output metadata still fails inside the renderer', () => {
+test('cli: invalid source output metadata fails before renderer or delivery side effects', () => {
   const workingDirectory = path.join(tmp, 'invalid-output-metadata');
   fs.mkdirSync(workingDirectory, { recursive: true });
   const input = path.join(workingDirectory, 'source.architecture.json');
@@ -3241,9 +3281,13 @@ test('cli: invalid source output metadata still fails inside the renderer', () =
   const result = run(['deliver', 'architecture', input, '--json'], { cwd: workingDirectory });
   assert.equal(result.status, 1);
   const failure = JSON.parse(result.stdout);
-  assert.equal(failure.stage, 'render');
-  assert.match(failure.error, /schema validation failed/i);
+  assert.equal(failure.stage, 'prepare');
+  assert.equal(failure.diagnostics[0].code, 'output/meta-path-syntax');
   assert.equal(fs.readFileSync(out, 'utf8'), trustedPriorArtifact);
+  assert.deepEqual(fs.readdirSync(workingDirectory).sort(), [
+    'architecture.html',
+    'source.architecture.json',
+  ]);
 });
 
 test('cli: deliver rejects a non-regular target before commit without a false success receipt', () => {
@@ -3329,6 +3373,7 @@ test('cli: validate JSON exposes only the primary v1 column-capacity diagnostic'
     diagram_type: 'workflow',
     meta: {
       title: 'Pinned issue 126 diagnostic boundary',
+      output: 'pinned-column-capacity.html',
       viewBox: [720, 400],
       legend: { mode: 'hidden' },
     },
