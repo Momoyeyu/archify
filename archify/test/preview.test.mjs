@@ -19,6 +19,14 @@ function sha256(file) {
   return createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 }
 
+function windowsShortPathFromOutput(stdout) {
+  const output = stdout.trim();
+  if (output.length >= 2 && output.startsWith('"') && output.endsWith('"')) {
+    return output.slice(1, -1);
+  }
+  return output;
+}
+
 function windowsShortPath(targetPath) {
   if (process.platform !== 'win32') return null;
   const result = spawnSync(
@@ -30,11 +38,25 @@ function windowsShortPath(targetPath) {
       windowsHide: true,
     },
   );
-  if (result.status !== 0) return null;
-  const shortPath = result.stdout.trim();
-  if (!shortPath || path.resolve(shortPath).toLowerCase() === path.resolve(targetPath).toLowerCase()) return null;
+  if (result.error) throw new Error(`Could not query a Windows 8.3 path: ${result.error.message}`);
+  if (result.status !== 0) {
+    const detail = result.stderr.trim() || 'no stderr';
+    throw new Error(`Could not query a Windows 8.3 path (exit ${result.status}): ${detail}`);
+  }
+  const shortPath = windowsShortPathFromOutput(result.stdout);
+  if (!shortPath) throw new Error('Windows returned an empty 8.3 path');
+  if (path.resolve(shortPath).toLowerCase() === path.resolve(targetPath).toLowerCase()) return null;
+  if (fs.realpathSync.native(shortPath).toLowerCase() !== fs.realpathSync.native(targetPath).toLowerCase()) {
+    throw new Error('Windows returned an 8.3 path for a different directory');
+  }
   return shortPath;
 }
+
+test('preview: Windows 8.3 short path discovery strips cmd quoting', () => {
+  const shortPath = 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\ARCHIF~1\\DIRECT~1';
+  assert.equal(windowsShortPathFromOutput(`"${shortPath}"\r\n`), shortPath);
+  assert.equal(windowsShortPathFromOutput(`${shortPath}\r\n`), shortPath);
+});
 
 async function stateAt(url) {
   const response = await fetch(new URL('/state', url));
