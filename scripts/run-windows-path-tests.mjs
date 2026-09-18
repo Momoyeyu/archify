@@ -67,10 +67,24 @@ function removeChildren(directory) {
 
 const remoteVisibilitySignal = new Int32Array(new SharedArrayBuffer(4));
 
-function assertNoPrivateStaging(directory, prefix) {
+function livePrivateStagingEntries(directory, prefix) {
+  return fs.readdirSync(directory)
+    .filter((entry) => entry.startsWith(prefix))
+    .filter((entry) => {
+      try {
+        fs.lstatSync(path.toNamespacedPath(path.join(directory, entry)));
+        return true;
+      } catch (error) {
+        if (error?.code === 'ENOENT' || error?.code === 'ENOTDIR') return false;
+        throw error;
+      }
+    });
+}
+
+function assertNoPrivateStaging(directory, prefix, commandResult) {
   let remaining = [];
   for (let attempt = 0; attempt < 10; attempt += 1) {
-    remaining = fs.readdirSync(directory).filter((entry) => entry.startsWith(prefix));
+    remaining = livePrivateStagingEntries(directory, prefix);
     if (remaining.length === 0) return;
     if (attempt < 9) {
       Atomics.wait(
@@ -84,7 +98,18 @@ function assertNoPrivateStaging(directory, prefix) {
   assert.deepEqual(
     remaining,
     [],
-    `${prefix} staging must disappear after bounded remote visibility convergence in ${directory}`,
+    [
+      `${prefix} staging must disappear after bounded remote visibility convergence in ${directory}`,
+      commandResult?.stderr,
+      ...remaining.map((entry) => {
+        const target = path.toNamespacedPath(path.join(directory, entry));
+        try {
+          return `${entry}: ${JSON.stringify(fs.readdirSync(target))}`;
+        } catch (error) {
+          return `${entry}: inspection failed (${error.code || error.message})`;
+        }
+      }),
+    ].filter(Boolean).join('\n'),
   );
 }
 
@@ -343,8 +368,8 @@ async function runControlledWindowsPathE2E() {
     requireSuccess('ordinary UNC delivery beyond traditional MAX_PATH', ordinaryLongDelivery);
     assert.equal(JSON.parse(ordinaryLongDelivery.stdout).ok, true);
     assert.ok(fs.existsSync(ordinaryLongOutput));
-    assertNoPrivateStaging(ordinaryLongDirectory, '.archify-delivery-');
-    assertNoPrivateStaging(ordinaryLongDirectory, '.archify-provenance-');
+    assertNoPrivateStaging(ordinaryLongDirectory, '.archify-delivery-', ordinaryLongDelivery);
+    assertNoPrivateStaging(ordinaryLongDirectory, '.archify-provenance-', ordinaryLongDelivery);
 
     let extendedLongDirectory = extendedUncRoot;
     for (let index = 0; extendedLongDirectory.length <= 320; index += 1) {
