@@ -30,6 +30,7 @@ function runCli(args, { timeout = 120_000 } = {}) {
   return spawnSync(process.execPath, [cli, ...args], {
     cwd: skillRoot,
     encoding: 'utf8',
+    env: { ...process.env, ARCHIFY_DIAGNOSTIC_FORMAT: 'json' },
     timeout,
   });
 }
