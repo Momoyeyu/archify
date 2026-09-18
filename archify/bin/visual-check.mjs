@@ -953,7 +953,13 @@ function commitVisualEvidence(artifactPath, outputs, ownership, desiredPaths) {
     for (const [finalPath, binding] of stagedBindings) {
       const released = releaseRegularFileBinding(binding);
       if (released.status !== 'released') {
-        failures.push({ file: finalPath, reason: released.reason?.code });
+        failures.push({
+          file: finalPath,
+          reason: released.reason?.code,
+          bindingState: released.reason,
+          ...(released.reason?.recoveryDirectory
+            ? { recoveryDirectory: released.reason.recoveryDirectory } : {}),
+        });
       }
     }
     stagedBindings.clear();
@@ -978,8 +984,10 @@ function commitVisualEvidence(artifactPath, outputs, ownership, desiredPaths) {
           reason: captured?.reason?.code || 'staged entry missing or changed',
         }],
       );
-      releaseStagedBindings();
-      cleanupStagedEvidence(ownership, { removeDirectory: true });
+      failure.diagnostic.evidence.errors.push(
+        ...releaseStagedBindings(),
+        ...cleanupStagedEvidence(ownership, { removeDirectory: true }),
+      );
       ownership.active = false;
       return failure;
     }
@@ -1144,7 +1152,9 @@ function commitVisualEvidence(artifactPath, outputs, ownership, desiredPaths) {
       }
     }
 
-    const cleanupErrors = [];
+    // SMB keeps removed staging names pending until every bound handle closes.
+    // Publication and backup verification are complete before directory cleanup.
+    const cleanupErrors = releaseStagedBindings();
     for (const backup of backups) {
       const removed = unlinkOwnedEntry(backup.path, backup.identity, {
         evidence: backup.evidence,
@@ -1234,6 +1244,7 @@ function commitVisualEvidence(artifactPath, outputs, ownership, desiredPaths) {
       }
     }
     for (const backup of [...backups].reverse()) restoreOwnedBackup(backup, rollbackErrors);
+    rollbackErrors.push(...releaseStagedBindings());
     rollbackErrors.push(...cleanupStagedEvidence(ownership, { removeDirectory: true }));
     ownership.active = false;
     if (conflict) {
@@ -1467,6 +1478,22 @@ async function evaluate(cdp, sessionId, expression, awaitPromise = false) {
   return response.result?.value;
 }
 
+export function chromeVisualArtifactUrl(artifactPath, theme, { platform = process.platform } = {}) {
+  const localhostUnc = platform === 'win32'
+    ? /^(?:\\\\\?\\UNC\\|\\\\)localhost\\(.+)$/i.exec(artifactPath)
+    : null;
+  if (localhostUnc) {
+    // WHATWG file URLs erase the localhost host, turning this UNC share into
+    // a drive-root path. Chromium retains the raw host for non-drive paths.
+    // Send this string directly to DevTools without reparsing it as a URL.
+    const encodedPath = localhostUnc[1].split('\\').map(encodeURIComponent).join('/');
+    return 'file://localhost/' + encodedPath + '?' + new URLSearchParams({ theme });
+  }
+  const url = pathToFileURL(artifactPath);
+  url.searchParams.set('theme', theme);
+  return url.href;
+}
+
 export class ChromeVisualBrowser {
   constructor(chromePath, {
     env = process.env,
@@ -1524,14 +1551,13 @@ export class ChromeVisualBrowser {
       mobile: false,
     }, sessionId);
 
-    const url = new URL(pathToFileURL(artifactPath).href);
-    url.searchParams.set('theme', theme);
+    const url = chromeVisualArtifactUrl(artifactPath, theme);
     const loaded = this.cdp.waitFor('Page.loadEventFired', sessionId);
     // Navigation can fail before this waiter is awaited. Attach a rejection
     // handler immediately so a later load failure never escapes as an
     // unhandled rejection; awaiting `loaded` below still reports it normally.
     loaded.catch(() => {});
-    const navigation = await this.cdp.send('Page.navigate', { url: url.href }, sessionId);
+    const navigation = await this.cdp.send('Page.navigate', { url }, sessionId);
     if (navigation.errorText) throw new Error(`Chrome navigation failed: ${navigation.errorText}`);
     await loaded;
     await evaluate(this.cdp, sessionId, `(function () {

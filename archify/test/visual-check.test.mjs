@@ -2092,6 +2092,108 @@ test('visual-check retries transient remote ENOTEMPTY during staging cleanup', a
   assert.deepEqual(stagingDirectories(outputDirectory), []);
 });
 
+for (const scenario of ['successful evidence set', 'failure receipt', 'publication rollback']) {
+  test(`visual-check closes staged bindings before SMB cleanup for ${scenario}`, async (t) => {
+    const input = artifact(`smb-binding-cleanup-${scenario.replaceAll(' ', '-')}.html`);
+    const outDir = fs.mkdtempSync(path.join(tmp, 'smb-binding-cleanup-'));
+    t.after(() => fs.rmSync(outDir, { recursive: true, force: true }));
+    const openSync = fs.openSync.bind(fs);
+    const closeSync = fs.closeSync.bind(fs);
+    const renameSync = fs.renameSync.bind(fs);
+    const rmdirSync = fs.rmdirSync.bind(fs);
+    const linkSync = fs.linkSync.bind(fs);
+    const descriptors = new Map();
+    const quarantines = new Map();
+    let deferredRemovals = 0;
+    let publicationFailed = false;
+    const identityKey = (stat) => `${stat.dev}:${stat.ino}`;
+    t.mock.method(fs, 'openSync', (...args) => {
+      const descriptor = openSync(...args);
+      descriptors.set(descriptor, identityKey(fs.fstatSync(descriptor, { bigint: true })));
+      return descriptor;
+    });
+    t.mock.method(fs, 'closeSync', (descriptor) => {
+      closeSync(descriptor);
+      descriptors.delete(descriptor);
+    });
+    t.mock.method(fs, 'renameSync', (source, destination) => {
+      const directory = path.dirname(String(destination));
+      if (path.basename(directory).startsWith('.archify-remove-')) {
+        quarantines.set(directory, identityKey(fs.lstatSync(source, { bigint: true })));
+      }
+      return renameSync(source, destination);
+    });
+    t.mock.method(fs, 'rmdirSync', (directory, ...args) => {
+      const identity = quarantines.get(String(directory));
+      if (identity && [...descriptors.values()].includes(identity)) {
+        deferredRemovals += 1;
+        throw Object.assign(new Error('SMB deletion remains pending while a file handle is open'), {
+          code: 'ENOTEMPTY',
+        });
+      }
+      return rmdirSync(directory, ...args);
+    });
+    if (scenario === 'publication rollback') {
+      t.mock.method(fs, 'linkSync', (source, destination) => {
+        if (!publicationFailed && path.basename(String(source)) === 'capture-0.png') {
+          publicationFailed = true;
+          throw new Error('synthetic screenshot publication failure');
+        }
+        return linkSync(source, destination);
+      });
+    }
+
+    const result = await runVisualCheck({
+      artifactPath: input,
+      outDir,
+      chromePath: '/fake/chrome',
+      browserFactory: async () => fakeBrowser({
+        screenshotFailure: () => scenario === 'failure receipt',
+      }),
+    });
+
+    assert.ok(deferredRemovals > 0, 'the fixture must exercise an open-handle SMB deletion delay');
+    assert.equal(result.exitCode, scenario === 'successful evidence set' ? 0 : 1);
+    assert.equal(publicationFailed, scenario === 'publication rollback');
+    assert.deepEqual(stagingDirectories(outDir), []);
+    assert.equal(descriptors.size, 0);
+    assert.doesNotMatch(JSON.stringify(result.receipt.diagnostics), /ENOTEMPTY|cleanup is incomplete/);
+  });
+}
+
+test('visual-check reports a claimant retained by deferred staging cleanup', async (t) => {
+  const input = artifact('smb-binding-cleanup-claimant.html');
+  const outDir = fs.mkdtempSync(path.join(tmp, 'smb-cleanup-claimant-'));
+  t.after(() => fs.rmSync(outDir, { recursive: true, force: true }));
+  const rmdirSync = fs.rmdirSync.bind(fs);
+  const sentinel = 'external claimant retained during deferred cleanup\n';
+  let claimantPath;
+  t.mock.method(fs, 'rmdirSync', (directory, ...args) => {
+    if (!claimantPath && path.basename(String(directory)).startsWith('.archify-remove-')) {
+      claimantPath = path.join(directory, 'external-claimant');
+      fs.writeFileSync(claimantPath, sentinel, { flag: 'wx' });
+    }
+    return rmdirSync(directory, ...args);
+  });
+
+  const result = await runVisualCheck({
+    artifactPath: input,
+    outDir,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser(),
+  });
+
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.receipt.publication?.status, 'committed-with-warning');
+  assert.equal(fs.readFileSync(claimantPath, 'utf8'), sentinel);
+  const cleanupError = result.receipt.publication.cleanupErrors.find(
+    (entry) => entry.recoveryDirectory === path.dirname(claimantPath),
+  );
+  assert.equal(cleanupError?.reason, 'removal-quarantine-cleanup-failed');
+  assert.equal(cleanupError?.bindingState.systemCode, 'ENOTEMPTY');
+  assert.equal(result.receipt.diagnostics.at(-1)?.code, 'viewer/evidence-cleanup-incomplete');
+});
+
 test('visual-check rolls back when staged evidence changes after receipt binding', async (t) => {
   const input = artifact('staged-content-changed-after-receipt-binding.html');
   const outputs = sidecarPaths(input);
