@@ -92,6 +92,8 @@ function captureRegularFileHandle(filePath, initial, subject) {
 
 const regularFileBindings = new WeakMap();
 const digestChunkBytes = 64 * 1024;
+const removalCleanupSignal = new Int32Array(new SharedArrayBuffer(4));
+const removalCleanupAttempts = 10;
 
 function validExpectedLinks(value) {
   return Number.isSafeInteger(value) && value > 0;
@@ -460,14 +462,28 @@ function createRemovalQuarantine(parentPath) {
 }
 
 function removeEmptyQuarantine(directory) {
-  try {
-    fs.rmdirSync(directory);
-    return null;
-  } catch (error) {
-    return filesystemFailure('removal-quarantine-cleanup-failed', error, {
-      recoveryDirectory: directory,
-    });
+  let failure;
+  for (let attempt = 0; attempt < removalCleanupAttempts; attempt += 1) {
+    try {
+      fs.rmdirSync(directory);
+      return null;
+    } catch (error) {
+      failure = error;
+      // SMB can acknowledge unlink before a following directory removal sees
+      // the deleted entry disappear. Retrying rmdir is claimant-safe: a real
+      // entry keeps the directory non-empty and is never removed recursively.
+      if (error?.code !== 'ENOTEMPTY' || attempt === removalCleanupAttempts - 1) break;
+      Atomics.wait(
+        removalCleanupSignal,
+        0,
+        0,
+        Math.min(5 * (2 ** attempt), 250),
+      );
+    }
   }
+  return filesystemFailure('removal-quarantine-cleanup-failed', failure, {
+    recoveryDirectory: directory,
+  });
 }
 
 function removalRecovery(subject, code, filePath, quarantineDirectory, quarantineFile, error) {

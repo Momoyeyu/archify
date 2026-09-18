@@ -1285,6 +1285,40 @@ test('quarantine removal deletes only the public entry still owned by its bindin
   }
 });
 
+test('quarantine removal retries transient remote ENOTEMPTY after deleting the owned entry', (t) => {
+  const root = workspace(t, 'archify-quarantine-remove-remote-delay-');
+  const target = path.join(root, 'public.lock');
+  fs.writeFileSync(target, 'owned\n');
+  const captured = captureRegularFileBinding(target, { subject: 'test-owned-entry' });
+  assert.equal(captured.status, 'captured');
+  const rmdirSync = fs.rmdirSync.bind(fs);
+  let delayedAttempts = 0;
+  t.mock.method(fs, 'rmdirSync', (directory) => {
+    if (path.basename(String(directory)).startsWith('.archify-remove-')
+      && delayedAttempts < 2) {
+      delayedAttempts += 1;
+      throw Object.assign(new Error('injected remote deletion visibility delay'), {
+        code: 'ENOTEMPTY',
+      });
+    }
+    return rmdirSync(directory);
+  });
+  try {
+    const removed = quarantineRemoveRegularFileBinding(captured.binding, target, {
+      subject: 'test-owned-entry',
+    });
+    assert.equal(removed.status, 'removed');
+    assert.equal(delayedAttempts, 2);
+    assert.equal(fs.existsSync(target), false);
+    assert.deepEqual(
+      fs.readdirSync(root).filter((entry) => entry.startsWith('.archify-remove-')),
+      [],
+    );
+  } finally {
+    releaseRegularFileBinding(captured.binding);
+  }
+});
+
 test('owned-file cleanup preserves a successor swapped at the unlink boundary', (t) => {
   const root = workspace(t, 'archify-owned-cleanup-successor-');
   const target = path.join(root, 'candidate.html');
