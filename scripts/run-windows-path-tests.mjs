@@ -65,6 +65,14 @@ function removeChildren(directory) {
   }
 }
 
+function assertNoPrivateStaging(directory, prefix) {
+  assert.deepEqual(
+    fs.readdirSync(directory).filter((entry) => entry.startsWith(prefix)),
+    [],
+    `${prefix} staging must be removed from ${directory}`,
+  );
+}
+
 async function waitForVerifiedPreview(url, timeoutMs = 30_000) {
   const started = Date.now();
   let latest;
@@ -320,6 +328,8 @@ async function runControlledWindowsPathE2E() {
     requireSuccess('ordinary UNC delivery beyond traditional MAX_PATH', ordinaryLongDelivery);
     assert.equal(JSON.parse(ordinaryLongDelivery.stdout).ok, true);
     assert.ok(fs.existsSync(ordinaryLongOutput));
+    assertNoPrivateStaging(ordinaryLongDirectory, '.archify-delivery-');
+    assertNoPrivateStaging(ordinaryLongDirectory, '.archify-provenance-');
 
     let extendedLongDirectory = extendedUncRoot;
     for (let index = 0; extendedLongDirectory.length <= 320; index += 1) {
@@ -342,13 +352,22 @@ async function runControlledWindowsPathE2E() {
     assert.equal(JSON.parse(extendedLongDelivery.stdout).ok, true);
     assert.ok(fs.existsSync(extendedLongOutput));
 
-    const evidenceDirectory = path.win32.join(uncRoot, `${token}-visual-evidence`);
+    const evidenceDirectory = path.win32.join(
+      ordinaryLongDirectory,
+      `${token}-visual-evidence`,
+    );
     const visual = runCli([
-      'visual-check', ordinaryDelivery, '--json', '--require-provenance',
+      'visual-check', ordinaryLongOutput, '--json', '--require-provenance',
       '--out-dir', evidenceDirectory,
     ], { timeout: 180_000 });
-    requireSuccess('ordinary UNC visual-check', visual);
-    assert.equal(JSON.parse(visual.stdout).status, 'pass');
+    requireSuccess('ordinary UNC visual-check beyond traditional MAX_PATH', visual);
+    const ordinaryLongVisualReceipt = JSON.parse(visual.stdout);
+    assert.equal(ordinaryLongVisualReceipt.status, 'pass');
+    assert.ok(fs.existsSync(path.win32.join(
+      ordinaryLongVisualReceipt.sidecars.directory,
+      ordinaryLongVisualReceipt.sidecars.receipt,
+    )));
+    assertNoPrivateStaging(evidenceDirectory, '.archify-visual-check-');
 
     const sharedCaseEvidenceDirectory = path.win32.join(
       uncRoot,
@@ -430,7 +449,7 @@ async function runControlledWindowsPathE2E() {
       nfdReceipt.sidecars.receipt,
     )));
 
-    const previewOutput = path.win32.join(extendedUncRoot, `${token}-preview.html`);
+    const previewOutput = path.win32.join(ordinaryLongDirectory, `${token}-preview.html`);
     const { startPreview } = await import('../archify/bin/preview.mjs');
     preview = await startPreview({
       type: 'architecture',
@@ -442,9 +461,10 @@ async function runControlledWindowsPathE2E() {
       pollMs: 60_000,
     });
     await waitForVerifiedPreview(preview.url);
-    assert.ok(fs.existsSync(path.win32.join(uncRoot, path.win32.basename(previewOutput))));
+    assert.ok(fs.existsSync(previewOutput));
     await preview.stop();
     preview = null;
+    assertNoPrivateStaging(ordinaryLongDirectory, '.archify-preview-');
 
     if (Number(process.versions.node.split('.')[0]) === 22) {
       const uncArchive = path.win32.join(uncRoot, `${token}-archify.zip`);

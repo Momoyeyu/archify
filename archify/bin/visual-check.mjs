@@ -753,7 +753,9 @@ function beginVisualEvidenceWrite(artifactPath, artifactBytes, outputs) {
   let stagingDirectory;
   let stagingStat;
   try {
-    stagingDirectory = fs.mkdtempSync(path.join(parent.parentPath, '.archify-visual-check-'));
+    stagingDirectory = fs.mkdtempSync(path.toNamespacedPath(
+      path.join(parent.parentPath, '.archify-visual-check-'),
+    ));
     stagingStat = fs.lstatSync(stagingDirectory, { bigint: true });
     if (!stagingStat.isDirectory() || stagingStat.isSymbolicLink() || stagingStat.ino === 0n) {
       throw new Error('the newly created staging directory has no stable directory identity');

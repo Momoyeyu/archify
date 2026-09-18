@@ -1541,8 +1541,13 @@ test('CI and tagged releases share the maintained Windows path contract on Node 
   assert.match(runner, /checkForUpdate\(\{/);
   assert.match(runner, /let ordinaryLongDirectory = uncRoot/);
   assert.match(runner, /ordinary UNC delivery beyond traditional MAX_PATH/);
+  assert.match(runner, /ordinary UNC visual-check beyond traditional MAX_PATH/);
   assert.match(runner, /let extendedLongDirectory = extendedUncRoot/);
   assert.match(runner, /extended UNC delivery beyond traditional MAX_PATH/);
+  assert.match(runner, /path\.win32\.join\(ordinaryLongDirectory, `\$\{token\}-preview[.]html`\)/);
+  assert.match(runner, /assertNoPrivateStaging\(ordinaryLongDirectory, '[.]archify-delivery-'\)/);
+  assert.match(runner, /assertNoPrivateStaging\(evidenceDirectory, '[.]archify-visual-check-'\)/);
+  assert.match(runner, /assertNoPrivateStaging\(ordinaryLongDirectory, '[.]archify-preview-'\)/);
   assert.match(runner, /case-sensitive upper artifact visual-check to shared UNC/);
   assert.match(runner, /case-sensitive lower artifact visual-check to shared UNC/);
   assert.match(runner, /case-variant artifacts must receive distinct evidence names/);
@@ -1552,6 +1557,16 @@ test('CI and tagged releases share the maintained Windows path contract on Node 
   assert.match(runner, /normalization-sensitive NFD artifact visual-check to shared UNC/);
   assert.match(runner, /normalization-distinct artifacts must receive distinct evidence names/);
   assert.match(runner, /build-zip[.]sh/);
+
+  const cliSource = fs.readFileSync(path.join(repoRoot, 'archify', 'bin', 'archify.mjs'), 'utf8');
+  const previewSource = fs.readFileSync(path.join(repoRoot, 'archify', 'bin', 'preview.mjs'), 'utf8');
+  const visualCheckSource = fs.readFileSync(
+    path.join(repoRoot, 'archify', 'bin', 'visual-check.mjs'),
+    'utf8',
+  );
+  assert.match(cliSource, /mkdtempSync\(path[.]toNamespacedPath\(prefix\)\)/);
+  assert.match(previewSource, /mkdtempSync\(path[.]toNamespacedPath\(\s*path[.]join\(physicalOutputDirectory, '[.]archify-preview-'\),\s*\)\)/);
+  assert.match(visualCheckSource, /mkdtempSync\(path[.]toNamespacedPath\(\s*path[.]join\(parent[.]parentPath, '[.]archify-visual-check-'\),\s*\)\)/);
 
   const previewSuite = fs.readFileSync(path.join(repoRoot, 'archify', 'test', 'preview.test.mjs'), 'utf8');
   assert.match(previewSuite, /process\.env\.ARCHIFY_REQUIRE_WINDOWS_8DOT3 === '1'/);

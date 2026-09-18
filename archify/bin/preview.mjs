@@ -371,7 +371,9 @@ export async function startPreview(options) {
   // symlink or junction in the requested output parent may be redirected while
   // preview is running and must not redirect recursive cleanup to a claimant.
   const physicalOutputDirectory = fs.realpathSync.native(outputDirectory);
-  const stagingDirectory = fs.mkdtempSync(path.join(physicalOutputDirectory, '.archify-preview-'));
+  const stagingDirectory = fs.mkdtempSync(path.toNamespacedPath(
+    path.join(physicalOutputDirectory, '.archify-preview-'),
+  ));
   let stagingIdentity;
   try {
     stagingIdentity = captureOwnedDirectory(stagingDirectory);

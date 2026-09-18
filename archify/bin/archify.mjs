@@ -850,7 +850,10 @@ function cleanupOwnedStagingDirectory(directory, identity, registry, fileBinding
 }
 
 function createOwnedEmptyStagingDirectory(prefix) {
-  const directory = fs.mkdtempSync(prefix);
+  // Node's Windows mkdtemp binding does not consistently promote an ordinary
+  // UNC prefix past MAX_PATH. Use the equivalent namespaced spelling for the
+  // syscall while preserving the same physical directory identity.
+  const directory = fs.mkdtempSync(path.toNamespacedPath(prefix));
   const metadata = fs.lstatSync(directory, { bigint: true });
   if (!metadata.isDirectory() || metadata.isSymbolicLink() || metadata.ino === 0n) {
     throw new Error(`Private staging directory identity is unavailable: ${directory}`);
