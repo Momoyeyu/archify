@@ -317,6 +317,12 @@ and final names a link count of two; unlinking the verified staged name must
 leave the final entry with a link count of one. An unexpected external hard
 link fails closed and its alias is never removed.
 
+Chrome inspects one identity- and content-checked copy of the captured artifact
+in a private local temporary directory, so browser file loading does not depend
+on UNC or long-path support. The six publication candidates remain on the
+evidence volume. Both temporary directories are cleaned without recursively
+deleting unknown contents; retained entries include their recovery locations.
+
 Immediately before committing anything, `visual-check` re-resolves and verifies
 the complete six-path set. An absent-path claimant, existing-path replacement,
 symbolic-link or dangling-link retarget, parent-topology change, hard link, or

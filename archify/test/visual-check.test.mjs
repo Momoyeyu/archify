@@ -338,6 +338,156 @@ test('visual-check inspects a private snapshot even if the public artifact is re
   assert.deepEqual(fs.readFileSync(input), original);
 });
 
+for (const browserFailure of [false, true]) {
+  test(`visual-check uses and retires a short local snapshot with long evidence paths${browserFailure ? ' after a browser failure' : ''}`, async (t) => {
+    const input = artifact(`local-inspection-${browserFailure}.html`);
+    const original = fs.readFileSync(input);
+    const originalDigest = sha256(input);
+    const root = fs.mkdtempSync(path.join(tmp, 'long-evidence-'));
+    const outDir = path.join(root, ...Array.from({ length: 5 }, (_, index) => `${index}-${'long'.repeat(16)}`));
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    const browser = fakeBrowser();
+    const inspect = browser.inspect.bind(browser);
+    let inspectionPath;
+    browser.inspect = async (args) => {
+      inspectionPath = args.artifactPath;
+      assert.ok(!fs.realpathSync(inspectionPath).startsWith(`${fs.realpathSync(outDir)}${path.sep}`));
+      assert.equal(fs.realpathSync(path.dirname(path.dirname(inspectionPath))), fs.realpathSync(os.tmpdir()));
+      assert.ok(inspectionPath.length < outDir.length);
+      assert.deepEqual(fs.readFileSync(inspectionPath), original);
+      assert.equal(sha256(inspectionPath), originalDigest);
+      if (args.screenshotPath) assert.ok(fs.realpathSync(path.dirname(args.screenshotPath)).startsWith(`${fs.realpathSync(outDir)}${path.sep}`));
+      if (browserFailure) throw new Error('synthetic local snapshot browser failure');
+      return inspect(args);
+    };
+
+    const result = await runVisualCheck({
+      artifactPath: input,
+      outDir,
+      chromePath: '/fake/chrome',
+      browserFactory: async () => browser,
+    });
+
+    assert.equal(result.exitCode, browserFailure ? 1 : 0, JSON.stringify(result.receipt.diagnostics));
+    assert.ok(inspectionPath);
+    assert.equal(fs.existsSync(inspectionPath), false);
+    assert.equal(fs.existsSync(path.dirname(inspectionPath)), false);
+    assert.deepEqual(stagingDirectories(outDir), []);
+    assert.equal(fs.existsSync(sidecarPaths(input, { outDir }).receipt), true);
+    if (browserFailure) assert.match(result.receipt.error, /synthetic local snapshot browser failure/);
+  });
+}
+
+test('visual-check retains and reports a local inspection directory that cannot be removed', async (t) => {
+  const input = artifact('local-inspection-rmdir-failure.html');
+  const browser = fakeBrowser();
+  const inspect = browser.inspect.bind(browser);
+  const rmdirSync = fs.rmdirSync.bind(fs);
+  let inspectionDirectory;
+  browser.inspect = async (args) => {
+    inspectionDirectory = path.dirname(args.artifactPath);
+    return inspect(args);
+  };
+  t.mock.method(fs, 'rmdirSync', (directory, ...args) => {
+    if (String(directory) === inspectionDirectory) {
+      throw Object.assign(new Error('synthetic local inspection directory removal failure'), { code: 'EACCES' });
+    }
+    return rmdirSync(directory, ...args);
+  });
+  t.after(() => {
+    t.mock.restoreAll();
+    if (inspectionDirectory) fs.rmSync(inspectionDirectory, { recursive: true, force: true });
+  });
+
+  const result = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => browser,
+  });
+
+  assert.equal(result.exitCode, 1);
+  assert.equal(fs.realpathSync(path.dirname(inspectionDirectory)), fs.realpathSync(os.tmpdir()));
+  assert.equal(result.receipt.publication?.status, 'committed-with-warning');
+  assert.equal(result.receipt.publication?.recoveryDirectory, inspectionDirectory);
+  assert.ok(result.receipt.publication.cleanupErrors.some((entry) => entry.file === inspectionDirectory));
+  assert.deepEqual(fs.readdirSync(inspectionDirectory), []);
+});
+
+test('visual-check reports the retained local snapshot directory when its identity is unavailable', async (t) => {
+  const input = artifact('local-inspection-unknown-identity.html');
+  const lstatSync = fs.lstatSync.bind(fs);
+  let inspectionDirectory;
+  let browserStarted = false;
+  t.mock.method(fs, 'lstatSync', (file, ...args) => {
+    const stat = lstatSync(file, ...args);
+    if (!inspectionDirectory && path.basename(String(file)).startsWith('archify-inspection-')) {
+      inspectionDirectory = String(file);
+      stat.ino = 0n;
+    }
+    return stat;
+  });
+  t.after(() => {
+    if (inspectionDirectory) fs.rmSync(inspectionDirectory, { recursive: true, force: true });
+  });
+
+  const result = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => {
+      browserStarted = true;
+      return fakeBrowser();
+    },
+  });
+
+  assert.equal(result.exitCode, 1);
+  assert.equal(browserStarted, false);
+  assert.equal(result.receipt.diagnostics[0]?.code, 'viewer/artifact-snapshot');
+  assert.ok(result.receipt.diagnostics.at(-1)?.evidence?.errors.some(
+    (entry) => entry.file === inspectionDirectory && entry.recoveryDirectory === inspectionDirectory,
+  ));
+  assert.deepEqual(fs.readdirSync(inspectionDirectory), []);
+});
+
+for (const claimantFile of [false, true]) {
+  test(`visual-check preserves a replacement local snapshot directory${claimantFile ? ' containing a file' : ' that is empty'} and reports its location`, async (t) => {
+    const input = artifact(`local-inspection-directory-claimant-${claimantFile}.html`);
+    const sentinel = 'external local snapshot directory claimant\n';
+    let inspectionDirectory;
+    let detached;
+    let claimantPath;
+    t.after(() => {
+      if (inspectionDirectory) fs.rmSync(inspectionDirectory, { recursive: true, force: true });
+      if (detached) fs.rmSync(detached, { recursive: true, force: true });
+    });
+    const result = await runVisualCheck({
+      artifactPath: input,
+      chromePath: '/fake/chrome',
+      browserFactory: async () => ({
+        async inspect({ artifactPath }) {
+          inspectionDirectory = path.dirname(artifactPath);
+          detached = `${inspectionDirectory}-detached`;
+          fs.renameSync(inspectionDirectory, detached);
+          fs.mkdirSync(inspectionDirectory);
+          claimantPath = path.join(inspectionDirectory, 'artifact-snapshot.html');
+          if (claimantFile) fs.writeFileSync(claimantPath, sentinel, { flag: 'wx' });
+          throw new Error('synthetic browser failure after directory replacement');
+        },
+        async close() {},
+      }),
+    });
+
+    assert.equal(result.exitCode, 1);
+    assert.equal(fs.realpathSync(path.dirname(inspectionDirectory)), fs.realpathSync(os.tmpdir()));
+    if (claimantFile) assert.equal(fs.readFileSync(claimantPath, 'utf8'), sentinel);
+    else assert.deepEqual(fs.readdirSync(inspectionDirectory), []);
+    const errors = result.receipt.diagnostics.at(-1)?.evidence?.errors;
+    assert.ok(errors.some((entry) => entry.file === inspectionDirectory
+      && entry.recoveryDirectory === inspectionDirectory
+      && /identity changed; it was preserved/.test(entry.reason)));
+    assert.equal(fs.existsSync(path.join(detached, 'artifact-snapshot.html')), true);
+  });
+}
+
 for (const scenario of [
   { name: 'a regular screenshot claimant swapped before registration', replace: true },
   { name: 'screenshot bytes changed after capture without an identity change', replace: false },
@@ -412,6 +562,7 @@ test('visual-check cleanup preserves a successor swapped at its final removal bo
   });
   t.after(() => {
     fs.rmSync(detached, { force: true });
+    if (stagedPath) fs.rmSync(path.dirname(stagedPath), { recursive: true, force: true });
     for (const directory of stagingDirectories(path.dirname(outputs.receipt))) {
       fs.rmSync(path.join(path.dirname(outputs.receipt), directory), { recursive: true, force: true });
     }
@@ -2698,4 +2849,60 @@ test('vertical workflow overflow reports measured frames and conditional reflow 
   const horizontalOverflow = horizontal.receipt.diagnostics.find(({ code }) => code === 'viewer/viewport-overflow');
   assert.equal(horizontalOverflow.evidence.workflowLanes, undefined);
   assert.equal(horizontalOverflow.supportedFixes.length, 1);
+});
+
+test('visual-check reports local inspection cleanup failure alongside an evidence target conflict', async (t) => {
+  const input = artifact('inspection-cleanup-target-conflict.html');
+  const outDir = fs.mkdtempSync(path.join(tmp, 'inspection-cleanup-target-conflict-'));
+  const outputs = sidecarPaths(input, { outDir });
+  const sentinel = 'external receipt claimant\n';
+  const browser = fakeBrowser();
+  const inspect = browser.inspect.bind(browser);
+  const rmdirSync = fs.rmdirSync.bind(fs);
+  let inspectionDirectory;
+  let claimed = false;
+  let cleanupAttempts = 0;
+  browser.inspect = async (args) => {
+    inspectionDirectory = path.dirname(args.artifactPath);
+    if (!claimed) {
+      fs.writeFileSync(outputs.receipt, sentinel, { flag: 'wx' });
+      claimed = true;
+    }
+    return inspect(args);
+  };
+  t.mock.method(fs, 'rmdirSync', (directory, ...args) => {
+    if (String(directory) === inspectionDirectory) {
+      cleanupAttempts += 1;
+      throw Object.assign(new Error('synthetic inspection cleanup denied during target conflict'), {
+        code: 'EACCES',
+      });
+    }
+    return rmdirSync(directory, ...args);
+  });
+  t.after(() => {
+    t.mock.restoreAll();
+    if (inspectionDirectory) fs.rmSync(inspectionDirectory, { recursive: true, force: true });
+    fs.rmSync(outDir, { recursive: true, force: true });
+  });
+
+  const result = await runVisualCheck({
+    artifactPath: input,
+    outDir,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => browser,
+  });
+
+  assert.equal(claimed, true);
+  assert.ok(cleanupAttempts > 0, 'the fixture must exercise local inspection cleanup failure');
+  assert.equal(result.exitCode, 1);
+  assert.equal(fs.readFileSync(outputs.receipt, 'utf8'), sentinel);
+  assert.deepEqual(fs.readdirSync(inspectionDirectory), []);
+  assert.deepEqual(stagingDirectories(outDir), []);
+  const conflict = result.receipt.diagnostics.at(-1);
+  assert.equal(conflict?.code, 'viewer/evidence-path-conflict');
+  assert.ok(conflict.evidence.rollbackErrors?.some((entry) => (
+    entry.file === inspectionDirectory
+    && entry.recoveryDirectory === inspectionDirectory
+    && /synthetic inspection cleanup denied/.test(entry.reason)
+  )), 'the conflict must report the retained local inspection directory');
 });

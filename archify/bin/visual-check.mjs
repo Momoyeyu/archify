@@ -555,20 +555,28 @@ function cleanupStagedEvidence(ownership, { removeDirectory = false } = {}) {
       });
     }
   }
-  if (removeDirectory) {
+  const directories = [
+    ownership.inspection,
+    ...(removeDirectory ? [{
+      directory: ownership.stagingDirectory,
+      identity: ownership.stagingIdentity,
+    }] : []),
+  ].filter(Boolean);
+  for (const { directory, identity } of directories) {
     try {
-      const stat = fs.lstatSync(ownership.stagingDirectory, { bigint: true });
-      if (!identityMatches(stat, ownership.stagingIdentity, { directory: true })) {
+      const stat = fs.lstatSync(directory, { bigint: true });
+      if (!identity || !identityMatches(stat, identity, { directory: true })) {
         errors.push({
-          file: ownership.stagingDirectory,
+          file: directory,
+          recoveryDirectory: directory,
           reason: 'staging directory identity changed; it was preserved',
         });
       } else {
-        removeEmptyDirectoryWithRetry(ownership.stagingDirectory);
+        removeEmptyDirectoryWithRetry(directory);
       }
     } catch (error) {
       if (error?.code !== 'ENOENT') {
-        errors.push({ file: ownership.stagingDirectory, reason: error.message });
+        errors.push({ file: directory, recoveryDirectory: directory, reason: error.message });
       }
     }
   }
@@ -941,7 +949,8 @@ function restoreOwnedBackup(backup, errors) {
 function commitVisualEvidence(artifactPath, outputs, ownership, desiredPaths) {
   const verification = verifyVisualEvidenceTargets(artifactPath, outputs, ownership);
   if (!verification.ok) {
-    cleanupStagedEvidence(ownership, { removeDirectory: true });
+    const cleanupErrors = cleanupStagedEvidence(ownership, { removeDirectory: true });
+    if (cleanupErrors.length) verification.diagnostic.evidence.rollbackErrors = cleanupErrors;
     ownership.active = false;
     return verification;
   }
@@ -1180,6 +1189,7 @@ function commitVisualEvidence(artifactPath, outputs, ownership, desiredPaths) {
           recoveryDirectory = ownership.stagingDirectory;
         }
       } catch {}
+      recoveryDirectory ||= cleanupErrors.find((entry) => entry.recoveryDirectory)?.recoveryDirectory;
     }
     return {
       ok: true,
@@ -1333,6 +1343,10 @@ class PipeCdp {
     this.failureDetails = failureDetails;
     this.nextId = 1;
     this.buffer = '';
+    this.receivedBytes = 0;
+    this.receivedMessages = 0;
+    this.completedWrites = 0;
+    this.writtenBytes = 0;
     this.pending = new Map();
     this.waiters = [];
     this.writePipe = child.stdio[3];
@@ -1341,6 +1355,9 @@ class PipeCdp {
     this.readPipe.on('data', (chunk) => this.consume(chunk));
     this.writePipe.on('error', (error) => this.failAll(this.failure('write pipe', error)));
     this.readPipe.on('error', (error) => this.failAll(this.failure('read pipe', error)));
+    this.readPipe.once('end', () => this.failAll(this.failure('read pipe', new Error('stream ended'))));
+    this.readPipe.once('close', () => this.failAll(this.failure('read pipe', new Error('stream closed'))));
+    this.writePipe.once('close', () => this.failAll(this.failure('write pipe', new Error('stream closed'))));
     child.once('error', (error) => this.failAll(this.failure('process launch', error)));
     child.once('close', (code, signal) => {
       const ending = signal ? `signal ${signal}` : `exit code ${code}`;
@@ -1354,10 +1371,14 @@ class PipeCdp {
     return new Error([
       `Chrome DevTools ${stage} failed: ${error?.message || String(error)}${code}`,
       details,
+      `Chrome transport: Node ${process.version}, libuv ${process.versions.uv}, ${process.platform}; pid=${this.child.pid ?? 'unavailable'}, exitCode=${this.child.exitCode}, signalCode=${this.child.signalCode}.`,
+      `Chrome read pipe: readable=${this.readPipe.readable}, ended=${this.readPipe.readableEnded}, destroyed=${this.readPipe.destroyed}, receivedBytes=${this.receivedBytes}, messages=${this.receivedMessages}, bufferedBytes=${Buffer.byteLength(this.buffer)}.`,
+      `Chrome write pipe: writable=${this.writePipe.writable}, ended=${this.writePipe.writableEnded}, destroyed=${this.writePipe.destroyed}, completedWrites=${this.completedWrites}, writtenBytes=${this.writtenBytes}, bufferedBytes=${this.writePipe.writableLength}.`,
     ].filter(Boolean).join('\n'));
   }
 
   consume(chunk) {
+    this.receivedBytes += Buffer.byteLength(chunk);
     this.buffer += chunk;
     let boundary;
     while ((boundary = this.buffer.indexOf('\0')) >= 0) {
@@ -1371,6 +1392,7 @@ class PipeCdp {
         this.failAll(new Error(`Chrome DevTools returned invalid JSON: ${error.message}`));
         continue;
       }
+      this.receivedMessages += 1;
       if (message.id) {
         const pending = this.pending.get(message.id);
         if (!pending) continue;
@@ -1397,12 +1419,18 @@ class PipeCdp {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        reject(new Error(`${method}: timed out after ${timeoutMs}ms`));
+        reject(this.failure('command timeout', new Error(`${method}: timed out after ${timeoutMs}ms`)));
       }, timeoutMs);
       this.pending.set(id, { method, resolve, reject, timer });
       try {
-        this.writePipe.write(`${JSON.stringify(message)}\0`, (error) => {
-          if (error) this.failAll(this.failure('write pipe', error));
+        const serialized = `${JSON.stringify(message)}\0`;
+        this.writePipe.write(serialized, (error) => {
+          if (error) {
+            this.failAll(this.failure('write pipe', error));
+          } else {
+            this.completedWrites += 1;
+            this.writtenBytes += Buffer.byteLength(serialized);
+          }
         });
       } catch (error) {
         this.failAll(this.failure('write pipe', error));
@@ -1415,7 +1443,7 @@ class PipeCdp {
       const waiter = { method, sessionId, resolve, reject, timer: null };
       waiter.timer = setTimeout(() => {
         this.waiters.splice(this.waiters.indexOf(waiter), 1);
-        reject(new Error(`${method}: event timed out after ${timeoutMs}ms`));
+        reject(this.failure('event timeout', new Error(`${method}: event timed out after ${timeoutMs}ms`)));
       }, timeoutMs);
       this.waiters.push(waiter);
     });
@@ -1478,22 +1506,6 @@ async function evaluate(cdp, sessionId, expression, awaitPromise = false) {
   return response.result?.value;
 }
 
-export function chromeVisualArtifactUrl(artifactPath, theme, { platform = process.platform } = {}) {
-  const localhostUnc = platform === 'win32'
-    ? /^(?:\\\\\?\\UNC\\|\\\\)localhost\\(.+)$/i.exec(artifactPath)
-    : null;
-  if (localhostUnc) {
-    // WHATWG file URLs erase the localhost host, turning this UNC share into
-    // a drive-root path. Chromium retains the raw host for non-drive paths.
-    // Send this string directly to DevTools without reparsing it as a URL.
-    const encodedPath = localhostUnc[1].split('\\').map(encodeURIComponent).join('/');
-    return 'file://localhost/' + encodedPath + '?' + new URLSearchParams({ theme });
-  }
-  const url = pathToFileURL(artifactPath);
-  url.searchParams.set('theme', theme);
-  return url.href;
-}
-
 export class ChromeVisualBrowser {
   constructor(chromePath, {
     env = process.env,
@@ -1551,13 +1563,14 @@ export class ChromeVisualBrowser {
       mobile: false,
     }, sessionId);
 
-    const url = chromeVisualArtifactUrl(artifactPath, theme);
+    const url = pathToFileURL(artifactPath);
+    url.searchParams.set('theme', theme);
     const loaded = this.cdp.waitFor('Page.loadEventFired', sessionId);
     // Navigation can fail before this waiter is awaited. Attach a rejection
     // handler immediately so a later load failure never escapes as an
     // unhandled rejection; awaiting `loaded` below still reports it normally.
     loaded.catch(() => {});
-    const navigation = await this.cdp.send('Page.navigate', { url }, sessionId);
+    const navigation = await this.cdp.send('Page.navigate', { url: url.href }, sessionId);
     if (navigation.errorText) throw new Error(`Chrome navigation failed: ${navigation.errorText}`);
     await loaded;
     await evaluate(this.cdp, sessionId, `(function () {
@@ -2135,9 +2148,20 @@ export async function runVisualCheck({
     return { exitCode: EXIT.fail, receipt };
   }
   const ownership = preflight.ownership;
-  const inspectionArtifact = path.join(ownership.stagingDirectory, 'artifact-snapshot.html');
-  ownership.stagingPaths.set(artifact, inspectionArtifact);
+  let inspectionArtifact;
   try {
+    // Chrome's file loader cannot reliably open long Windows/UNC paths. Keep
+    // the one inspected snapshot local; publish evidence on its target volume.
+    ownership.inspection = {
+      directory: fs.mkdtempSync(path.join(os.tmpdir(), 'archify-inspection-')),
+    };
+    const stat = fs.lstatSync(ownership.inspection.directory, { bigint: true });
+    if (!stat.isDirectory() || stat.isSymbolicLink() || stat.ino === 0n) {
+      throw new Error('the private inspection directory has no stable identity');
+    }
+    ownership.inspection.identity = fileIdentity(stat);
+    inspectionArtifact = path.join(ownership.inspection.directory, 'artifact-snapshot.html');
+    ownership.stagingPaths.set(artifact, inspectionArtifact);
     writeStagedEvidence(ownership, artifact, artifactBytes);
   } catch (error) {
     return { exitCode: EXIT.fail, receipt: persistVisualCheckFailure(artifact, {
