@@ -9,7 +9,7 @@ and legend previews, `route-probe.js` for directed paths and Route Journey,
 `guided-views.js` for authored chapters and Story playback,
 `focus.js` for semantic selection, relationships, reachability and shared flow tokens,
 `export.js` for export menus, serialization, images, cards, clipboard and WebM,
-`export-cleanup.js` for its private SVG clone cleanup, `tokens.css` for the
+`export-cleanup.js` for its private SVG clone cleanup, `viewer.css` for the
 main Viewer stylesheet, and `template.source.html` for the remaining shell.
 `archify/assets/template.html` is the committed
 generated artifact, consumed unchanged by all five renderers and the installed
