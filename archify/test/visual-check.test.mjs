@@ -18,6 +18,7 @@ import {
   runVisualCheck,
   sidecarPaths,
 } from '../bin/visual-check.mjs';
+import { sameLocation } from '../renderers/shared/path-semantics.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const skillRoot = path.resolve(__dirname, '..');
@@ -351,12 +352,14 @@ for (const browserFailure of [false, true]) {
     let inspectionPath;
     browser.inspect = async (args) => {
       inspectionPath = args.artifactPath;
-      assert.ok(!fs.realpathSync(inspectionPath).startsWith(`${fs.realpathSync(outDir)}${path.sep}`));
-      assert.equal(fs.realpathSync(path.dirname(path.dirname(inspectionPath))), fs.realpathSync(os.tmpdir()));
+      const inspectionParent = path.dirname(path.dirname(inspectionPath));
+      assert.equal(sameLocation(inspectionParent, os.tmpdir()).status, 'match');
       assert.ok(inspectionPath.length < outDir.length);
       assert.deepEqual(fs.readFileSync(inspectionPath), original);
       assert.equal(sha256(inspectionPath), originalDigest);
-      if (args.screenshotPath) assert.ok(fs.realpathSync(path.dirname(args.screenshotPath)).startsWith(`${fs.realpathSync(outDir)}${path.sep}`));
+      if (args.screenshotPath) {
+        assert.equal(sameLocation(path.dirname(path.dirname(args.screenshotPath)), outDir).status, 'match');
+      }
       if (browserFailure) throw new Error('synthetic local snapshot browser failure');
       return inspect(args);
     };
@@ -406,7 +409,7 @@ test('visual-check retains and reports a local inspection directory that cannot 
   });
 
   assert.equal(result.exitCode, 1);
-  assert.equal(fs.realpathSync(path.dirname(inspectionDirectory)), fs.realpathSync(os.tmpdir()));
+  assert.equal(sameLocation(path.dirname(inspectionDirectory), os.tmpdir()).status, 'match');
   assert.equal(result.receipt.publication?.status, 'committed-with-warning');
   assert.equal(result.receipt.publication?.recoveryDirectory, inspectionDirectory);
   assert.ok(result.receipt.publication.cleanupErrors.some((entry) => entry.file === inspectionDirectory));
@@ -477,7 +480,7 @@ for (const claimantFile of [false, true]) {
     });
 
     assert.equal(result.exitCode, 1);
-    assert.equal(fs.realpathSync(path.dirname(inspectionDirectory)), fs.realpathSync(os.tmpdir()));
+    assert.equal(sameLocation(path.dirname(inspectionDirectory), os.tmpdir()).status, 'match');
     if (claimantFile) assert.equal(fs.readFileSync(claimantPath, 'utf8'), sentinel);
     else assert.deepEqual(fs.readdirSync(inspectionDirectory), []);
     const errors = result.receipt.diagnostics.at(-1)?.evidence?.errors;
@@ -976,6 +979,7 @@ for (const scenario of [
   },
   {
     name: 'FIFO',
+    skip: process.platform === 'win32' && 'POSIX FIFOs are not native Windows filesystem entries',
     create(file, t) {
       const created = spawnSync('mkfifo', [file], { encoding: 'utf8' });
       if (created.status !== 0) {
@@ -984,6 +988,7 @@ for (const scenario of [
         error.code = 'ARCHIFY_TEST_SKIPPED';
         throw error;
       }
+      assert.equal(fs.lstatSync(file).isFIFO(), true, 'mkfifo must create a native FIFO visible to Node');
     },
     assertPreserved(file) {
       assert.equal(fs.lstatSync(file).isFIFO(), true);
@@ -1011,7 +1016,9 @@ for (const scenario of [
     },
   },
 ]) {
-  test(`visual-check preserves a ${scenario.name} swapped at the backup link boundary`, async (t) => {
+  test(`visual-check preserves a ${scenario.name} swapped at the backup link boundary`, {
+    skip: scenario.skip,
+  }, async (t) => {
     const input = artifact(`backup-link-${scenario.name.toLowerCase()}-successor.html`);
     const outputs = sidecarPaths(input);
     const first = await runVisualCheck({
