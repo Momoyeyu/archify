@@ -195,10 +195,11 @@ jobs:
       - name: Verify Windows-sensitive regression fixtures
         run: >-
           node --test
-          --test-name-pattern="Git checkout preserves|clean staging preserves index modes|workflow migration cleanup failure|preview runs from an installed skill|canonical watch target|Windows 8.3 short path"
+          --test-name-pattern="Git checkout preserves|clean staging preserves index modes|workflow migration cleanup failure|preview runs from an installed skill|canonical watch target|Windows 8.3 short path|open artifact:"
           archify/test/checkout-line-endings.test.mjs
           archify/test/clean-skill-staging.test.mjs
           archify/test/workflow-migration.test.mjs
+          archify/test/open-artifact.test.mjs
           archify/test/cli.test.mjs
           archify/test/preview.test.mjs
 
