@@ -249,6 +249,10 @@
         // canvas upscaling.
         clone.setAttribute('width', vb.width * scale);
         clone.setAttribute('height', vb.height * scale);
+        // Keep copied Viewer layout rules from overriding the export's size.
+        clone.style.width = vb.width * scale + 'px';
+        clone.style.height = vb.height * scale + 'px';
+        clone.style.minWidth = '0';
         clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
 
         // Only the SVG-relevant rules: semantic classes, markers, and the
