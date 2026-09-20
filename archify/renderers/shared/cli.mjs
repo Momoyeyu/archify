@@ -62,8 +62,7 @@ export function loadDiagram({ rendererDir, diagramType, defaultExample, argv = p
   const authoredOutput = diagram?.meta?.output;
   if (authoredOutput !== undefined) validateAuthoredOutputPath(authoredOutput);
   validateSchema(diagramType, diagram);
-  validateGuidedViews(diagramType, diagram);
-  validateRelationshipIds(diagramType, diagram);
+  validateCrossCollectionContracts(diagramType, diagram);
   validateEngineeringProfile(diagramType, diagram);
   const sourceEvidence = verifyRepositoryEvidence(diagramType, diagram, process.env.ARCHIFY_REPO_ROOT);
   const template = fs.readFileSync(path.join(skillRoot, 'assets/template.html'), 'utf8');
@@ -359,6 +358,13 @@ export function validateGuidedViews(diagramType, diagram) {
       subject: { diagramType, collection: 'meta.views' },
     });
   }
+}
+
+// Share relationship-ID and guided-view semantic checks between the loader
+// and workflow compiler without performing filesystem operations (see #429).
+export function validateCrossCollectionContracts(diagramType, diagram) {
+  validateGuidedViews(diagramType, diagram);
+  validateRelationshipIds(diagramType, diagram);
 }
 
 // Accessible name for the generated diagram SVG.

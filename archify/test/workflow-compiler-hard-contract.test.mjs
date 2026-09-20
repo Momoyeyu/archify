@@ -2,6 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { compileWorkflow } from '../renderers/workflow/workflow-compiler.mjs';
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -1947,6 +1952,65 @@ test('compileWorkflow enforces the canonical workflow schema at its public bound
     assert.equal(result.svg, undefined);
     assert.ok(
       result.diagnostics.some(({ code }) => code === expectedCode),
+      JSON.stringify(result.diagnostics, null, 2),
+    );
+    assert.ok(result.diagnostics.every(({ code }) => code !== 'internal/unclassified'));
+    assert.ok(result.diagnostics.every(({ supportedFixes }) => (
+      Array.isArray(supportedFixes) && supportedFixes.length === 0
+    )));
+    assert.deepEqual(result.receipt.diagnostics, result.diagnostics);
+  }
+});
+
+function validationParityWorkflow() {
+  return workflow({
+    lanes: [{ id: 'main', label: 'Main' }],
+    nodes: ['a', 'b', 'c'].map((id, index) => ({
+      id, lane: 'main', col: index * 2, type: 'backend', label: id,
+    })),
+    edges: [
+      { id: 'first', from: 'a', to: 'b' },
+      { id: 'second', from: 'b', to: 'c' },
+    ],
+  });
+}
+
+test('compileWorkflow applies the shared cross-collection contracts the renderer enforces', (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-compiler-parity-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  for (const { expectedCode, mutate } of [
+    {
+      expectedCode: 'relationship/duplicate-id',
+      mutate: (document) => { document.edges[1].id = document.edges[0].id; },
+    },
+    {
+      expectedCode: 'guided-view/invalid',
+      mutate: (document) => {
+        document.meta.views = [{ id: 'view', label: 'View', focus: ['missing'] }];
+      },
+    },
+  ]) {
+    const document = validationParityWorkflow();
+    mutate(document);
+    const input = path.join(directory, 'input.json');
+    fs.writeFileSync(input, JSON.stringify(document));
+    const rendered = spawnSync(process.execPath, [
+      fileURLToPath(new URL('../renderers/workflow/render-workflow.mjs', import.meta.url)),
+      input, path.join(directory, 'output.html'),
+    ], {
+      encoding: 'utf8',
+      env: { ...process.env, ARCHIFY_DIAGNOSTIC_FORMAT: 'json', ARCHIFY_QUALITY_PROFILE: 'standard' },
+    });
+    assert.equal(rendered.status, 1, rendered.stderr);
+    assert.deepEqual(JSON.parse(rendered.stderr).diagnostics.map(({ code }) => code), [expectedCode]);
+
+    const result = compileWorkflow({ workflow: document, qualityProfile: 'standard' });
+    assert.equal(result.ok, false);
+    assert.equal(result.svg, undefined);
+    assert.equal(result.receipt.contract, 'readable-v2');
+    assert.deepEqual(
+      result.diagnostics.map(({ code }) => code),
+      [expectedCode],
       JSON.stringify(result.diagnostics, null, 2),
     );
     assert.ok(result.diagnostics.every(({ code }) => code !== 'internal/unclassified'));
