@@ -269,6 +269,83 @@ async function readLimited(response, maximum) {
   return Buffer.concat(chunks, total);
 }
 
+// Read only the bounded head, independent of network chunk boundaries. Scan
+// bytes once so many tiny chunks cannot cause repeated concatenation/rescanning.
+// This is a boundary scanner, not a DOM parser: comments, quoted attributes and
+// raw-text elements must not turn a literal </head> into an early stop.
+async function readHtmlHead(response, maximum) {
+  const chunks = response.body && typeof response.body[Symbol.asyncIterator] === 'function'
+    ? response.body : [await readLimited(response, maximum)];
+  const buffer = Buffer.alloc(maximum);
+  let total = 0;
+  let tagStart = -1;
+  let quote = 0;
+  let comment = false;
+  let rawClosing = '';
+  let matched = 0;
+  for await (const value of chunks) {
+    const chunk = Buffer.from(value);
+    const length = Math.min(chunk.length, maximum - total);
+    chunk.copy(buffer, total, 0, length);
+    for (let offset = 0; offset < length; offset++) {
+      const byte = chunk[offset];
+      const position = total + offset;
+      if (comment) {
+        if (byte === 0x3e && buffer[position - 1] === 0x2d && buffer[position - 2] === 0x2d) comment = false;
+        continue;
+      }
+      if (rawClosing) {
+        const lower = byte >= 65 && byte <= 90 ? byte + 32 : byte;
+        if (matched === rawClosing.length && [9, 10, 12, 13, 32, 47, 62].includes(byte)) {
+          tagStart = position - matched;
+          rawClosing = '';
+          matched = 0;
+        } else {
+          matched = lower === rawClosing.charCodeAt(matched) ? matched + 1 : (byte === 0x3c ? 1 : 0);
+          continue;
+        }
+      }
+      if (tagStart < 0) {
+        if (byte === 0x3c) tagStart = position;
+        continue;
+      }
+      if (position === tagStart + 1 && !((byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || [33, 47, 63].includes(byte))) {
+        tagStart = byte === 0x3c ? position : -1;
+        continue;
+      }
+      if (position === tagStart + 3 && buffer[tagStart + 1] === 0x21 && buffer[tagStart + 2] === 0x2d && byte === 0x2d) {
+        comment = true;
+        tagStart = -1;
+        continue;
+      }
+      if (quote) {
+        if (byte === quote) quote = 0;
+        continue;
+      }
+      if (byte === 0x22 || byte === 0x27) {
+        quote = byte;
+        continue;
+      }
+      if (byte === 0x3e) {
+        const tag = buffer.toString('utf8', tagStart, position + 1);
+        if (/^<\/head[\t\n\f\r ]*>$/i.test(tag)) {
+          response.body?.destroy?.();
+          return buffer.toString('utf8', 0, position + 1);
+        }
+        const raw = /^<(script|style|title|textarea|xmp|iframe|noembed|noframes)(?=[\t\n\f\r />])/i.exec(tag);
+        if (raw) rawClosing = `</${raw[1].toLowerCase()}`;
+        tagStart = -1;
+      }
+    }
+    total += length;
+    if (chunk.length > length) {
+      response.body?.destroy?.();
+      throw new Error('brand asset is too large');
+    }
+  }
+  return buffer.toString('utf8', 0, total);
+}
+
 function attribute(tag, name) {
   const match = tag.match(new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i'));
   return match ? (match[1] ?? match[2] ?? match[3] ?? '') : '';
@@ -401,7 +478,7 @@ async function captureRemoteBrand(value, deadline = Date.now() + captureTimeoutM
       page.response.body?.destroy?.();
       return fallback('linked page is not HTML');
     }
-    const html = (await readLimited(page.response, MAX_HTML_BYTES)).toString('utf8');
+    const html = await readHtmlHead(page.response, MAX_HTML_BYTES);
     const iconErrors = [];
     for (const candidate of iconCandidates(html, page.finalUrl)) {
       try {

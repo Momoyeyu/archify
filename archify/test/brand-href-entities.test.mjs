@@ -46,14 +46,23 @@ function run(args) {
   });
 }
 
-async function fixture(t, href, decoded) {
+async function fixture(t, href, decoded, chunks) {
   const requests = [];
   let expected;
-  const server = http.createServer((request, response) => {
+  const server = http.createServer(async (request, response) => {
     requests.push(request.url);
     if (request.url === '/studio') {
       response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-      response.end(`<html><title>Entity fixture</title><link rel="icon" href="${href}"></html>`);
+      if (chunks) {
+        for (const chunk of chunks) {
+          if (response.destroyed) return;
+          response.write(chunk);
+          await new Promise((resolve) => setTimeout(resolve, 2));
+        }
+        response.end();
+      } else {
+        response.end(`<html><title>Entity fixture</title><link rel="icon" href="${href}"></html>`);
+      }
     } else if (expected && request.url === expected.pathname + expected.search) {
       response.writeHead(200, { 'content-type': 'image/png' });
       response.end(icon);
@@ -94,27 +103,66 @@ for (const [name, href, decoded] of cases) {
   });
 }
 
-test('captured entity URL is fetched identically for pinned validation and rendering', { timeout: 45000 }, async (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-brand-href-'));
-  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const data = await fixture(t, '/mark.png?v=1&amp;size=32', '/mark.png?v=1&size=32');
-  const brand = await capture(data);
-  const diagram = JSON.parse(fs.readFileSync(path.join(skillRoot, 'examples/web-app.architecture.json'), 'utf8'));
-  diagram.components[0].brand = brand;
-  const input = path.join(root, 'diagram.json');
-  const output = path.join(root, 'diagram.html');
-  fs.writeFileSync(input, JSON.stringify(diagram));
-  for (const command of ['validate', 'render']) {
-    data.requests.length = 0;
-    const args = [command, 'architecture', input, ...(command === 'render' ? [output] : ['--json'])];
-    const result = await run(args);
-    assert.equal(result.status, 0, result.stderr || result.stdout);
-    assert.deepEqual(data.requests, ['/studio', data.expected.pathname + data.expected.search]);
-  }
-  const html = fs.readFileSync(output, 'utf8');
-  assert.match(html, /data-brand-status="captured"/);
-  assert.ok(html.includes(`data-brand-sha256="${digest}"`));
-  assert.ok(html.includes(`data:image/png;base64,${icon.toString('base64')}`));
+const diagramTypes = [
+  ['architecture', 'web-app.architecture.json', 'components'],
+  ['workflow', 'agent-tool-call.workflow.json', 'nodes'],
+  ['sequence', 'cache-miss-request.sequence.json', 'participants'],
+  ['dataflow', 'product-analytics.dataflow.json', 'nodes'],
+  ['lifecycle', 'agent-run.lifecycle.json', 'states'],
+];
+for (const [type, example, collection] of diagramTypes) {
+  test(`captured entity URL is fetched identically for pinned ${type} validation and rendering`, { timeout: 45000 }, async (t) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-brand-href-'));
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    const data = await fixture(t, null, '/mark.png?v=1&size=32', [
+      '<head><!-- </head> --><script>const tag = "</head>";</script>',
+      '<link rel="icon" href="/mark.png?v=1&am',
+      'p;size=32"></he', 'ad><body>',
+    ]);
+    const brand = await capture(data);
+    const diagram = JSON.parse(fs.readFileSync(path.join(skillRoot, 'examples', example), 'utf8'));
+    diagram[collection][0].brand = brand;
+    const input = path.join(root, 'diagram.json');
+    const output = path.join(root, 'diagram.html');
+    fs.writeFileSync(input, JSON.stringify(diagram));
+    for (const command of ['validate', 'render']) {
+      data.requests.length = 0;
+      const args = [command, type, input, ...(command === 'render' ? [output] : ['--json'])];
+      const result = await run(args);
+      assert.equal(result.status, 0, result.stderr || result.stdout);
+      assert.deepEqual(data.requests, ['/studio', data.expected.pathname + data.expected.search]);
+    }
+    const html = fs.readFileSync(output, 'utf8');
+    assert.match(html, /data-brand-status="captured"/);
+    assert.ok(html.includes(`data-brand-sha256="${digest}"`));
+    assert.ok(html.includes(`data:image/png;base64,${icon.toString('base64')}`));
+  });
+}
+
+for (const [name, prefix] of [
+  ['comment', '<!-- example </head> -->'],
+  ['script', '<script>const tag = "</head>"; if (1 < 2) {}</script>'],
+  ['style', '<style>p::after { content: "</head>"; }</style>'],
+  ['title', '<title>Literal </head> example</title>'],
+  ['quoted attribute', '<meta name="example" content="prefix > </head>">'],
+  ['single quoted attribute', "<meta name='example' content='prefix > </head>'>"],
+  ['raw end tag prefix', '<script>"</scripture></head>";</script>'],
+  ['self-closing script flag', '<script/>"</head>";</script>'],
+  ['mixed case and spacing', '<ScRiPt data-example=">">"</head>";</sCrIpT \n>'],
+]) {
+  test(`capture ignores a head ending inside ${name} across response chunks`, async (t) => {
+    const html = `<head>${prefix}<link rel='icon' href='/mark.png?a=1&amp;b=2'></HEAD \n>`;
+    // Split every token (including the entity) and append a body above the cap:
+    // success requires both context-aware scanning and early cancellation.
+    const data = await fixture(t, null, '/mark.png?a=1&b=2', [...html, 'x'.repeat(300 * 1024)]);
+    await capture(data);
+  });
+}
+
+test('capture decodes an unquoted href split across chunks', async (t) => {
+  await capture(await fixture(t, null, '/mark.png?a=1&b=2', [
+    '<head><link rel=icon href=/mark.png?a=1&am', 'p;b=2></head>',
+  ]));
 });
 
 test('entity-decoded non-HTTP icon URLs are not fetched', { timeout: 20000 }, async (t) => {
