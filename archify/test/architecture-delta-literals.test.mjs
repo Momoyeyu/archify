@@ -14,7 +14,7 @@ const textContent = (node) => node.nodeName === '#text' ? node.value : (node.chi
 
 function fixtures(kind, operation, label) {
   const base = {
-    schema_version: 1, diagram_type: 'architecture', meta: { title: 'Literal labels' },
+    schema_version: 1, diagram_type: 'architecture', meta: { title: 'Literal labels', output: 'literal-labels.html' },
     components: [
       { id: 'keep', type: 'backend', label: 'Keep', pos: [80, 80], size: [160, 80] },
       { id: 'target', type: 'database', label: kind === 'node' ? label : 'Target', pos: [380, 80], size: [160, 80] },

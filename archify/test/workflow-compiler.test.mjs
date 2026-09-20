@@ -116,6 +116,14 @@ function groupFrameRect(svg, index = 0) {
   return numericRect(attributes);
 }
 
+function laneFrameRect(svg, index = 0) {
+  const attributes = svg.match(new RegExp(
+    `<rect\\b(?=[^>]*data-composition-frame-kind="lane")(?=[^>]*data-composition-frame-id="lane-${index}")([^>]*)/>`,
+  ))?.[1];
+  assert.ok(attributes, `expected rendered lane frame ${index}`);
+  return numericRect(attributes);
+}
+
 function asciiGroupLabelTextRect(svg, label) {
   const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const attributes = svg.match(new RegExp(`<text\\b([^>]*)>${escapedLabel}</text>`))?.[1];
@@ -190,12 +198,14 @@ function adjacentWorkflow({
   nodeLabels = ['A', 'B'],
   viewBox,
   frames = false,
+  output,
 } = {}) {
   const workflow = {
     schema_version: 2,
     diagram_type: 'workflow',
     meta: {
       title: `Adjacent ranks ${fromCol} to ${toCol}`,
+      output: output ?? 'adjacent-workflow.html',
       legend: { mode: 'hidden' },
       ...(viewBox ? { viewBox } : {}),
     },
@@ -219,6 +229,49 @@ function adjacentWorkflow({
     }];
   }
   return workflow;
+}
+
+function stackedGroupWorkflow({
+  schemaVersion = 1,
+  offsets = [0, 90, 180],
+  includeWorkerLane = false,
+} = {}) {
+  return {
+    schema_version: schemaVersion,
+    diagram_type: 'workflow',
+    meta: {
+      title: 'Stacked cage',
+      output: 'stacked-cage.html',
+      legend: { mode: 'hidden' },
+      ...(schemaVersion === 1 ? { viewBox: [720, 640] } : {}),
+    },
+    lanes: [
+      { id: 'cage', label: 'One cage' },
+      ...(includeWorkerLane ? [{ id: 'worker', label: 'Worker' }] : []),
+    ],
+    groups: [{
+      id: 'group',
+      label: 'Cage',
+      lane: 'cage',
+      fromCol: 1,
+      toCol: 3,
+      variant: 'security',
+    }],
+    nodes: [
+      ...offsets.map((yOffset, index) => ({
+        id: String.fromCharCode('a'.charCodeAt(0) + index),
+        lane: 'cage',
+        col: 2,
+        type: 'security',
+        label: `Stage ${String.fromCharCode('A'.charCodeAt(0) + index)}`,
+        yOffset,
+      })),
+      ...(includeWorkerLane ? [{
+        id: 'worker', lane: 'worker', col: 2, type: 'backend', label: 'Worker',
+      }] : []),
+    ],
+    edges: [],
+  };
 }
 
 function assertReadableAdjacentResult(result, { label, widths = [92, 92] } = {}) {
@@ -264,7 +317,7 @@ test('fixed-v1 compiler preserves the official workflow baseline SVG byte-for-by
   assert.equal(result.receipt.contract, 'fixed-v1');
   assert.equal(
     sha256(result.svg),
-    '4e493db1977889675ce7b04bf9ba60fb97cb50f01fc0fd9e8446861282c65645',
+    '999c771664307079c5dd65deff996d5f172d70780a5ab3bcb6e49cb718549018',
   );
 });
 
@@ -286,11 +339,24 @@ test('fixed-v1 compiler preserves the exact 700x400 compatibility geometry', () 
   );
 });
 
+test('readable-v2 preserves the checked-in workflow example when no vertical stack is authored', () => {
+  const workflow = readJson(path.join(__dirname, '..', 'examples', 'agent-tool-call.workflow.json'));
+  const result = compileSuccessfully(workflow);
+
+  assert.equal(result.receipt.contract, 'readable-v2');
+  assert.equal(
+    sha256(result.svg),
+    '868547656078117182c273fa15532cd7d30707030866cc5f70aba72685b95814',
+  );
+});
+
 test('fixed-v1 keeps valid phase and group spans independent of label measurement', () => {
   const workflow = {
     schema_version: 1,
     diagram_type: 'workflow',
-    meta: { title: 'Fixed v1 frame geometry', legend: { mode: 'hidden' } },
+    meta: {
+      title: 'Fixed v1 frame geometry', output: 'fixed-v1-frame.html', legend: { mode: 'hidden' },
+    },
     lanes: [{ id: 'main', label: 'Main' }],
     phases: [{ id: 'phase', label: 'P'.repeat(17), fromCol: 0, toCol: 0 }],
     groups: [{
@@ -313,11 +379,166 @@ test('fixed-v1 keeps valid phase and group spans independent of label measuremen
   );
 });
 
+test('issue #250: fixed-v1 keeps rejecting the original vertical stack unchanged', () => {
+  const result = compileWorkflow({ workflow: stackedGroupWorkflow() });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.receipt.contract, 'fixed-v1');
+  assert.match(result.error, /collides with the title or boundary/);
+});
+
+test('workflow lane.height remains outside the public schema', () => {
+  const workflow = adjacentWorkflow();
+  workflow.lanes[0].height = 104;
+  const result = compileWorkflow({ workflow });
+
+  assert.equal(result.ok, false);
+  assert.match(result.error, /lanes\/0/);
+  assert.deepEqual(result.diagnostics[0].supportedFixes, []);
+});
+
+test('issue #250: implicit readable-v2 measures a stacked lane independently', () => {
+  const workflow = stackedGroupWorkflow({
+    schemaVersion: 2,
+    offsets: [-90, 0, 90],
+    includeWorkerLane: true,
+  });
+  workflow.lanes.push({ id: 'audit', label: 'Audit' });
+  workflow.nodes.push({ id: 'audit', lane: 'audit', col: 2, type: 'external', label: 'Audit' });
+
+  const result = compileSuccessfully(workflow);
+  assert.equal(result.receipt.contract, 'readable-v2');
+  assert.deepEqual([0, 1, 2].map((index) => laneFrameRect(result.svg, index).height), [276, 104, 104]);
+  assert.deepEqual(result.receipt.viewBox, [768, 700]);
+  const group = groupFrameRect(result.svg);
+  for (const id of ['a', 'b', 'c']) {
+    const node = nodeRect(result.svg, id);
+    assertRectInsideRect(node, group, `stacked node ${id}`);
+    assertRectInsideViewBox(node, svgViewBox(result.svg), `stacked node ${id}`);
+  }
+});
+
+test('route presets remain compiler-owned during independent lane measurement', () => {
+  const workflow = stackedGroupWorkflow({
+    schemaVersion: 2,
+    offsets: [-90, 0, 90],
+    includeWorkerLane: true,
+  });
+  workflow.edges = [{
+    id: 'ab', from: 'a', to: 'b', route: 'straight', fromSide: 'bottom', toSide: 'top',
+  }];
+
+  const result = compileSuccessfully(workflow);
+  assert.deepEqual([0, 1].map((index) => laneFrameRect(result.svg, index).height), [276, 104]);
+  assert.deepEqual(result.receipt.edges[0].points.map(([, y]) => y), [143, 181]);
+});
+
+test('explicit viewBox retains shared-height readable-v2 geometry', () => {
+  const workflow = stackedGroupWorkflow({
+    schemaVersion: 2,
+    offsets: [-90, 0, 90],
+    includeWorkerLane: true,
+  });
+  workflow.lanes.push({ id: 'audit', label: 'Audit' });
+  workflow.nodes.push({ id: 'audit', lane: 'audit', col: 2, type: 'external', label: 'Audit' });
+  workflow.meta.viewBox = [768, 1032];
+
+  const result = compileSuccessfully(workflow);
+  assert.deepEqual([0, 1, 2].map((index) => laneFrameRect(result.svg, index).height), [276, 270, 270]);
+  const svgRoot = result.svg.match(/<svg\b[^>]*>/)?.[0];
+  assert.equal(attributeOrUndefined(svgRoot, 'data-reader-fit'), undefined);
+});
+
+test('absolute route pins retain shared-height readable-v2 geometry', () => {
+  const workflow = stackedGroupWorkflow({
+    schemaVersion: 2,
+    offsets: [-90, 0, 90],
+    includeWorkerLane: true,
+  });
+  workflow.lanes.push({ id: 'audit', label: 'Audit' });
+  workflow.nodes.push({ id: 'audit', lane: 'audit', col: 2, type: 'external', label: 'Audit' });
+  workflow.edges = [{
+    id: 'pinned',
+    from: 'worker',
+    to: 'audit',
+    fromSide: 'right',
+    toSide: 'right',
+    via: [[700, 498], [700, 788]],
+  }];
+
+  const result = compileSuccessfully(workflow);
+  assert.deepEqual([0, 1, 2].map((index) => laneFrameRect(result.svg, index).height), [276, 270, 270]);
+});
+
+test('a measured intrinsic readable-v2 tall lane opts into height-aware reader fitting', () => {
+  const result = compileSuccessfully(stackedGroupWorkflow({
+    schemaVersion: 2,
+    offsets: [-90, 0, 90],
+  }));
+  const svgRoot = result.svg.match(/<svg\b[^>]*>/)?.[0];
+  assert.ok(svgRoot, 'expected an SVG root');
+  assert.equal(attribute(svgRoot, 'data-reader-fit'), 'intrinsic-height');
+});
+
+test('height-aware reader fitting stays off for authored canvases, fixed-v1, and baseline lanes', () => {
+  const authoredCanvas = stackedGroupWorkflow({ schemaVersion: 2, offsets: [-90, 0, 90] });
+  authoredCanvas.meta.viewBox = [768, 452];
+
+  const cases = [
+    ['authored readable-v2 canvas', authoredCanvas],
+    ['fixed-v1 workflow', stackedGroupWorkflow({ offsets: [0] })],
+    ['baseline readable-v2 lane', adjacentWorkflow()],
+  ];
+  for (const [description, workflow] of cases) {
+    const result = compileSuccessfully(workflow);
+    const svgRoot = result.svg.match(/<svg\b[^>]*>/)?.[0];
+    assert.ok(svgRoot, `${description}: expected an SVG root`);
+    assert.equal(
+      attributeOrUndefined(svgRoot, 'data-reader-fit'),
+      undefined,
+      `${description}: must retain the established Viewer contract`,
+    );
+  }
+});
+
+test('independent lane measurement keeps a negative-offset member clear of its group label', () => {
+  const workflow = stackedGroupWorkflow({ schemaVersion: 2, offsets: [-90, 0, 90] });
+  workflow.groups[0].fromCol = 2;
+  workflow.groups[0].toCol = 2;
+
+  const result = compileSuccessfully(workflow);
+  assert.equal(
+    rectsOverlap(nodeRect(result.svg, 'a'), asciiGroupLabelTextRect(result.svg, 'Cage')),
+    false,
+  );
+  for (const id of ['a', 'b', 'c']) {
+    assertRectInsideRect(nodeRect(result.svg, id), groupFrameRect(result.svg), `stacked node ${id}`);
+  }
+});
+
+test('structural identity errors remain primary over derivative group containment', () => {
+  const workflow = stackedGroupWorkflow({ schemaVersion: 2, offsets: [-90, 0, 90] });
+  workflow.groups.push({
+    ...workflow.groups[0],
+    label: 'Duplicate identity',
+  });
+
+  const result = compileWorkflow({ workflow });
+  assert.equal(result.ok, false);
+  assert.match(result.error, /Group ids must be unique/);
+  assert.equal(
+    result.diagnostics.some(({ code }) => code === 'workflow/group-containment'),
+    false,
+  );
+});
+
 test('fixed-v1 reports one causal column-capacity diagnostic for issue #126', () => {
   const workflow = {
     schema_version: 1,
     diagram_type: 'workflow',
-    meta: { title: 'Issue 126 causal diagnostic', legend: { mode: 'hidden' } },
+    meta: {
+      title: 'Issue 126 causal diagnostic', output: 'issue-126-causal.html', legend: { mode: 'hidden' },
+    },
     lanes: [{ id: 'main', label: 'Main' }],
     nodes: [
       { id: 'a', lane: 'main', col: 1, type: 'backend', label: 'A' },
@@ -365,6 +586,7 @@ test('fixed-v1 verifies the real coordinate migration before advertising it', ()
     diagram_type: 'workflow',
     meta: {
       title: 'Pinned issue 126 migration',
+      output: 'pinned-issue-126.html',
       viewBox: [720, 400],
       legend: { mode: 'hidden' },
     },
@@ -451,7 +673,9 @@ test('readable-v2 treats the phase header mask as a routing obstacle', () => {
   const document = {
     schema_version: 2,
     diagram_type: 'workflow',
-    meta: { title: 'Phase route obstacle', legend: { mode: 'hidden' } },
+    meta: {
+      title: 'Phase route obstacle', output: 'phase-route-obstacle.html', legend: { mode: 'hidden' },
+    },
     lanes: [{ id: 'top', label: 'Top' }, { id: 'bottom', label: 'Bottom' }],
     nodes: [
       { id: 'a', lane: 'top', col: 0, type: 'backend', label: 'A' },
@@ -490,7 +714,9 @@ test('readable-v2 never routes through a single-rank group label', () => {
   const document = {
     schema_version: 2,
     diagram_type: 'workflow',
-    meta: { title: 'Group label route obstacle', legend: { mode: 'hidden' } },
+    meta: {
+      title: 'Group label route obstacle', output: 'group-label-obstacle.html', legend: { mode: 'hidden' },
+    },
     lanes: [{ id: 'top', label: 'Top' }, { id: 'bottom', label: 'Bottom' }],
     groups: [{ id: 'g', label: groupLabel, lane: 'top', fromCol: 2, toCol: 2 }],
     nodes: [
@@ -555,7 +781,9 @@ test('readable-v2 shifts top-side routes beyond lane header text deterministical
   const makeDocument = (topLaneLabel) => ({
     schema_version: 2,
     diagram_type: 'workflow',
-    meta: { title: 'Lane header route obstacle', legend: { mode: 'hidden' } },
+    meta: {
+      title: 'Lane header route obstacle', output: 'lane-header-obstacle.html', legend: { mode: 'hidden' },
+    },
     lanes: [
       { id: 'top', label: topLaneLabel },
       { id: 'bottom', label: 'Bottom' },
@@ -631,7 +859,7 @@ test('capacity-only viewBox failures preserve the intrinsic routes, labels, and 
   const document = {
     schema_version: 2,
     diagram_type: 'workflow',
-    meta: { title: 'capacity', legend: { mode: 'hidden' } },
+    meta: { title: 'capacity', output: 'capacity.html', legend: { mode: 'hidden' } },
     lanes: [{ id: 'top', label: 'Top' }, { id: 'bottom', label: 'Bottom' }],
     nodes: [
       { id: 'n0', lane: 'top', col: 0, type: 'backend', label: 'N0' },
@@ -719,6 +947,7 @@ test('explicit viewBox height capacity names the authored tall node without nami
       diagram_type: 'workflow',
       meta: {
         title: 'Tall node height capacity',
+        output: 'tall-node-capacity.html',
         legend: { mode: 'hidden' },
         viewBox: [1200, 280],
       },
@@ -837,7 +1066,9 @@ test('readable-v2 contains a long single-rank group label in its frame and intri
   const workflow = {
     schema_version: 2,
     diagram_type: 'workflow',
-    meta: { title: 'Single-rank group capacity', legend: { mode: 'hidden' } },
+    meta: {
+      title: 'Single-rank group capacity', output: 'single-rank-group.html', legend: { mode: 'hidden' },
+    },
     lanes: [{ id: 'main', label: 'Main' }],
     groups: [{
       id: 'long-group',
@@ -871,7 +1102,9 @@ test('readable-v2 group frames contain custom-width member rectangles on every s
   const workflow = {
     schema_version: 2,
     diagram_type: 'workflow',
-    meta: { title: 'Wide group member', legend: { mode: 'hidden' } },
+    meta: {
+      title: 'Wide group member', output: 'wide-group-member.html', legend: { mode: 'hidden' },
+    },
     lanes: [{ id: 'main', label: 'Main' }],
     groups: [{ id: 'group', label: 'G', lane: 'main', fromCol: 2, toCol: 2 }],
     nodes: [{
@@ -898,7 +1131,7 @@ test('readable-v2 group frames contain tagged and tall members away from the lab
     const workflow = {
       schema_version: 2,
       diagram_type: 'workflow',
-      meta: { title: description, legend: { mode: 'hidden' } },
+      meta: { title: description, output: 'group-member.html', legend: { mode: 'hidden' } },
       lanes: [{ id: 'main', label: 'Main' }],
       groups: [{ id: 'group', label: 'G', lane: 'main', fromCol: 0, toCol: 1 }],
       nodes: [{
@@ -927,7 +1160,9 @@ test('readable-v2 keeps a first-rank group label mask clear of its lane header m
   const workflow = {
     schema_version: 2,
     diagram_type: 'workflow',
-    meta: { title: 'First-rank group labels', legend: { mode: 'hidden' } },
+    meta: {
+      title: 'First-rank group labels', output: 'first-rank-labels.html', legend: { mode: 'hidden' },
+    },
     lanes: [{ id: 'main', label: 'Main' }],
     groups: [{ id: 'group', label: 'G', lane: 'main', fromCol: 0, toCol: 0 }],
     nodes: [{ id: 'member', lane: 'main', col: 0, type: 'backend', label: 'Member' }],
@@ -1074,7 +1309,9 @@ test('readable-v2 SVG and receipt bytes are deterministic across repeated and re
   const workflow = {
     schema_version: 2,
     diagram_type: 'workflow',
-    meta: { title: 'Deterministic workflow', legend: { mode: 'hidden' } },
+    meta: {
+      title: 'Deterministic workflow', output: 'deterministic-workflow.html', legend: { mode: 'hidden' },
+    },
     lanes: [{ id: 'main', label: 'Main' }],
     nodes: [
       { id: 'a', lane: 'main', col: 0, type: 'frontend', label: 'A' },
@@ -1108,6 +1345,7 @@ test('CLI validate workflow --layout-json prints the stable compiler receipt', (
     fromCol: 3,
     label: 'liga',
     viewBox: [1080, 420],
+    output: 'layout-json.html',
   })));
 
   const result = spawnSync(process.execPath, [
@@ -1134,7 +1372,11 @@ test('CLI validate workflow --layout-json returns only the causal compiler failu
   fs.writeFileSync(input, JSON.stringify({
     schema_version: 1,
     diagram_type: 'workflow',
-    meta: { title: 'Issue 126 failure receipt', legend: { mode: 'hidden' } },
+    meta: {
+      title: 'Issue 126 failure receipt',
+      output: 'layout-json-failure.html',
+      legend: { mode: 'hidden' },
+    },
     lanes: [{ id: 'main', label: 'Main' }],
     nodes: [
       { id: 'a', lane: 'main', col: 1, type: 'backend', label: 'A' },

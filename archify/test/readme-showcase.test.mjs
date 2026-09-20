@@ -91,6 +91,7 @@ function inspectGif(buffer) {
 test('README motion proof is compact, looping, and backed by current gallery artifacts', () => {
   const builder = fs.readFileSync(path.join(repoRoot, 'scripts', 'build-readme-showcase.mjs'), 'utf8');
   assert.match(builder, /\?embed=1&play=1&theme=dark#view=/);
+  assert.match(builder, /path\.relative\(from, to\)\.split\(path\.sep\)\.join\('\/'\)/);
   const buffer = fs.readFileSync(assetPath);
   const receipt = JSON.parse(fs.readFileSync(receiptPath, 'utf8'));
   const inspected = inspectGif(buffer);
@@ -153,6 +154,27 @@ test('README installation tables contain a complete DeepSeek Harness row', () =>
       readme.includes(`${row}\n\n`),
       `${filename}: installation table must end after the DeepSeek Harness row`,
     );
+  }
+});
+
+test('README installation tables include Hermes Agent before DeepSeek Harness', () => {
+  for (const filename of ['README.md', 'README_EN.md', 'README_ZH.md']) {
+    const readme = fs.readFileSync(path.join(repoRoot, filename), 'utf8');
+    const hermes = readme.split('\n').find((line) => line.startsWith('| **Hermes Agent** |'));
+    const dsh = readme.split('\n').find((line) => line.startsWith('| **DeepSeek Harness** |'));
+    assert.ok(hermes, `${filename}: Hermes Agent must be an installation table row`);
+    assert.ok(dsh, `${filename}: DeepSeek Harness must remain an installation table row`);
+    assert.equal(
+      (hermes.match(/(?<!\\)\|/g) || []).length,
+      4,
+      `${filename}: Hermes Agent must have exactly three table cells`,
+    );
+    assert.ok(hermes.includes('Node `>=18`'), `${filename}: Hermes Agent must name Node >=18`);
+    assert.ok(
+      hermes.includes('hermes skills install skills-sh/tt-a1i/archify/archify -y'),
+      `${filename}: Hermes Agent must document the skills.sh install identifier`,
+    );
+    assert.ok(readme.indexOf(hermes) < readme.indexOf(dsh), `${filename}: Hermes Agent must precede DeepSeek Harness`);
   }
 });
 
