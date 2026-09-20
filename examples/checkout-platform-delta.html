@@ -11086,6 +11086,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         // canvas upscaling.
         clone.setAttribute(&#39;width&#39;, vb.width * scale);
         clone.setAttribute(&#39;height&#39;, vb.height * scale);
+        // Keep copied Viewer layout rules from overriding the export&#39;s size.
+        clone.style.width = vb.width * scale + &#39;px&#39;;
+        clone.style.height = vb.height * scale + &#39;px&#39;;
+        clone.style.minWidth = &#39;0&#39;;
         clone.setAttribute(&#39;xmlns&#39;, &#39;http://www.w3.org/2000/svg&#39;);
 
         // Only the SVG-relevant rules: semantic classes, markers, and the
@@ -26559,6 +26563,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         // canvas upscaling.
         clone.setAttribute(&#39;width&#39;, vb.width * scale);
         clone.setAttribute(&#39;height&#39;, vb.height * scale);
+        // Keep copied Viewer layout rules from overriding the export&#39;s size.
+        clone.style.width = vb.width * scale + &#39;px&#39;;
+        clone.style.height = vb.height * scale + &#39;px&#39;;
+        clone.style.minWidth = &#39;0&#39;;
         clone.setAttribute(&#39;xmlns&#39;, &#39;http://www.w3.org/2000/svg&#39;);
 
         // Only the SVG-relevant rules: semantic classes, markers, and the
