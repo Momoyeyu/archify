@@ -114,3 +114,9 @@ pair was discarded as warm-up; these are medians of six samples per version.
 No material slowdown was observed in these small matched samples. This measures
 local rendering/validation/delivery, not agent authoring, browser interaction,
 or a general performance guarantee. No speedup is claimed.
+
+Canonical ZIP note: the local Homebrew Node 22.23.2 links zlib 1.2.12, while
+the official Node 22.23.2 runtime uses zlib 1.3.1-e00f703. The first CI ZIP
+byte comparison exposed that difference. The final archive was rebuilt with
+the SHA-256-verified official runtime; all 84 uncompressed entries are identical
+to the already-tested archive. This follow-up changes compression bytes only.
