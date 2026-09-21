@@ -701,7 +701,7 @@ export function collectBorderRuns({ routedRelations, frames }) {
           frame,
           frameIndex,
           side: border.side,
-          segmentIndex: Math.min(...overlaps.map((overlap) => overlap.segmentIndex)),
+          segmentIndex: overlaps.reduce((min, overlap) => Math.min(min, overlap.segmentIndex), Infinity),
           overlapLength: merged.reduce((total, overlap) => total + overlap.length, 0),
           overlapStart: longest.start,
           overlapEnd: longest.end,

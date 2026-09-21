@@ -171,7 +171,7 @@ if (svgMatches.length === 1) {
       containerBorderRuns: containerBorderRuns.length,
       labelRouteClearanceIssues: labelRouteClearance.length,
       minLabelRouteClearance: labelRouteMeasurements.length
-        ? Math.round(Math.min(...labelRouteMeasurements.map((hit) => hit.clearance)) * 10) / 10
+        ? Math.round(labelRouteMeasurements.reduce((min, hit) => Math.min(min, hit.clearance), Infinity) * 10) / 10
         : null,
       desktopReadabilityIssues: desktopReadabilityIssue ? 1 : 0,
       minProjectedNodeTextPx: desktopReadabilityIssue?.projectedFontPx ?? null,

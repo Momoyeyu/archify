@@ -111,10 +111,16 @@ for (const [index, c] of asArray(arch.components).entries()) {
 function boundaryRect(boundary) {
   const members = asArray(boundary.wraps).map((id) => components.get(id)).filter(Boolean);
   if (!members.length) return null;
-  const minX = Math.min(...members.map((m) => m.x));
-  const minY = Math.min(...members.map((m) => m.y));
-  const maxX = Math.max(...members.map((m) => m.x + m.width));
-  const maxY = Math.max(...members.map((m) => m.y + m.height));
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const member of members) {
+    minX = Math.min(minX, member.x);
+    minY = Math.min(minY, member.y);
+    maxX = Math.max(maxX, member.x + member.width);
+    maxY = Math.max(maxY, member.y + member.height);
+  }
   const pad = boundary.pad ?? layout.boundaryPad;
   const topPad = Math.max(
     pad,
@@ -149,16 +155,16 @@ const architectureLegendEntries = resolveLegend(
 );
 
 function autoViewBoxFor(candidateBoundaries) {
-  const maxX = Math.max(
-    0,
-    ...[...components.values()].map((component) => component.x + component.width),
-    ...candidateBoundaries.map((boundary) => boundary.x + boundary.width),
-  );
-  const maxY = Math.max(
-    0,
-    ...[...components.values()].map((component) => component.y + component.height),
-    ...candidateBoundaries.map((boundary) => boundary.y + boundary.height),
-  );
+  let maxX = 0;
+  let maxY = 0;
+  for (const component of components.values()) {
+    maxX = Math.max(maxX, component.x + component.width);
+    maxY = Math.max(maxY, component.y + component.height);
+  }
+  for (const boundary of candidateBoundaries) {
+    maxX = Math.max(maxX, boundary.x + boundary.width);
+    maxY = Math.max(maxY, boundary.y + boundary.height);
+  }
   let width = Math.ceil(maxX + layout.margin);
   let footprint = legendFootprint(architectureLegendEntries, {
     width: Math.max(1, width - layout.margin * 2),
