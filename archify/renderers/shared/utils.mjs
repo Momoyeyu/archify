@@ -77,7 +77,12 @@ const SIGIL_SHAPE = {
 // A quiet, renderer-owned role stamp. It is authored SVG content rather than a
 // viewer overlay, so it survives canonical export while adding no focus target,
 // accessible name, layout box, or interaction state of its own.
-export function renderSemanticSigil(kind, { x, y, size = 11 } = {}) {
+// Shared with label clearance so the reserved rail matches the actual icon.
+export const SEMANTIC_SIGIL_INSET = 6;
+export const SEMANTIC_SIGIL_SIZE = 11;
+export const SEMANTIC_SIGIL_FOOTPRINT = SEMANTIC_SIGIL_INSET + SEMANTIC_SIGIL_SIZE;
+
+export function renderSemanticSigil(kind, { x, y, size = SEMANTIC_SIGIL_SIZE } = {}) {
   const normalized = Object.hasOwn(SIGIL_SHAPE, kind) ? kind : 'neutral';
   const tone = SIGIL_TONE[normalized] || 'external';
   const scale = size / 16;

@@ -4,7 +4,7 @@ import { esc, renderDefinitions, renderSemanticSigil, textUnits } from '../share
 import { animateAttr, focusEdgeAttrs, focusNodeAttrs, focusNodeTitle, loadDiagramWithBrandMarks, writeDiagram, svgAccessibleText, svgRootAttrs } from '../shared/cli.mjs';
 import { throwDiagnosticProblems } from '../shared/diagnostics.mjs';
 import { resolveLegend, renderLegend as renderResolvedLegend } from '../shared/legend.mjs';
-import { availableNodeTextWidth, fittedNodeFontSize, minimumNodeTextWidth } from '../shared/text-fit.mjs';
+import { availableNodeTextWidth, fittedNodeFontSize, minimumNodeTextWidth, nodeLabelLayout } from '../shared/text-fit.mjs';
 import { brandLabelFitWidth, brandMarkFor, brandMetadataFor, brandTopRailProblem, renderBrandMark } from '../shared/brand-marks.mjs';
 import { translateMessage as i18nText } from '../shared/i18n.mjs';
 import {
@@ -442,18 +442,25 @@ function renderState(state) {
   const fill = typeClass[state.type] || typeClass.neutral;
   const accent = textClass[state.type] || 't-muted';
   const hasSub = state.sublabel != null && state.sublabel !== '';
+  const labelFontSize = fittedNodeFontSize(state.label, brandLabelFitWidth(state, state.width), 10, 8);
+  const sublabelFontSize = fittedNodeFontSize(state.sublabel, state.width, stateTextFit.sublabelPreferred, stateTextFit.sublabelMinimum);
+  const tagFontSize = fittedNodeFontSize(state.tag, state.width, stateTextFit.tagPreferred, stateTextFit.tagMinimum);
+  const textRows = [{ text: state.label, font: labelFontSize, y: 21 }];
+  if (hasSub) textRows.push({ text: state.sublabel, font: sublabelFontSize, y: 37 });
+  if (state.tag) textRows.push({ text: state.tag, font: tagFontSize, y: state.height - 11 });
+  const labelLayout = nodeLabelLayout({ width: state.width, height: state.height, rows: textRows,
+    brand: Boolean(brandMarkFor(state)), side: brandMarkFor(state) ? 'left' : 'right', step: state.step });
   const sub = hasSub
-    ? `\n          <text data-detail="context" x="${state.cx}" y="${state.y + 37}" class="t-muted" font-size="${fittedNodeFontSize(state.sublabel, state.width, stateTextFit.sublabelPreferred, stateTextFit.sublabelMinimum)}" text-anchor="middle">${esc(state.sublabel)}</text>`
+    ? `\n          <text data-detail="context" x="${state.cx}" y="${state.y + labelLayout.ys[1]}" class="t-muted" font-size="${sublabelFontSize}" text-anchor="middle">${esc(state.sublabel)}</text>`
     : '';
   const tag = state.tag
-    ? `\n        <text data-detail="fine" x="${state.cx}" y="${state.y + state.height - 11}" class="${accent}" font-size="${fittedNodeFontSize(state.tag, state.width, stateTextFit.tagPreferred, stateTextFit.tagMinimum)}" text-anchor="middle">${esc(state.tag)}</text>`
+    ? `\n        <text data-detail="fine" x="${state.cx}" y="${state.y + labelLayout.ys[hasSub ? 2 : 1]}" class="${accent}" font-size="${tagFontSize}" text-anchor="middle">${esc(state.tag)}</text>`
     : '';
   const hasBrand = Boolean(brandMarkFor(state));
   const step = state.step
     ? `\n        <text data-detail="fine" x="${state.x + (hasBrand ? 23 : 10)}" y="${state.y + 14}" class="${accent}" font-size="7" font-weight="700">${esc(state.step)}</text>`
     : '';
   const brand = renderBrandMark(state, { x: state.x + state.width - 22, y: state.y + 6 });
-  const labelFontSize = fittedNodeFontSize(state.label, brandLabelFitWidth(state, state.width), 10, 8);
   const passport = {
     kind: state.type,
     sublabel: state.sublabel,
@@ -465,8 +472,8 @@ function renderState(state) {
           ${focusNodeTitle(state.label, passport)}
           <rect x="${state.x}" y="${state.y}" width="${state.width}" height="${state.height}" rx="7" class="c-mask"/>
           <rect x="${state.x}" y="${state.y}" width="${state.width}" height="${state.height}" rx="7" class="${fill}"${animateAttr(lifecycle.meta, 'node', stateSteps.get(state.id))} stroke-width="1.5"/>
-          ${renderSemanticSigil(state.type, { x: hasBrand ? state.x + 6 : state.x + state.width - 17, y: state.y + 6 })}${brand ? `\n          ${brand}` : ''}${step}
-          <text data-node-label=""${hasSub ? ' data-detail-anchor=""' : ''} x="${state.cx}" y="${state.y + 21}" class="t-primary" font-size="${labelFontSize}" font-weight="600" text-anchor="middle">${esc(state.label)}</text>${sub}${tag}
+          ${renderSemanticSigil(state.type, { x: hasBrand ? state.x + 6 : state.x + state.width - 17, y: state.y + labelLayout.sigilY, size: labelLayout.sigilSize })}${brand ? `\n          ${brand}` : ''}${step}
+          <text data-node-label=""${hasSub ? ' data-detail-anchor=""' : ''} x="${state.x + labelLayout.x}" y="${state.y + labelLayout.ys[0]}" class="t-primary" font-size="${labelFontSize}" font-weight="600" text-anchor="middle">${esc(state.label)}</text>${sub}${tag}
         </g>`;
 }
 
