@@ -26,6 +26,14 @@ function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
 }
 
+// #199 intentionally changes only text positions inside fixed-v1 nodes.
+// Pin every other SVG byte to the pre-fix baseline, including labels, fonts,
+// node bounds, icon shapes, edges, ports, viewBox and accessibility metadata.
+function withoutNodeTextPositions(svg) {
+  return svg.replace(/<text\b(?=[^>]*\bdata-(?:node-label|detail)=)[^>]*>/g,
+    tag => tag.replace(/\s[xy]="[^"]*"/g, ''));
+}
+
 function attribute(tag, name) {
   const value = tag.match(new RegExp(`\\b${name}="([^"]*)"`))?.[1];
   assert.notEqual(value, undefined, `expected ${name} in ${tag}`);
@@ -311,13 +319,13 @@ function assertReadableAdjacentResult(result, { label, widths = [92, 92] } = {})
   }
 }
 
-test('fixed-v1 compiler preserves the official workflow baseline SVG byte-for-byte', () => {
+test('fixed-v1 preserves baseline SVG except repaired node text positions', () => {
   const workflow = readJson(path.join(__dirname, 'fixtures', 'v1-baseline', 'agent-tool-call.workflow.json'));
   const result = compileSuccessfully(workflow);
   assert.equal(result.receipt.contract, 'fixed-v1');
   assert.equal(
-    sha256(result.svg),
-    '999c771664307079c5dd65deff996d5f172d70780a5ab3bcb6e49cb718549018',
+    sha256(withoutNodeTextPositions(result.svg)),
+    'e64795a4521e8568718981bf053c6e8f4e0cf714e27f70f0087d1850ae1fe633',
   );
 });
 
@@ -333,9 +341,9 @@ test('fixed-v1 compiler preserves the exact 700x400 compatibility geometry', () 
   assert.deepEqual(result.receipt.viewBox, [700, 400]);
   assert.deepEqual(svgViewBox(result.svg), [0, 0, 700, 400]);
   assert.equal(
-    sha256(result.svg),
-    '28b0167460d16c55ae6bf38bde41368248671a78b3a49133da05ed1efb4354af',
-    'the v1 compiler extraction must not move or reserialize legacy geometry',
+    sha256(withoutNodeTextPositions(result.svg)),
+    '79ac3e30f9e81263f9c7941339a6fe684f3a33dd2ac3ce4f7281a03fa2ee1c6b',
+    'the clearance repair must not move or reserialize legacy geometry outside node text',
   );
 });
 
