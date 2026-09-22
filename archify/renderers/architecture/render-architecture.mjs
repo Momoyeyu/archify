@@ -256,8 +256,9 @@ function layoutBoundaryTitles(rawBoundaries, minimumFontSize) {
         ...components.values(),
       ].filter((candidate) => horizontalOverlap(title, candidate) && rectsOverlap(title, candidate));
       if (!blockers.length) break;
-      title.y = Math.min(
-        ...blockers.map((blocker) => blocker.y - layout.boundaryLabelRailGap - title.height),
+      title.y = blockers.reduce(
+        (min, blocker) => Math.min(min, blocker.y - layout.boundaryLabelRailGap - title.height),
+        Infinity,
       );
     }
     placedTitles.push(title);
@@ -1019,11 +1020,13 @@ function renderLegend() {
       return { x: x - width / 2, y: y - 10, width, height: 14 };
     },
   });
-  const contentBottom = Math.max(
-    0,
-    ...[...components.values()].map((component) => component.y + component.height),
-    ...boundaries.map((boundary) => boundary.y + boundary.height),
-  );
+  let contentBottom = 0;
+  for (const component of components.values()) {
+    contentBottom = Math.max(contentBottom, component.y + component.height);
+  }
+  for (const boundary of boundaries) {
+    contentBottom = Math.max(contentBottom, boundary.y + boundary.height);
+  }
   return renderResolvedLegend({
     entries,
     locale: arch.meta.locale,
