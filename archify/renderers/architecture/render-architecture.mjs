@@ -104,10 +104,16 @@ for (const [index, c] of asArray(arch.components).entries()) {
 function boundaryRect(boundary) {
   const members = asArray(boundary.wraps).map((id) => components.get(id)).filter(Boolean);
   if (!members.length) return null;
-  const minX = Math.min(...members.map((m) => m.x));
-  const minY = Math.min(...members.map((m) => m.y));
-  const maxX = Math.max(...members.map((m) => m.x + m.width));
-  const maxY = Math.max(...members.map((m) => m.y + m.height));
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const member of members) {
+    minX = Math.min(minX, member.x);
+    minY = Math.min(minY, member.y);
+    maxX = Math.max(maxX, member.x + member.width);
+    maxY = Math.max(maxY, member.y + member.height);
+  }
   const pad = boundary.pad ?? layout.boundaryPad;
   const topPad = Math.max(
     pad,
@@ -163,18 +169,14 @@ function connectionLabelRects() {
 }
 
 function autoViewBoxFor(candidateBoundaries, extraRects = []) {
-  const maxX = Math.max(
-    0,
-    ...[...components.values()].map((component) => component.x + component.width),
-    ...candidateBoundaries.map((boundary) => boundary.x + boundary.width),
-    ...extraRects.map((rect) => rect.x + rect.width),
-  );
-  const maxY = Math.max(
-    0,
-    ...[...components.values()].map((component) => component.y + component.height),
-    ...candidateBoundaries.map((boundary) => boundary.y + boundary.height),
-    ...extraRects.map((rect) => rect.y + rect.height),
-  );
+  let maxX = 0;
+  let maxY = 0;
+  for (const rects of [components.values(), candidateBoundaries, extraRects]) {
+    for (const rect of rects) {
+      maxX = Math.max(maxX, rect.x + rect.width);
+      maxY = Math.max(maxY, rect.y + rect.height);
+    }
+  }
   let width = Math.ceil(maxX + layout.margin);
   let footprint = legendFootprint(architectureLegendEntries, {
     width: Math.max(1, width - layout.margin * 2),
@@ -266,8 +268,9 @@ function layoutBoundaryTitles(rawBoundaries, minimumFontSize) {
         ...components.values(),
       ].filter((candidate) => horizontalOverlap(title, candidate) && rectsOverlap(title, candidate));
       if (!blockers.length) break;
-      title.y = Math.min(
-        ...blockers.map((blocker) => blocker.y - layout.boundaryLabelRailGap - title.height),
+      title.y = blockers.reduce(
+        (min, blocker) => Math.min(min, blocker.y - layout.boundaryLabelRailGap - title.height),
+        Infinity,
       );
     }
     placedTitles.push(title);
@@ -725,11 +728,13 @@ function renderLegend() {
     pointsFor: (connection) => pathFor(connection).points,
     labelRectFor: connectionLabelBox,
   });
-  const contentBottom = Math.max(
-    0,
-    ...[...components.values()].map((component) => component.y + component.height),
-    ...boundaries.map((boundary) => boundary.y + boundary.height),
-  );
+  let contentBottom = 0;
+  for (const component of components.values()) {
+    contentBottom = Math.max(contentBottom, component.y + component.height);
+  }
+  for (const boundary of boundaries) {
+    contentBottom = Math.max(contentBottom, boundary.y + boundary.height);
+  }
   return renderResolvedLegend({
     entries,
     locale: arch.meta.locale,
