@@ -1,17 +1,17 @@
 {
-  "base": "5289f6867f048a7450ec5718f58459613a84cf41",
+  "base": "9b3d3f0cb930d8d2e93c66eb00f74db4974965b2",
   "perceptualReview": {
     "status": "pass",
-    "scope": "1440x900 light and dark; symbols and legend labels match the intended domains, with unchanged node placement and routes"
+    "scope": "1440x900 light and dark; appropriate icons/legend labels, preserved dev label clearance and unchanged node placement/routes"
   },
   "arms": {
     "before": {
       "ok": true,
       "status": "pass",
       "artifact": {
-        "path": "/tmp/archify-node-icon-proof/before.html",
-        "sha256": "52d124c1b111da9a7f0d8d4fa92c94eef8d43d6601573ee723d521133a135918",
-        "bytes": 801790
+        "path": "/tmp/pr507-dev-proof/verified/before.html",
+        "sha256": "9be49afa2083503be7fb39ca7a4dd18bd80de75abe23ff32dbe4c8db5c6b05c3",
+        "bytes": 812459
       },
       "containment": {
         "status": "pass",
@@ -30,6 +30,33 @@
             "readerWidth": 1247,
             "diagramWidth": 1217,
             "viewBoxWidth": 802,
+            "workflowLanes": [
+              {
+                "frameId": "lane-0",
+                "heightPx": 161,
+                "nodeCount": 4,
+                "nodeIds": [
+                  "today",
+                  "mid_autumn",
+                  "national_day",
+                  "year_end"
+                ],
+                "nodeSpanPx": 103,
+                "spaceAboveNodesPx": 52,
+                "spaceBelowNodesPx": 6
+              },
+              {
+                "frameId": "lane-1",
+                "heightPx": 161,
+                "nodeCount": 1,
+                "nodeIds": [
+                  "makeup_work"
+                ],
+                "nodeSpanPx": 103,
+                "spaceAboveNodesPx": 52,
+                "spaceBelowNodesPx": 6
+              }
+            ],
             "minimumProjectedNodeTextPx": 7.7,
             "minimumProjectedNodeText": "9\u670825\u65e5\u201327\u65e5 \u00b7 3\u5929",
             "minimumProjectedNodeTextDetail": "context",
@@ -61,6 +88,33 @@
             "readerWidth": 1294,
             "diagramWidth": 1264,
             "viewBoxWidth": 802,
+            "workflowLanes": [
+              {
+                "frameId": "lane-0",
+                "heightPx": 167,
+                "nodeCount": 4,
+                "nodeIds": [
+                  "today",
+                  "mid_autumn",
+                  "national_day",
+                  "year_end"
+                ],
+                "nodeSpanPx": 107,
+                "spaceAboveNodesPx": 54,
+                "spaceBelowNodesPx": 6
+              },
+              {
+                "frameId": "lane-1",
+                "heightPx": 167,
+                "nodeCount": 1,
+                "nodeIds": [
+                  "makeup_work"
+                ],
+                "nodeSpanPx": 107,
+                "spaceAboveNodesPx": 54,
+                "spaceBelowNodesPx": 6
+              }
+            ],
             "minimumProjectedNodeTextPx": 7.7,
             "minimumProjectedNodeText": "9\u670825\u65e5\u201327\u65e5 \u00b7 3\u5929",
             "minimumProjectedNodeTextDetail": "context",
@@ -92,6 +146,33 @@
             "readerWidth": 1451,
             "diagramWidth": 1421,
             "viewBoxWidth": 802,
+            "workflowLanes": [
+              {
+                "frameId": "lane-0",
+                "heightPx": 188,
+                "nodeCount": 4,
+                "nodeIds": [
+                  "today",
+                  "mid_autumn",
+                  "national_day",
+                  "year_end"
+                ],
+                "nodeSpanPx": 120,
+                "spaceAboveNodesPx": 60,
+                "spaceBelowNodesPx": 7
+              },
+              {
+                "frameId": "lane-1",
+                "heightPx": 188,
+                "nodeCount": 1,
+                "nodeIds": [
+                  "makeup_work"
+                ],
+                "nodeSpanPx": 120,
+                "spaceAboveNodesPx": 60,
+                "spaceBelowNodesPx": 7
+              }
+            ],
             "minimumProjectedNodeTextPx": 7.7,
             "minimumProjectedNodeText": "9\u670825\u65e5\u201327\u65e5 \u00b7 3\u5929",
             "minimumProjectedNodeTextDetail": "context",
@@ -123,6 +204,33 @@
             "readerWidth": 1860,
             "diagramWidth": 1810,
             "viewBoxWidth": 802,
+            "workflowLanes": [
+              {
+                "frameId": "lane-0",
+                "heightPx": 239,
+                "nodeCount": 4,
+                "nodeIds": [
+                  "today",
+                  "mid_autumn",
+                  "national_day",
+                  "year_end"
+                ],
+                "nodeSpanPx": 153,
+                "spaceAboveNodesPx": 77,
+                "spaceBelowNodesPx": 9
+              },
+              {
+                "frameId": "lane-1",
+                "heightPx": 239,
+                "nodeCount": 1,
+                "nodeIds": [
+                  "makeup_work"
+                ],
+                "nodeSpanPx": 153,
+                "spaceAboveNodesPx": 77,
+                "spaceBelowNodesPx": 9
+              }
+            ],
             "minimumProjectedNodeTextPx": 7.7,
             "minimumProjectedNodeText": "9\u670825\u65e5\u201327\u65e5 \u00b7 3\u5929",
             "minimumProjectedNodeTextDetail": "context",
@@ -160,6 +268,33 @@
             "readerWidth": 1247,
             "diagramWidth": 1217,
             "viewBoxWidth": 802,
+            "workflowLanes": [
+              {
+                "frameId": "lane-0",
+                "heightPx": 161,
+                "nodeCount": 4,
+                "nodeIds": [
+                  "today",
+                  "mid_autumn",
+                  "national_day",
+                  "year_end"
+                ],
+                "nodeSpanPx": 103,
+                "spaceAboveNodesPx": 52,
+                "spaceBelowNodesPx": 6
+              },
+              {
+                "frameId": "lane-1",
+                "heightPx": 161,
+                "nodeCount": 1,
+                "nodeIds": [
+                  "makeup_work"
+                ],
+                "nodeSpanPx": 103,
+                "spaceAboveNodesPx": 52,
+                "spaceBelowNodesPx": 6
+              }
+            ],
             "minimumProjectedNodeTextPx": 7.7,
             "minimumProjectedNodeText": "9\u670825\u65e5\u201327\u65e5 \u00b7 3\u5929",
             "minimumProjectedNodeTextDetail": "context",
@@ -191,6 +326,33 @@
             "readerWidth": 1294,
             "diagramWidth": 1264,
             "viewBoxWidth": 802,
+            "workflowLanes": [
+              {
+                "frameId": "lane-0",
+                "heightPx": 167,
+                "nodeCount": 4,
+                "nodeIds": [
+                  "today",
+                  "mid_autumn",
+                  "national_day",
+                  "year_end"
+                ],
+                "nodeSpanPx": 107,
+                "spaceAboveNodesPx": 54,
+                "spaceBelowNodesPx": 6
+              },
+              {
+                "frameId": "lane-1",
+                "heightPx": 167,
+                "nodeCount": 1,
+                "nodeIds": [
+                  "makeup_work"
+                ],
+                "nodeSpanPx": 107,
+                "spaceAboveNodesPx": 54,
+                "spaceBelowNodesPx": 6
+              }
+            ],
             "minimumProjectedNodeTextPx": 7.7,
             "minimumProjectedNodeText": "9\u670825\u65e5\u201327\u65e5 \u00b7 3\u5929",
             "minimumProjectedNodeTextDetail": "context",
@@ -222,6 +384,33 @@
             "readerWidth": 1451,
             "diagramWidth": 1421,
             "viewBoxWidth": 802,
+            "workflowLanes": [
+              {
+                "frameId": "lane-0",
+                "heightPx": 188,
+                "nodeCount": 4,
+                "nodeIds": [
+                  "today",
+                  "mid_autumn",
+                  "national_day",
+                  "year_end"
+                ],
+                "nodeSpanPx": 120,
+                "spaceAboveNodesPx": 60,
+                "spaceBelowNodesPx": 7
+              },
+              {
+                "frameId": "lane-1",
+                "heightPx": 188,
+                "nodeCount": 1,
+                "nodeIds": [
+                  "makeup_work"
+                ],
+                "nodeSpanPx": 120,
+                "spaceAboveNodesPx": 60,
+                "spaceBelowNodesPx": 7
+              }
+            ],
             "minimumProjectedNodeTextPx": 7.7,
             "minimumProjectedNodeText": "9\u670825\u65e5\u201327\u65e5 \u00b7 3\u5929",
             "minimumProjectedNodeTextDetail": "context",
@@ -253,6 +442,33 @@
             "readerWidth": 1860,
             "diagramWidth": 1810,
             "viewBoxWidth": 802,
+            "workflowLanes": [
+              {
+                "frameId": "lane-0",
+                "heightPx": 239,
+                "nodeCount": 4,
+                "nodeIds": [
+                  "today",
+                  "mid_autumn",
+                  "national_day",
+                  "year_end"
+                ],
+                "nodeSpanPx": 153,
+                "spaceAboveNodesPx": 77,
+                "spaceBelowNodesPx": 9
+              },
+              {
+                "frameId": "lane-1",
+                "heightPx": 239,
+                "nodeCount": 1,
+                "nodeIds": [
+                  "makeup_work"
+                ],
+                "nodeSpanPx": 153,
+                "spaceAboveNodesPx": 77,
+                "spaceBelowNodesPx": 9
+              }
+            ],
             "minimumProjectedNodeTextPx": 7.7,
             "minimumProjectedNodeText": "9\u670825\u65e5\u201327\u65e5 \u00b7 3\u5929",
             "minimumProjectedNodeTextDetail": "context",
@@ -289,6 +505,33 @@
             "readerWidth": 1247,
             "diagramWidth": 1217,
             "viewBoxWidth": 802,
+            "workflowLanes": [
+              {
+                "frameId": "lane-0",
+                "heightPx": 161,
+                "nodeCount": 4,
+                "nodeIds": [
+                  "today",
+                  "mid_autumn",
+                  "national_day",
+                  "year_end"
+                ],
+                "nodeSpanPx": 103,
+                "spaceAboveNodesPx": 52,
+                "spaceBelowNodesPx": 6
+              },
+              {
+                "frameId": "lane-1",
+                "heightPx": 161,
+                "nodeCount": 1,
+                "nodeIds": [
+                  "makeup_work"
+                ],
+                "nodeSpanPx": 103,
+                "spaceAboveNodesPx": 52,
+                "spaceBelowNodesPx": 6
+              }
+            ],
             "minimumProjectedNodeTextPx": 7.7,
             "minimumProjectedNodeText": "9\u670825\u65e5\u201327\u65e5 \u00b7 3\u5929",
             "minimumProjectedNodeTextDetail": "context",
@@ -320,6 +563,33 @@
             "readerWidth": 1294,
             "diagramWidth": 1264,
             "viewBoxWidth": 802,
+            "workflowLanes": [
+              {
+                "frameId": "lane-0",
+                "heightPx": 167,
+                "nodeCount": 4,
+                "nodeIds": [
+                  "today",
+                  "mid_autumn",
+                  "national_day",
+                  "year_end"
+                ],
+                "nodeSpanPx": 107,
+                "spaceAboveNodesPx": 54,
+                "spaceBelowNodesPx": 6
+              },
+              {
+                "frameId": "lane-1",
+                "heightPx": 167,
+                "nodeCount": 1,
+                "nodeIds": [
+                  "makeup_work"
+                ],
+                "nodeSpanPx": 107,
+                "spaceAboveNodesPx": 54,
+                "spaceBelowNodesPx": 6
+              }
+            ],
             "minimumProjectedNodeTextPx": 7.7,
             "minimumProjectedNodeText": "9\u670825\u65e5\u201327\u65e5 \u00b7 3\u5929",
             "minimumProjectedNodeTextDetail": "context",
@@ -351,6 +621,33 @@
             "readerWidth": 1451,
             "diagramWidth": 1421,
             "viewBoxWidth": 802,
+            "workflowLanes": [
+              {
+                "frameId": "lane-0",
+                "heightPx": 188,
+                "nodeCount": 4,
+                "nodeIds": [
+                  "today",
+                  "mid_autumn",
+                  "national_day",
+                  "year_end"
+                ],
+                "nodeSpanPx": 120,
+                "spaceAboveNodesPx": 60,
+                "spaceBelowNodesPx": 7
+              },
+              {
+                "frameId": "lane-1",
+                "heightPx": 188,
+                "nodeCount": 1,
+                "nodeIds": [
+                  "makeup_work"
+                ],
+                "nodeSpanPx": 120,
+                "spaceAboveNodesPx": 60,
+                "spaceBelowNodesPx": 7
+              }
+            ],
             "minimumProjectedNodeTextPx": 7.7,
             "minimumProjectedNodeText": "9\u670825\u65e5\u201327\u65e5 \u00b7 3\u5929",
             "minimumProjectedNodeTextDetail": "context",
@@ -382,6 +679,33 @@
             "readerWidth": 1860,
             "diagramWidth": 1810,
             "viewBoxWidth": 802,
+            "workflowLanes": [
+              {
+                "frameId": "lane-0",
+                "heightPx": 239,
+                "nodeCount": 4,
+                "nodeIds": [
+                  "today",
+                  "mid_autumn",
+                  "national_day",
+                  "year_end"
+                ],
+                "nodeSpanPx": 153,
+                "spaceAboveNodesPx": 77,
+                "spaceBelowNodesPx": 9
+              },
+              {
+                "frameId": "lane-1",
+                "heightPx": 239,
+                "nodeCount": 1,
+                "nodeIds": [
+                  "makeup_work"
+                ],
+                "nodeSpanPx": 153,
+                "spaceAboveNodesPx": 77,
+                "spaceBelowNodesPx": 9
+              }
+            ],
             "minimumProjectedNodeTextPx": 7.7,
             "minimumProjectedNodeText": "9\u670825\u65e5\u201327\u65e5 \u00b7 3\u5929",
             "minimumProjectedNodeTextDetail": "context",
@@ -404,11 +728,11 @@
       "screenshots": [
         {
           "path": "before.1440x900.light.png",
-          "sha256": "237172b006000e5bf28be66b5a28bd257c16a6783d289039f4f209d4a6a12c19"
+          "sha256": "b81b758cc71b5ba66a9c35ca9aefc241680e8be6b2939aa570c0ef191c3a4484"
         },
         {
           "path": "before.1440x900.dark.png",
-          "sha256": "98ba6d63e048e703e6c2c6ce28399b12364d6aec5b47498e58307007bda0c766"
+          "sha256": "1462f9a6fefb0d7c793c30389077344a9cd8853c075ecaa8aeea4f142dd2dca4"
         }
       ]
     },
@@ -416,9 +740,9 @@
       "ok": true,
       "status": "pass",
       "artifact": {
-        "path": "/tmp/archify-node-icon-proof/after.html",
-        "sha256": "e9c39766d3e35102af23c2071627e856071568f06b24d1abb1105dab668e2503",
-        "bytes": 801692
+        "path": "/tmp/pr507-dev-proof/verified/after.html",
+        "sha256": "81f1830b2dce950cec86dbecda59ac5621cd437340314cde9927ec6a6baed276",
+        "bytes": 812361
       },
       "containment": {
         "status": "pass",
@@ -437,6 +761,33 @@
             "readerWidth": 1247,
             "diagramWidth": 1217,
             "viewBoxWidth": 802,
+            "workflowLanes": [
+              {
+                "frameId": "lane-0",
+                "heightPx": 161,
+                "nodeCount": 4,
+                "nodeIds": [
+                  "today",
+                  "mid_autumn",
+                  "national_day",
+                  "year_end"
+                ],
+                "nodeSpanPx": 103,
+                "spaceAboveNodesPx": 52,
+                "spaceBelowNodesPx": 6
+              },
+              {
+                "frameId": "lane-1",
+                "heightPx": 161,
+                "nodeCount": 1,
+                "nodeIds": [
+                  "makeup_work"
+                ],
+                "nodeSpanPx": 103,
+                "spaceAboveNodesPx": 52,
+                "spaceBelowNodesPx": 6
+              }
+            ],
             "minimumProjectedNodeTextPx": 7.7,
             "minimumProjectedNodeText": "9\u670825\u65e5\u201327\u65e5 \u00b7 3\u5929",
             "minimumProjectedNodeTextDetail": "context",
@@ -468,6 +819,33 @@
             "readerWidth": 1294,
             "diagramWidth": 1264,
             "viewBoxWidth": 802,
+            "workflowLanes": [
+              {
+                "frameId": "lane-0",
+                "heightPx": 167,
+                "nodeCount": 4,
+                "nodeIds": [
+                  "today",
+                  "mid_autumn",
+                  "national_day",
+                  "year_end"
+                ],
+                "nodeSpanPx": 107,
+                "spaceAboveNodesPx": 54,
+                "spaceBelowNodesPx": 6
+              },
+              {
+                "frameId": "lane-1",
+                "heightPx": 167,
+                "nodeCount": 1,
+                "nodeIds": [
+                  "makeup_work"
+                ],
+                "nodeSpanPx": 107,
+                "spaceAboveNodesPx": 54,
+                "spaceBelowNodesPx": 6
+              }
+            ],
             "minimumProjectedNodeTextPx": 7.7,
             "minimumProjectedNodeText": "9\u670825\u65e5\u201327\u65e5 \u00b7 3\u5929",
             "minimumProjectedNodeTextDetail": "context",
@@ -499,6 +877,33 @@
             "readerWidth": 1451,
             "diagramWidth": 1421,
             "viewBoxWidth": 802,
+            "workflowLanes": [
+              {
+                "frameId": "lane-0",
+                "heightPx": 188,
+                "nodeCount": 4,
+                "nodeIds": [
+                  "today",
+                  "mid_autumn",
+                  "national_day",
+                  "year_end"
+                ],
+                "nodeSpanPx": 120,
+                "spaceAboveNodesPx": 60,
+                "spaceBelowNodesPx": 7
+              },
+              {
+                "frameId": "lane-1",
+                "heightPx": 188,
+                "nodeCount": 1,
+                "nodeIds": [
+                  "makeup_work"
+                ],
+                "nodeSpanPx": 120,
+                "spaceAboveNodesPx": 60,
+                "spaceBelowNodesPx": 7
+              }
+            ],
             "minimumProjectedNodeTextPx": 7.7,
             "minimumProjectedNodeText": "9\u670825\u65e5\u201327\u65e5 \u00b7 3\u5929",
             "minimumProjectedNodeTextDetail": "context",
@@ -530,6 +935,33 @@
             "readerWidth": 1860,
             "diagramWidth": 1810,
             "viewBoxWidth": 802,
+            "workflowLanes": [
+              {
+                "frameId": "lane-0",
+                "heightPx": 239,
+                "nodeCount": 4,
+                "nodeIds": [
+                  "today",
+                  "mid_autumn",
+                  "national_day",
+                  "year_end"
+                ],
+                "nodeSpanPx": 153,
+                "spaceAboveNodesPx": 77,
+                "spaceBelowNodesPx": 9
+              },
+              {
+                "frameId": "lane-1",
+                "heightPx": 239,
+                "nodeCount": 1,
+                "nodeIds": [
+                  "makeup_work"
+                ],
+                "nodeSpanPx": 153,
+                "spaceAboveNodesPx": 77,
+                "spaceBelowNodesPx": 9
+              }
+            ],
             "minimumProjectedNodeTextPx": 7.7,
             "minimumProjectedNodeText": "9\u670825\u65e5\u201327\u65e5 \u00b7 3\u5929",
             "minimumProjectedNodeTextDetail": "context",
@@ -567,6 +999,33 @@
             "readerWidth": 1247,
             "diagramWidth": 1217,
             "viewBoxWidth": 802,
+            "workflowLanes": [
+              {
+                "frameId": "lane-0",
+                "heightPx": 161,
+                "nodeCount": 4,
+                "nodeIds": [
+                  "today",
+                  "mid_autumn",
+                  "national_day",
+                  "year_end"
+                ],
+                "nodeSpanPx": 103,
+                "spaceAboveNodesPx": 52,
+                "spaceBelowNodesPx": 6
+              },
+              {
+                "frameId": "lane-1",
+                "heightPx": 161,
+                "nodeCount": 1,
+                "nodeIds": [
+                  "makeup_work"
+                ],
+                "nodeSpanPx": 103,
+                "spaceAboveNodesPx": 52,
+                "spaceBelowNodesPx": 6
+              }
+            ],
             "minimumProjectedNodeTextPx": 7.7,
             "minimumProjectedNodeText": "9\u670825\u65e5\u201327\u65e5 \u00b7 3\u5929",
             "minimumProjectedNodeTextDetail": "context",
@@ -598,6 +1057,33 @@
             "readerWidth": 1294,
             "diagramWidth": 1264,
             "viewBoxWidth": 802,
+            "workflowLanes": [
+              {
+                "frameId": "lane-0",
+                "heightPx": 167,
+                "nodeCount": 4,
+                "nodeIds": [
+                  "today",
+                  "mid_autumn",
+                  "national_day",
+                  "year_end"
+                ],
+                "nodeSpanPx": 107,
+                "spaceAboveNodesPx": 54,
+                "spaceBelowNodesPx": 6
+              },
+              {
+                "frameId": "lane-1",
+                "heightPx": 167,
+                "nodeCount": 1,
+                "nodeIds": [
+                  "makeup_work"
+                ],
+                "nodeSpanPx": 107,
+                "spaceAboveNodesPx": 54,
+                "spaceBelowNodesPx": 6
+              }
+            ],
             "minimumProjectedNodeTextPx": 7.7,
             "minimumProjectedNodeText": "9\u670825\u65e5\u201327\u65e5 \u00b7 3\u5929",
             "minimumProjectedNodeTextDetail": "context",
@@ -629,6 +1115,33 @@
             "readerWidth": 1451,
             "diagramWidth": 1421,
             "viewBoxWidth": 802,
+            "workflowLanes": [
+              {
+                "frameId": "lane-0",
+                "heightPx": 188,
+                "nodeCount": 4,
+                "nodeIds": [
+                  "today",
+                  "mid_autumn",
+                  "national_day",
+                  "year_end"
+                ],
+                "nodeSpanPx": 120,
+                "spaceAboveNodesPx": 60,
+                "spaceBelowNodesPx": 7
+              },
+              {
+                "frameId": "lane-1",
+                "heightPx": 188,
+                "nodeCount": 1,
+                "nodeIds": [
+                  "makeup_work"
+                ],
+                "nodeSpanPx": 120,
+                "spaceAboveNodesPx": 60,
+                "spaceBelowNodesPx": 7
+              }
+            ],
             "minimumProjectedNodeTextPx": 7.7,
             "minimumProjectedNodeText": "9\u670825\u65e5\u201327\u65e5 \u00b7 3\u5929",
             "minimumProjectedNodeTextDetail": "context",
@@ -660,6 +1173,33 @@
             "readerWidth": 1860,
             "diagramWidth": 1810,
             "viewBoxWidth": 802,
+            "workflowLanes": [
+              {
+                "frameId": "lane-0",
+                "heightPx": 239,
+                "nodeCount": 4,
+                "nodeIds": [
+                  "today",
+                  "mid_autumn",
+                  "national_day",
+                  "year_end"
+                ],
+                "nodeSpanPx": 153,
+                "spaceAboveNodesPx": 77,
+                "spaceBelowNodesPx": 9
+              },
+              {
+                "frameId": "lane-1",
+                "heightPx": 239,
+                "nodeCount": 1,
+                "nodeIds": [
+                  "makeup_work"
+                ],
+                "nodeSpanPx": 153,
+                "spaceAboveNodesPx": 77,
+                "spaceBelowNodesPx": 9
+              }
+            ],
             "minimumProjectedNodeTextPx": 7.7,
             "minimumProjectedNodeText": "9\u670825\u65e5\u201327\u65e5 \u00b7 3\u5929",
             "minimumProjectedNodeTextDetail": "context",
@@ -696,6 +1236,33 @@
             "readerWidth": 1247,
             "diagramWidth": 1217,
             "viewBoxWidth": 802,
+            "workflowLanes": [
+              {
+                "frameId": "lane-0",
+                "heightPx": 161,
+                "nodeCount": 4,
+                "nodeIds": [
+                  "today",
+                  "mid_autumn",
+                  "national_day",
+                  "year_end"
+                ],
+                "nodeSpanPx": 103,
+                "spaceAboveNodesPx": 52,
+                "spaceBelowNodesPx": 6
+              },
+              {
+                "frameId": "lane-1",
+                "heightPx": 161,
+                "nodeCount": 1,
+                "nodeIds": [
+                  "makeup_work"
+                ],
+                "nodeSpanPx": 103,
+                "spaceAboveNodesPx": 52,
+                "spaceBelowNodesPx": 6
+              }
+            ],
             "minimumProjectedNodeTextPx": 7.7,
             "minimumProjectedNodeText": "9\u670825\u65e5\u201327\u65e5 \u00b7 3\u5929",
             "minimumProjectedNodeTextDetail": "context",
@@ -727,6 +1294,33 @@
             "readerWidth": 1294,
             "diagramWidth": 1264,
             "viewBoxWidth": 802,
+            "workflowLanes": [
+              {
+                "frameId": "lane-0",
+                "heightPx": 167,
+                "nodeCount": 4,
+                "nodeIds": [
+                  "today",
+                  "mid_autumn",
+                  "national_day",
+                  "year_end"
+                ],
+                "nodeSpanPx": 107,
+                "spaceAboveNodesPx": 54,
+                "spaceBelowNodesPx": 6
+              },
+              {
+                "frameId": "lane-1",
+                "heightPx": 167,
+                "nodeCount": 1,
+                "nodeIds": [
+                  "makeup_work"
+                ],
+                "nodeSpanPx": 107,
+                "spaceAboveNodesPx": 54,
+                "spaceBelowNodesPx": 6
+              }
+            ],
             "minimumProjectedNodeTextPx": 7.7,
             "minimumProjectedNodeText": "9\u670825\u65e5\u201327\u65e5 \u00b7 3\u5929",
             "minimumProjectedNodeTextDetail": "context",
@@ -758,6 +1352,33 @@
             "readerWidth": 1451,
             "diagramWidth": 1421,
             "viewBoxWidth": 802,
+            "workflowLanes": [
+              {
+                "frameId": "lane-0",
+                "heightPx": 188,
+                "nodeCount": 4,
+                "nodeIds": [
+                  "today",
+                  "mid_autumn",
+                  "national_day",
+                  "year_end"
+                ],
+                "nodeSpanPx": 120,
+                "spaceAboveNodesPx": 60,
+                "spaceBelowNodesPx": 7
+              },
+              {
+                "frameId": "lane-1",
+                "heightPx": 188,
+                "nodeCount": 1,
+                "nodeIds": [
+                  "makeup_work"
+                ],
+                "nodeSpanPx": 120,
+                "spaceAboveNodesPx": 60,
+                "spaceBelowNodesPx": 7
+              }
+            ],
             "minimumProjectedNodeTextPx": 7.7,
             "minimumProjectedNodeText": "9\u670825\u65e5\u201327\u65e5 \u00b7 3\u5929",
             "minimumProjectedNodeTextDetail": "context",
@@ -789,6 +1410,33 @@
             "readerWidth": 1860,
             "diagramWidth": 1810,
             "viewBoxWidth": 802,
+            "workflowLanes": [
+              {
+                "frameId": "lane-0",
+                "heightPx": 239,
+                "nodeCount": 4,
+                "nodeIds": [
+                  "today",
+                  "mid_autumn",
+                  "national_day",
+                  "year_end"
+                ],
+                "nodeSpanPx": 153,
+                "spaceAboveNodesPx": 77,
+                "spaceBelowNodesPx": 9
+              },
+              {
+                "frameId": "lane-1",
+                "heightPx": 239,
+                "nodeCount": 1,
+                "nodeIds": [
+                  "makeup_work"
+                ],
+                "nodeSpanPx": 153,
+                "spaceAboveNodesPx": 77,
+                "spaceBelowNodesPx": 9
+              }
+            ],
             "minimumProjectedNodeTextPx": 7.7,
             "minimumProjectedNodeText": "9\u670825\u65e5\u201327\u65e5 \u00b7 3\u5929",
             "minimumProjectedNodeTextDetail": "context",
@@ -811,11 +1459,11 @@
       "screenshots": [
         {
           "path": "after.1440x900.light.png",
-          "sha256": "4fedc82d06ede201dd2a0cff7111ff62f9809c75d148f4c9acf2a3bbeace0e4a"
+          "sha256": "2211d99cd9dcf6863748fa6d1557a57650bcd9341e9d503d331f241a1d20d28e"
         },
         {
           "path": "after.1440x900.dark.png",
-          "sha256": "61d983b7ab841474bbcfaf8d5fd2f5bceb14fa304c7bbddf0d83e788e78c7008"
+          "sha256": "1e69826e1a01ba0c39852d86aba3872693b1b374e0582d52a13e82e01e118536"
         }
       ]
     }

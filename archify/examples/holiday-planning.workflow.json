@@ -17,7 +17,8 @@
           "label": "时间节点"
         }
       }
-    }
+    },
+    "output": "holiday-planning.html"
   },
   "lanes": [
     {

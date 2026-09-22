@@ -4,13 +4,25 @@
   "meta": {
     "title": "2026年剩余假期安排",
     "locale": "zh-CN",
-    "quality_profile": "showcase"
+    "quality_profile": "showcase",
+    "output": "holiday-planning.html"
   },
   "lanes": [
-    { "id": "calendar", "label": "时间线" },
-    { "id": "makeup", "label": "调休" }
+    {
+      "id": "calendar",
+      "label": "时间线"
+    },
+    {
+      "id": "makeup",
+      "label": "调休"
+    }
   ],
-  "mainPath": ["today", "mid_autumn", "national_day", "year_end"],
+  "mainPath": [
+    "today",
+    "mid_autumn",
+    "national_day",
+    "year_end"
+  ],
   "nodes": [
     {
       "id": "today",
