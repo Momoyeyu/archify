@@ -10,7 +10,7 @@ Read both the mode schema and `schemas/common.schema.json`. The mode schemas use
 - `variant`: `default`, `emphasis`, `security`, `dashed`
 - Relationship IDs use the shared identifier pattern and must be unique in their collection.
 
-Do not invent fields. Use the nearest matching example for structure, then author fresh IDs, wording, facts, and layout.
+Do not invent fields. Before writing any new field, enum, or constrained text, read its schema definition, including common `$ref` targets. In particular, check boundary kinds, guided-view note lengths, repository identity, and source-reference shapes. An example demonstrates structure; it does not enumerate every valid value. Author fresh IDs, wording, facts, and layout.
 
 ## Workflow layout contracts
 

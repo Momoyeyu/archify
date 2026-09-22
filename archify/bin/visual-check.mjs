@@ -74,7 +74,7 @@ function pathEntry(file) {
 }
 
 function visualEvidencePaths(outputs) {
-  return [outputs.contactSheet, ...outputs.screenshots.map((entry) => entry.path)];
+  return outputs.capture === false ? [] : [outputs.contactSheet, ...outputs.screenshots.map((entry) => entry.path)];
 }
 
 function regularFileEvidence(file, { expectedLinks = 1 } = {}) {
@@ -186,7 +186,7 @@ function targetSidecarNamespace(directory, component) {
   throw error;
 }
 
-export function sidecarPaths(artifactPath, { outDir } = {}) {
+function evidenceSidecarPaths(artifactPath, { outDir, command = 'visual-check', capture = true } = {}) {
   let artifact = path.resolve(artifactPath);
   try {
     // Existing aliases, including Windows 8.3 spellings, must share the
@@ -210,30 +210,38 @@ export function sidecarPaths(artifactPath, { outDir } = {}) {
     || portableTargetKey !== namespace.componentKey;
   const stem = boundedSidecarStem(
     namespaceStem.stem,
-    VISUAL_SIDECAR_SUFFIXES,
+    capture ? VISUAL_SIDECAR_SUFFIXES : ['.browser-check.json'],
     targetAliasesSourceSpelling ? {
       force: true,
-      hashDomain: `visual-check-artifact\0${artifact}\0target-component\0${portableTargetKey}`,
+      hashDomain: `${command}-artifact\0${artifact}\0target-component\0${portableTargetKey}`,
     } : namespaceStem.options,
   );
-  const base = path.join(directory, `${stem}.visual-check`);
-  const screenshots = CAPTURE_VIEWPORTS.flatMap(({ width, height }) => THEMES.map((theme) => ({
+  const base = path.join(directory, `${stem}.${command}`);
+  const screenshots = (capture ? CAPTURE_VIEWPORTS : []).flatMap(({ width, height }) => THEMES.map((theme) => ({
     width,
     height,
     theme,
     path: `${base}.${width}x${height}.${theme}.png`,
   })));
   return {
-    base,
+    base, command, capture,
     receipt: `${base}.json`,
     contactSheet: `${base}.html`,
     screenshots,
   };
 }
 
+export function sidecarPaths(artifactPath, options = {}) {
+  return evidenceSidecarPaths(artifactPath, options);
+}
+
+export function browserCheckSidecarPaths(artifactPath, options = {}) {
+  return evidenceSidecarPaths(artifactPath, { ...options, command: 'browser-check', capture: false });
+}
+
 function evidencePathConflict(artifactPath, outputs, file, reason) {
   const target = file || outputs.receipt;
-  const error = `visual-check will not replace the existing unowned evidence path "${target}".`;
+  const error = `${outputs.command} will not replace the existing unowned evidence path "${target}".`;
   return {
     ok: false,
     error,
@@ -243,7 +251,7 @@ function evidencePathConflict(artifactPath, outputs, file, reason) {
       subject: { artifact: path.resolve(artifactPath), evidencePath: target },
       evidence: { reason },
       supportedFixes: [
-        'move the conflicting file aside, or choose a separate --out-dir, then rerun visual-check',
+        `move the conflicting file aside, or choose a separate --out-dir, then rerun ${outputs.command}`,
       ],
     }),
   };
@@ -259,7 +267,7 @@ function visualEvidenceOwnershipMatches(ownership, artifactPath, outputs) {
 function visualEvidenceTargets(outputs) {
   return [
     { kind: 'receipt', path: outputs.receipt },
-    { kind: 'contact-sheet', path: outputs.contactSheet },
+    ...(outputs.capture === false ? [] : [{ kind: 'contact-sheet', path: outputs.contactSheet }]),
     ...outputs.screenshots.map((entry, index) => ({
       kind: 'screenshot',
       index,
@@ -675,7 +683,7 @@ function beginVisualEvidenceWrite(artifactPath, artifactBytes, outputs) {
       ...previousReceipt.evidence,
     });
 
-    if (previous?.schemaVersion !== 1 || previous?.command !== 'visual-check') {
+    if (previous?.schemaVersion !== 1 || previous?.command !== outputs.command) {
       return evidencePathConflict(artifactPath, outputs, outputs.receipt, {
         code: 'ownership-receipt-schema-mismatch',
       });
@@ -686,12 +694,12 @@ function beginVisualEvidenceWrite(artifactPath, artifactBytes, outputs) {
     const receiptNameSafe = typeof recordedReceiptName === 'string'
       // path-contract-allow: portable-logical-path -- receipt filenames are serialized logical basenames.
       && path.basename(recordedReceiptName) === recordedReceiptName;
-    const contactNameSafe = typeof recordedContactName === 'string'
+    const contactNameSafe = outputs.capture === false || typeof recordedContactName === 'string'
       // path-contract-allow: portable-logical-path -- contact-sheet filenames are serialized logical basenames.
       && path.basename(recordedContactName) === recordedContactName;
     if (!path.isAbsolute(recordedDirectory) || !receiptNameSafe || !contactNameSafe
       || sameLocation(path.join(recordedDirectory, recordedReceiptName), outputs.receipt).status !== 'match'
-      || sameLocation(path.join(recordedDirectory, recordedContactName), outputs.contactSheet).status !== 'match') {
+      || (outputs.capture !== false && sameLocation(path.join(recordedDirectory, recordedContactName), outputs.contactSheet).status !== 'match')) {
       return evidencePathConflict(artifactPath, outputs, outputs.receipt, {
         code: 'ownership-sidecar-path-mismatch',
       });
@@ -1960,7 +1968,7 @@ function resolveSidecarDirectory(artifactPath, outputs, compareParents) {
   const sidecars = {
     ...(comparison?.status === 'different' ? { directory: sidecarDirectory } : {}),
     receipt: path.basename(outputs.receipt),
-    contactSheet: path.basename(outputs.contactSheet),
+    ...(outputs.capture === false ? {} : { contactSheet: path.basename(outputs.contactSheet) }),
   };
   if (comparison?.status === 'match' || comparison?.status === 'different') {
     return { ok: true, sidecars };
@@ -2009,9 +2017,23 @@ export function verticalBudgetFixes(entry) {
   return fixes;
 }
 
-function observationDiagnostics({ artifact, allObservations, readabilityObservations }) {
+function observationDiagnostics({ artifact, allObservations, readabilityObservations, command }) {
   const diagnostics = [];
   for (const entry of allObservations) {
+    if (entry.resolvedTheme !== entry.theme) {
+      diagnostics.push(failureDiagnostic({
+        code: 'viewer/theme-state',
+        message: `The rendered artifact resolved ${entry.resolvedTheme || 'no theme'} instead of the requested ${entry.theme} theme at ${entry.width}x${entry.height}.`,
+        subject: viewportSubject(artifact, entry),
+        evidence: {
+          requestedTheme: entry.theme,
+          resolvedTheme: entry.resolvedTheme,
+        },
+        supportedFixes: [
+          `restore deterministic ${entry.theme} theme resolution, then rerun ${command}`,
+        ],
+      }));
+    }
     if (!entry.ok) {
       const budgetFixes = verticalBudgetFixes(entry);
       diagnostics.push(failureDiagnostic({
@@ -2043,8 +2065,8 @@ function observationDiagnostics({ artifact, allObservations, readabilityObservat
           ...(entry.overflowY && entry.workflowLanes?.length ? [
             'run validate workflow <source.json> --layout-json and compare the tallest rendered lane frames with source lanes, col and yOffset; frame IDs are rendered indices, not source lane IDs',
             'where ownership and explicit geometry permit, distribute stacked steps across logical columns and meaningful lanes before increasing yOffset; preserve nodes, branches, labels and hard pins',
-            'read references/authoring-contract.md#workflow-viewport-repair, then validate and deliver the changed source before rerunning visual-check on the new artifact; this is inspection guidance, not a verified coordinate fix',
-          ] : budgetFixes.length ? [] : [`contain the rendered layout within ${entry.width}x${entry.height}, then rerun visual-check`]),
+            `read references/authoring-contract.md#workflow-viewport-repair, then validate and deliver the changed source before rerunning ${command} on the new artifact; this is inspection guidance, not a verified coordinate fix`,
+          ] : budgetFixes.length ? [] : [`contain the rendered layout within ${entry.width}x${entry.height}, then rerun ${command}`]),
         ],
       }));
     }
@@ -2055,7 +2077,7 @@ function observationDiagnostics({ artifact, allObservations, readabilityObservat
         subject: viewportSubject(artifact, entry),
         evidence: { legendDockIntersectionArea: entry.legendDockIntersectionArea },
         supportedFixes: [
-          'move the SVG Legend or Viewer Dock until legendDockIntersectionArea is 0, then rerun visual-check',
+          `move the SVG Legend or Viewer Dock until legendDockIntersectionArea is 0, then rerun ${command}`,
         ],
       }));
     }
@@ -2073,7 +2095,7 @@ function observationDiagnostics({ artifact, allObservations, readabilityObservat
           requiredDockStageGap: entry.requiredDockStageGap,
         },
         supportedFixes: [
-          `adjust Viewer stage reservation or clipping until dockStageGap is at least ${entry.requiredDockStageGap} and dockStageIntersectionArea is 0, then rerun visual-check`,
+          `adjust Viewer stage reservation or clipping until dockStageGap is at least ${entry.requiredDockStageGap} and dockStageIntersectionArea is 0, then rerun ${command}`,
         ],
       }));
     }
@@ -2092,21 +2114,21 @@ function observationDiagnostics({ artifact, allObservations, readabilityObservat
         minimumRequiredNodeTextPx: entry.minimumRequiredNodeTextPx,
       },
       supportedFixes: [
-        `increase projected ${entry.minimumProjectedNodeTextOwner?.kind === 'edge' ? 'relationship label' : entry.minimumProjectedNodeTextOwner?.kind === 'boundary' ? 'boundary label' : 'node text'} to at least ${entry.minimumRequiredNodeTextPx}px at ${entry.width}x${entry.height}, then rerun visual-check`,
+        `increase projected ${entry.minimumProjectedNodeTextOwner?.kind === 'edge' ? 'relationship label' : entry.minimumProjectedNodeTextOwner?.kind === 'boundary' ? 'boundary label' : 'node text'} to at least ${entry.minimumRequiredNodeTextPx}px at ${entry.width}x${entry.height}, then rerun ${command}`,
       ],
     }));
   }
   return diagnostics;
 }
 
-function baseReceipt({ artifactPath, artifact, sidecars, chrome, deliveryProvenance }) {
+function baseReceipt({ artifactPath, artifact, sidecars, chrome, deliveryProvenance, command, capture }) {
   return {
     schemaVersion: 1,
     ok: false,
-    command: 'visual-check',
+    command,
     evidenceKind: 'automated-browser',
     status: 'fail',
-    visualReview: 'pending',
+    visualReview: capture ? 'pending' : 'not-requested',
     ...(deliveryProvenance ? {
       provenance: deliveryProvenance.status,
       ...(deliveryProvenance.receiptId ? { deliveryReceiptId: deliveryProvenance.receiptId } : {}),
@@ -2124,9 +2146,10 @@ function baseReceipt({ artifactPath, artifact, sidecars, chrome, deliveryProvena
       policy: 'fit-or-reader-declared-readable-vertical-scroll',
       viewports: [],
     },
+    themeStates: { status: 'fail', viewports: [] },
     readability: { status: 'fail', minimumProjectedNodeTextPx: MIN_PROJECTED_NODE_TEXT_PX, viewports: [] },
     viewerChrome: { status: 'fail', viewports: [] },
-    captures: { status: 'fail', screenshots: [], contactSheet: null },
+    captures: { status: capture ? 'fail' : 'not-requested', screenshots: [], contactSheet: null },
     sidecars: { ...sidecars, files: [] },
   };
 }
@@ -2204,12 +2227,12 @@ function publishReceiptOnly(artifactPath, outputs, receipt, ownership) {
   return commitVisualEvidence(artifactPath, outputs, ownership, [outputs.receipt]);
 }
 
-export function persistVisualCheckFailure(
+function persistBrowserEvidenceFailure(
   artifactPath,
   failure,
-  { outDir, compareSidecarParents = sameParent, ownership } = {},
+  { outDir, compareSidecarParents = sameParent, ownership, command = 'visual-check', capture = true } = {},
 ) {
-  const outputs = sidecarPaths(artifactPath, { outDir });
+  const outputs = evidenceSidecarPaths(artifactPath, { outDir, command, capture });
   const directory = resolveSidecarDirectory(artifactPath, outputs, compareSidecarParents);
   const capturedArtifact = readRegularFileContents(artifactPath, {
     subject: 'failure-artifact',
@@ -2230,7 +2253,7 @@ export function persistVisualCheckFailure(
       policy: 'fit-or-reader-declared-readable-vertical-scroll',
       viewports: [],
     },
-    captures: { status: 'fail', screenshots: [], contactSheet: null },
+    captures: { status: capture ? 'fail' : 'not-requested', screenshots: [], contactSheet: null },
     sidecars: { ...directory.sidecars, files: [] },
   };
   if (!directory.ok) {
@@ -2262,7 +2285,7 @@ export function persistVisualCheckFailure(
   return receipt;
 }
 
-export async function runVisualCheck({
+async function runBrowserEvidence({
   artifactPath,
   outDir,
   chromePath,
@@ -2271,10 +2294,11 @@ export async function runVisualCheck({
   deliveryProvenance,
   verifyArtifact,
   compareSidecarParents = sameParent,
+  command, capture,
 } = {}) {
-  if (!artifactPath) throw new Error('visual-check requires one delivered HTML artifact.');
+  if (!artifactPath) throw new Error(`${command} requires one delivered HTML artifact.`);
   const artifact = path.resolve(artifactPath);
-  if (!/\.html?$/i.test(artifact)) throw new Error('visual-check requires an .html artifact.');
+  if (!/\.html?$/i.test(artifact)) throw new Error(`${command} requires an .html artifact.`);
   const capturedArtifact = captureRegularFileBinding(artifact, {
     subject: 'visual-check-artifact',
     expectedLinks: 1,
@@ -2285,14 +2309,14 @@ export async function runVisualCheck({
   }
   const artifactBytes = capturedArtifact.content.buffer;
   try {
-  const outputs = sidecarPaths(artifact, { outDir });
+  const outputs = evidenceSidecarPaths(artifact, { outDir, command, capture });
   const directory = resolveSidecarDirectory(artifact, outputs, compareSidecarParents);
   const receipt = baseReceipt({
     artifactPath: artifact,
     artifact: artifactBytes,
     sidecars: directory.sidecars,
     chrome: { status: 'not-checked', executable: null },
-    deliveryProvenance,
+    deliveryProvenance, command, capture,
   });
   if (!directory.ok) {
     receipt.error = directory.error;
@@ -2322,7 +2346,7 @@ export async function runVisualCheck({
     ownership.stagingPaths.set(artifact, inspectionArtifact);
     writeStagedEvidence(ownership, artifact, artifactBytes);
   } catch (error) {
-    return { exitCode: EXIT.fail, receipt: persistVisualCheckFailure(artifact, {
+    return { exitCode: EXIT.fail, receipt: persistBrowserEvidenceFailure(artifact, {
       ...receipt,
       status: 'fail',
       ok: false,
@@ -2334,7 +2358,7 @@ export async function runVisualCheck({
         evidence: { reason: error.message },
         supportedFixes: ['retry after resolving the reported staging filesystem error'],
       })],
-    }, { outDir, compareSidecarParents, ownership }) };
+    }, { outDir, compareSidecarParents, ownership, command, capture }) };
   }
   const verifyInspectionArtifact = () => {
     const entry = ownership.stagedEntries.get(artifact);
@@ -2345,12 +2369,12 @@ export async function runVisualCheck({
   try {
     verifyArtifact?.(artifactBytes);
   } catch (error) {
-    return { exitCode: EXIT.fail, receipt: persistVisualCheckFailure(artifact, {
-      schemaVersion: 1, command: 'visual-check', evidenceKind: 'automated-browser', visualReview: 'pending',
+    return { exitCode: EXIT.fail, receipt: persistBrowserEvidenceFailure(artifact, {
+      schemaVersion: 1, command, evidenceKind: 'automated-browser', visualReview: capture ? 'pending' : 'not-requested',
       artifact: { path: artifact, sha256: sha256(artifactBytes), bytes: artifactBytes.byteLength },
       provenance: error.deliveryProvenance?.status, error: error.message,
       diagnostics: error.archifyDiagnostics || [],
-    }, { outDir, compareSidecarParents, ownership }) };
+    }, { outDir, compareSidecarParents, ownership, command, capture }) };
   }
 
   const resolvedChrome = chromePath || resolveChrome();
@@ -2363,7 +2387,8 @@ export async function runVisualCheck({
     receipt.containment.status = 'skipped';
     receipt.readability.status = 'skipped';
     receipt.viewerChrome.status = 'skipped';
-    receipt.captures.status = 'skipped';
+    receipt.themeStates.status = 'skipped';
+    if (capture) receipt.captures.status = 'skipped';
     receipt.error = 'Chrome or Chromium is unavailable. Set ARCHIFY_CHROME to its executable path.';
     receipt.diagnostics = [failureDiagnostic({
       code: 'viewer/chrome-unavailable',
@@ -2371,7 +2396,7 @@ export async function runVisualCheck({
       message: receipt.error,
       subject: { artifact },
       evidence: { executable: null },
-      supportedFixes: ['set ARCHIFY_CHROME to a Chrome or Chromium executable and rerun visual-check'],
+      supportedFixes: [`set ARCHIFY_CHROME to a Chrome or Chromium executable and rerun ${command}`],
     })];
     const publication = publishReceiptOnly(artifact, outputs, receipt, ownership);
     if (!publication.ok) {
@@ -2407,7 +2432,7 @@ export async function runVisualCheck({
       });
       verifyInspectionArtifact();
       if (screenshot) {
-        if (!ownership.stagedEntries.has(screenshot.path)) {
+        if (screenshot && !ownership.stagedEntries.has(screenshot.path)) {
           registerStagedEvidence(ownership, screenshot.path);
         } else {
           const staged = ownership.stagedEntries.get(screenshot.path);
@@ -2425,13 +2450,15 @@ export async function runVisualCheck({
         artifactPath: inspectionArtifact,
         ...viewport,
         theme: 'dark',
-        screenshotPath: screenshot.stagedPath,
-        writeScreenshot: (bytes) => writeStagedEvidence(ownership, screenshot.path, bytes),
+        ...(screenshot ? {
+          screenshotPath: screenshot.stagedPath,
+          writeScreenshot: (bytes) => writeStagedEvidence(ownership, screenshot.path, bytes),
+        } : {}),
       });
       verifyInspectionArtifact();
-      if (!ownership.stagedEntries.has(screenshot.path)) {
+      if (screenshot && !ownership.stagedEntries.has(screenshot.path)) {
         registerStagedEvidence(ownership, screenshot.path);
-      } else {
+      } else if (screenshot) {
         const staged = ownership.stagedEntries.get(screenshot.path);
         if (!currentEvidenceMatches(staged.path, staged.identity, staged.evidence)) {
           throw new Error('The staged visual-check screenshot changed after capture.');
@@ -2442,12 +2469,12 @@ export async function runVisualCheck({
 
     let artifactVerification = verifyRegularFileBinding(capturedArtifact.binding);
     if (artifactVerification.status !== 'match') {
-      throw regularFileCaptureError('The delivered artifact changed while visual-check was running', artifactVerification);
+      throw regularFileCaptureError(`The delivered artifact changed while ${command} was running`, artifactVerification);
     }
     verifyArtifact?.(artifactBytes);
     artifactVerification = verifyRegularFileBinding(capturedArtifact.binding);
     if (artifactVerification.status !== 'match') {
-      throw regularFileCaptureError('The delivered artifact changed while visual-check was running', artifactVerification);
+      throw regularFileCaptureError(`The delivered artifact changed while ${command} was running`, artifactVerification);
     }
 
     receipt.containment.viewports = VISUAL_CHECK_VIEWPORTS.map(({ width, height }) => (
@@ -2460,22 +2487,30 @@ export async function runVisualCheck({
       file: path.basename(entry.path),
     }));
     const allObservations = [...observations.values()];
+    receipt.themeStates.viewports = CAPTURE_VIEWPORTS.flatMap(({ width, height }) => THEMES.map(theme => {
+      const entry = observations.get(screenshotKey(width, height, theme));
+      return { width, height, requestedTheme: theme, resolvedTheme: entry.resolvedTheme, ok: entry.resolvedTheme === theme };
+    }));
+    const themeStatePass = receipt.themeStates.viewports.every(entry => entry.ok);
     const containmentPass = allObservations.every((entry) => entry.ok);
     const readabilityPass = receipt.readability.viewports.every((entry) => entry.readabilityOk);
     const viewerChromePass = allObservations.every((entry) => entry.viewerChromeOk);
     receipt.diagnostics = observationDiagnostics({
       artifact,
       allObservations,
-      readabilityObservations: receipt.readability.viewports,
+      readabilityObservations: receipt.readability.viewports, command,
     });
+    receipt.themeStates.status = themeStatePass ? 'pass' : 'fail';
     receipt.containment.status = containmentPass ? 'pass' : 'fail';
     receipt.readability.status = readabilityPass ? 'pass' : 'fail';
     receipt.viewerChrome.status = viewerChromePass ? 'pass' : 'fail';
-    receipt.captures.status = 'pass';
-    receipt.captures.contactSheet = path.basename(outputs.contactSheet);
-    receipt.status = containmentPass && readabilityPass && viewerChromePass ? 'pass' : 'fail';
-    receipt.ok = containmentPass && readabilityPass && viewerChromePass;
-    writeStagedEvidence(ownership, outputs.contactSheet, contactSheetHtml({
+    if (capture) {
+      receipt.captures.status = 'pass';
+      receipt.captures.contactSheet = path.basename(outputs.contactSheet);
+    }
+    receipt.status = containmentPass && themeStatePass && readabilityPass && viewerChromePass ? 'pass' : 'fail';
+    receipt.ok = containmentPass && themeStatePass && readabilityPass && viewerChromePass;
+    if (capture) writeStagedEvidence(ownership, outputs.contactSheet, contactSheetHtml({
       artifactPath: artifact,
       receipt,
       screenshots: receipt.captures.screenshots,
@@ -2507,30 +2542,31 @@ export async function runVisualCheck({
     receipt.containment.status = 'fail';
     receipt.readability.status = 'fail';
     receipt.viewerChrome.status = 'fail';
-    receipt.captures.status = 'fail';
+    receipt.themeStates.status = 'fail';
+    receipt.captures.status = capture ? 'fail' : 'not-requested';
     receipt.captures.screenshots = [];
     receipt.captures.contactSheet = null;
     if (error.deliveryProvenance) receipt.provenance = error.deliveryProvenance.status;
     receipt.diagnostics = error.archifyDiagnostics || [failureDiagnostic({
-      code: startupTimeout ? 'viewer/chrome-startup-timeout' : 'viewer/visual-check-runtime',
+      code: startupTimeout ? 'viewer/chrome-startup-timeout' : `viewer/${command}-runtime`,
       message: startupTimeout
         ? 'Chrome did not finish its initial DevTools handshake within the startup window.'
-        : 'visual-check could not complete its Chrome inspection.',
+        : `${command} could not complete its Chrome inspection.`,
       subject: { artifact },
       evidence: { reason: error.message },
       supportedFixes: startupTimeout
         ? [
           'do not edit or simplify the artifact because this is a browser-startup failure',
-          `retry visual-check once after host load subsides; if it repeats, stop and report the environment failure`,
+          `retry ${command} once after host load subsides; if it repeats, stop and report the environment failure`,
         ]
-        : ['resolve the reported Chrome inspection error, then rerun visual-check'],
+        : [`resolve the reported Chrome inspection error, then rerun ${command}`],
     })];
     return {
       exitCode: EXIT.fail,
-      receipt: persistVisualCheckFailure(artifact, receipt, {
+      receipt: persistBrowserEvidenceFailure(artifact, receipt, {
         outDir,
         compareSidecarParents,
-        ownership,
+        ownership, command, capture,
       }),
     };
   } finally {
@@ -2539,4 +2575,17 @@ export async function runVisualCheck({
   } finally {
     releaseRegularFileBinding(capturedArtifact.binding);
   }
+}
+
+export function persistVisualCheckFailure(artifactPath, failure, options = {}) {
+  return persistBrowserEvidenceFailure(artifactPath, failure, { ...options, command: 'visual-check', capture: true });
+}
+export function persistBrowserCheckFailure(artifactPath, failure, options = {}) {
+  return persistBrowserEvidenceFailure(artifactPath, failure, { ...options, command: 'browser-check', capture: false });
+}
+export function runVisualCheck(options = {}) {
+  return runBrowserEvidence({ ...options, command: 'visual-check', capture: true });
+}
+export function runBrowserCheck(options = {}) {
+  return runBrowserEvidence({ ...options, command: 'browser-check', capture: false });
 }

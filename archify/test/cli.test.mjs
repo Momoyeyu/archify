@@ -176,7 +176,9 @@ test('cli: help lists commands and diagram types', () => {
   assert.match(result.stdout, /archify render <type>/);
   assert.match(result.stdout, /archify compare architecture <base\.json> <head\.json>/);
   assert.match(result.stdout, /archify deliver <type>/);
+  assert.match(result.stdout, /archify finalize <type>/);
   assert.match(result.stdout, /archify preview <type>/);
+  assert.match(result.stdout, /archify browser-check <output\.html>/);
   assert.match(result.stdout, /archify visual-check <output\.html>/);
   assert.match(result.stdout, /--open/);
   assert.match(result.stdout, /archify validate <type> <input\.json> .*\[--repo-root path\]/);
@@ -196,6 +198,7 @@ test('cli: doctor reports a complete installation is ready', () => {
   assert.match(result.stdout, /\[ok\] Live preview runtime/);
   assert.match(result.stdout, /\[ok\] Atomic output safety runtime/);
   assert.match(result.stdout, /\[ok\] Sidecar path naming runtime/);
+  assert.match(result.stdout, /\[ok\] Finalize runtime/);
   assert.match(result.stdout, /\[ok\] Scenario recipe guide/);
   assert.match(result.stdout, /\[ok\] Progressive authoring references/);
   assert.match(result.stdout, /\[ok\] Architecture compare runtime and proof fixtures/);
@@ -399,13 +402,64 @@ test('cli: visual-check returns a skipped receipt with exit 2 when Chrome is una
     env: { ...process.env, ARCHIFY_CHROME: missingChrome },
   });
 
-  assert.equal(result.status, 2, result.stderr);
+  assert.equal(result.status, 2, result.stderr || result.stdout);
   const receipt = JSON.parse(result.stdout);
   assert.equal(receipt.status, 'skipped');
   assert.equal(receipt.evidenceKind, 'automated-browser');
   assert.equal(receipt.visualReview, 'pending');
   assert.equal(receipt.chrome.status, 'unavailable');
   assert.equal(fs.existsSync(out.replace(/\.html$/, '.visual-check.json')), true);
+});
+
+test('cli: browser-check returns deterministic evidence without requesting perceptual review', () => {
+  const out = path.join(tmp, 'browser-check-skipped.html');
+  fs.writeFileSync(out, '<!doctype html><html><body>delivered</body></html>');
+  const missingChrome = path.join(tmp, 'missing-browser-check-chrome');
+  const result = run(['browser-check', out, '--json'], {
+    env: { ...process.env, ARCHIFY_CHROME: missingChrome },
+  });
+
+  assert.equal(result.status, 2, result.stderr || result.stdout);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.command, 'browser-check');
+  assert.equal(receipt.status, 'skipped');
+  assert.equal(receipt.evidenceKind, 'automated-browser');
+  assert.equal(receipt.visualReview, 'not-requested');
+  assert.equal(receipt.captures.status, 'not-requested');
+  assert.equal(receipt.chrome.status, 'unavailable');
+  assert.equal(fs.existsSync(out.replace(/\.html$/, '.browser-check.json')), true);
+  assert.equal(fs.existsSync(out.replace(/\.html$/, '.browser-check.contact.png')), false);
+});
+
+test('cli: finalize emits one compact receipt and keeps complete stage evidence in its sidecar', () => {
+  const input = path.join(skillRoot, 'examples/web-app.architecture.json');
+  const out = path.join(tmp, 'finalize-skipped.html');
+  const outDir = path.join(tmp, 'finalize-skipped-evidence');
+  const missingChrome = path.join(tmp, 'missing-finalize-chrome');
+  const result = run([
+    'finalize', 'architecture', input, out,
+    '--quality', 'showcase', '--json', '--out-dir', outDir,
+  ], { env: { ...process.env, ARCHIFY_CHROME: missingChrome } });
+
+  assert.equal(result.status, 2, result.stderr || result.stdout);
+  assert.equal(result.stdout.trim().split('\n').length, 1, 'agent stdout stays compact');
+  const summary = JSON.parse(result.stdout);
+  assert.equal(summary.status, 'skipped');
+  assert.equal(summary.failedStage, 'browser-check');
+  assert.deepEqual(summary.gates, {
+    validate: 'pass', deliver: 'pass', check: 'pass', 'browser-check': 'skipped',
+  });
+  assert.equal(summary.visualReview, 'not-requested');
+  assert.equal(summary.evidence.receipt, path.join(outDir, 'finalize-skipped.finalize.json'));
+  assert.equal(summary.evidence.summaryReceipt, path.join(outDir, 'finalize-skipped.finalize-summary.json'));
+  assert.equal(summary.evidence.browserCheckReceipt, path.join(outDir, 'finalize-skipped.browser-check.json'));
+  const full = JSON.parse(fs.readFileSync(summary.evidence.receipt, 'utf8'));
+  assert.equal(full.stages.validate.receipt.validation.checkCount, 9);
+  assert.equal(full.stages['browser-check'].receipt.status, 'skipped');
+  const persistedSummary = JSON.parse(fs.readFileSync(summary.evidence.summaryReceipt, 'utf8'));
+  assert.deepEqual(persistedSummary, summary);
+  assert.equal('stages' in persistedSummary, false);
+  assert.equal(fs.existsSync(out), true, 'verified delivery remains available when browser evidence is skipped');
 });
 
 test('cli: visual-check --out-dir writes the receipt into that directory, not beside the artifact', () => {
@@ -417,7 +471,7 @@ test('cli: visual-check --out-dir writes the receipt into that directory, not be
     env: { ...process.env, ARCHIFY_CHROME: missingChrome },
   });
 
-  assert.equal(result.status, 2, result.stderr);
+  assert.equal(result.status, 2, result.stderr || result.stdout);
   const receipt = JSON.parse(result.stdout);
   assert.equal(receipt.status, 'skipped');
   assert.equal(fs.existsSync(path.join(outDir, 'visual-check-outdir.visual-check.json')), true);
@@ -492,7 +546,7 @@ test('cli: visual-check describes human output as automated browser evidence, no
     env: { ...process.env, ARCHIFY_CHROME: missingChrome },
   });
 
-  assert.equal(result.status, 2, result.stderr);
+  assert.equal(result.status, 2, result.stderr || result.stdout);
   assert.match(result.stdout, /automated browser evidence skipped:/i);
   assert.match(result.stdout, /perceptual visual review pending/i);
   assert.doesNotMatch(result.stdout, /^visual-check skipped:/m);

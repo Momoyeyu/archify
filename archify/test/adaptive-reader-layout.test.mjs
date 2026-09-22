@@ -19,7 +19,7 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const skillRoot = path.resolve(__dirname, '..');
 const template = fs.readFileSync(path.join(skillRoot, 'assets', 'template.html'), 'utf8');
-const skill = fs.readFileSync(path.join(skillRoot, 'SKILL.md'), 'utf8');
+const skill = fs.readFileSync(path.join(skillRoot, 'references/authoring-defaults.md'), 'utf8');
 const architectureRenderer = fs.readFileSync(path.join(skillRoot, 'renderers', 'architecture', 'render-architecture.mjs'), 'utf8');
 const reader = template.slice(
   template.indexOf('Adaptive Reader Shell'),
@@ -130,7 +130,7 @@ test('reader remeasures real content and reduces width before allowing desktop p
   assert.match(skill, /1440×900, 1600×1000, 1920×1080, and 2048×1320/);
   assert.match(skill, /Reader-declared vertical page scroll/);
   assert.match(skill, /Generate one responsive artifact for laptops and external displays/);
-  assert.match(skill, /preserve the authored SVG\/viewBox, proportions, semantic geometry/);
+  assert.match(skill, /preserv(?:e|ing) the authored SVG\/viewBox, proportions, semantic geometry/);
 });
 
 test('reader exposes an explicit stable-dimensions contract for browser evidence', () => {

@@ -2178,11 +2178,13 @@ function usage() {
   archify render <type> <input.json> [output.html] [--quality standard|showcase] [--repo-root path]
   archify compare architecture <base.json> <head.json> [output.html] [--receipt path] [--json] [--quality standard|showcase] [--repo-root path]
   archify deliver <type> <input.json> [output.html] [--json] [--open] [--quality standard|showcase] [--repo-root path]
+  archify finalize <type> <input.json> <output.html> [--json] [--receipt path] [--out-dir <dir>] [--quality standard|showcase] [--repo-root path] [--candidate-sha256 hex]
   archify preview <type> <input.json> [output.html] [--no-open] [--quality standard|showcase] [--repo-root path]
   archify validate <type> <input.json> [--json] [--layout-json] [--quality standard|showcase] [--repo-root path]
   archify migrate workflow <old.json> <new.json> --to-schema 2 [--output portable.html] [--json] [--repo-root path]
   archify inspect <type> <input.json>
   archify check <output.html> [--require-provenance]
+  archify browser-check <output.html> [--json] [--require-provenance] [--out-dir <dir>]
   archify visual-check <output.html> [--json] [--require-provenance] [--out-dir <dir>]
   archify guide [scenario or question] [--json] [--lang en|zh]
   archify brands [name, alias, domain, or category] [--json]
@@ -5332,10 +5334,10 @@ function provenanceFailureReceipt({ command, artifactPath, provenance }) {
     schemaVersion: 1,
     ok: false,
     command,
-    ...(command === 'visual-check' ? {
+    ...(['visual-check', 'browser-check'].includes(command) ? {
       evidenceKind: 'automated-browser',
       status: 'fail',
-      visualReview: 'pending',
+      visualReview: command === 'visual-check' ? 'pending' : 'not-requested',
     } : {}),
     provenance: provenance.status,
     ...(provenance.receiptId ? { deliveryReceiptId: provenance.receiptId } : {}),
@@ -5402,13 +5404,86 @@ async function commandCheck(args) {
   if (result.status !== 0) process.exitCode = result.status ?? 1;
 }
 
-async function commandVisualCheck(rawArgs) {
+async function executeBrowserEvidence({
+  artifactPath, outDir, requireProvenance, command, capture, ...browserOptions
+}) {
+  const pathIdentityRuntime = await loadPathIdentityRuntime();
+  const provenance = inspectArtifactDeliveryProvenance(artifactPath, requireProvenance, pathIdentityRuntime);
+  let runEvidence;
+  let persistFailure;
+  try {
+    const evidence = await import('./visual-check.mjs');
+    runEvidence = command === 'browser-check' ? evidence.runBrowserCheck : evidence.runVisualCheck;
+    persistFailure = command === 'browser-check'
+      ? evidence.persistBrowserCheckFailure
+      : evidence.persistVisualCheckFailure;
+  } catch (error) {
+    fail(`Could not load ${command}: ${error.message}`, 1);
+  }
+  if (provenance && !provenance.ok) {
+    const receipt = persistFailure(artifactPath,
+      provenanceFailureReceipt({ command, artifactPath, provenance }),
+      { outDir });
+    return { exitCode: 1, receipt, inputFailure: true };
+  }
+
+  let result;
+  try {
+    result = await runEvidence({
+      ...browserOptions,
+      artifactPath,
+      outDir,
+      ...(provenance ? { deliveryProvenance: provenance } : {}),
+      verifyArtifact: (bytes) => {
+        const verified = verifyDeliveryUnchanged(
+          artifactPath,
+          provenance,
+          artifactIdentity(bytes),
+          pathIdentityRuntime,
+        );
+        if (!verified.ok) {
+          const error = new Error(verified.diagnostics[0].message);
+          error.deliveryProvenance = verified;
+          error.archifyDiagnostics = verified.diagnostics;
+          throw error;
+        }
+      },
+    });
+  } catch (error) {
+    const failure = persistFailure(artifactPath, {
+        schemaVersion: 1,
+        ok: false,
+        command,
+        evidenceKind: 'automated-browser',
+        status: 'fail',
+        visualReview: capture ? 'pending' : 'not-requested',
+        ...(provenance ? {
+          provenance: provenance.status,
+          ...(provenance.receiptId ? { deliveryReceiptId: provenance.receiptId } : {}),
+        } : {}),
+        artifact: { path: artifactPath },
+        error: error.message,
+        diagnostics: [diagnostic({
+          code: `viewer/${command}-input`,
+          message: `${command} could not read a valid HTML input or prepare its evidence files.`,
+          subject: { artifact: artifactPath },
+          evidence: { reason: error.message, ...(error.code ? { systemCode: error.code } : {}) },
+          supportedFixes: ['provide an existing readable .html artifact and a writable directory for evidence files'],
+        })],
+      }, { outDir });
+    return { exitCode: 1, receipt: failure, inputFailure: true };
+  }
+
+  return result;
+}
+
+async function commandBrowserEvidence(rawArgs, { command, capture }) {
   const { rest: args, outDir: rawOutDir } = extractOutDirArgs(rawArgs);
   const json = args.includes('--json');
   const requireProvenance = args.includes('--require-provenance');
   const knownOptions = new Set(['--json', '--require-provenance']);
   const unknown = args.filter((arg) => arg.startsWith('--') && !knownOptions.has(arg));
-  if (unknown.length) fail(`Unknown visual-check option "${unknown[0]}".`, 1);
+  if (unknown.length) fail(`Unknown ${command} option "${unknown[0]}".`, 1);
   const positional = args.filter((arg) => !knownOptions.has(arg));
   if (positional.length !== 1) fail(usage(), 1);
 
@@ -5429,10 +5504,10 @@ async function commandVisualCheck(rawArgs) {
       const failure = {
         schemaVersion: 1,
         ok: false,
-        command: 'visual-check',
+        command,
         evidenceKind: 'automated-browser',
         status: 'fail',
-        visualReview: 'pending',
+        visualReview: capture ? 'pending' : 'not-requested',
         artifact: { path: artifactPath },
         error: error.message,
         diagnostics: [outputDiagnostic],
@@ -5446,82 +5521,15 @@ async function commandVisualCheck(rawArgs) {
       return;
     }
   }
-  const pathIdentityRuntime = await loadPathIdentityRuntime();
-  const provenance = inspectArtifactDeliveryProvenance(
-    artifactPath,
-    requireProvenance,
-    pathIdentityRuntime,
-  );
-  let runVisualCheck;
-  let persistVisualCheckFailure;
-  try {
-    ({ runVisualCheck, persistVisualCheckFailure } = await import('./visual-check.mjs'));
-  } catch (error) {
-    fail(`Could not load visual-check: ${error.message}`, 1);
-  }
-  if (provenance && !provenance.ok) {
-    const receipt = persistVisualCheckFailure(artifactPath,
-      provenanceFailureReceipt({ command: 'visual-check', artifactPath, provenance }),
-      { outDir });
-    if (json) console.log(JSON.stringify(receipt, null, 2));
-    else {
-      console.error(formatDiagnostics(`automated browser evidence failed: ${receipt.error}`, receipt.diagnostics));
-      console.error('perceptual visual review pending');
-    }
-    process.exitCode = 1;
-    return;
-  }
+  const result = await executeBrowserEvidence({ artifactPath, outDir, requireProvenance, command, capture });
 
-  let result;
-  try {
-    result = await runVisualCheck({
-      artifactPath: positional[0],
-      outDir,
-      ...(provenance ? { deliveryProvenance: provenance } : {}),
-      verifyArtifact: (bytes) => {
-        const verified = verifyDeliveryUnchanged(
-          artifactPath,
-          provenance,
-          artifactIdentity(bytes),
-          pathIdentityRuntime,
-        );
-        if (!verified.ok) {
-          const error = new Error(verified.diagnostics[0].message);
-          error.deliveryProvenance = verified;
-          error.archifyDiagnostics = verified.diagnostics;
-          throw error;
-        }
-      },
-    });
-  } catch (error) {
-    const failure = persistVisualCheckFailure(artifactPath, {
-        schemaVersion: 1,
-        ok: false,
-        command: 'visual-check',
-        evidenceKind: 'automated-browser',
-        status: 'fail',
-        visualReview: 'pending',
-        ...(provenance ? {
-          provenance: provenance.status,
-          ...(provenance.receiptId ? { deliveryReceiptId: provenance.receiptId } : {}),
-        } : {}),
-        artifact: { path: path.resolve(positional[0]) },
-        error: error.message,
-        diagnostics: [diagnostic({
-          code: 'viewer/visual-check-input',
-          message: 'visual-check could not read a valid HTML input or prepare its evidence files.',
-          subject: { artifact: path.resolve(positional[0]) },
-          evidence: { reason: error.message, ...(error.code ? { systemCode: error.code } : {}) },
-          supportedFixes: ['provide an existing readable .html artifact and a writable directory for evidence files'],
-        })],
-      }, { outDir });
-    if (json) {
-      console.log(JSON.stringify(failure, null, 2));
-    } else {
-      console.error(formatDiagnostics(`automated browser evidence failed: ${failure.error}`, failure.diagnostics));
-      console.error('perceptual visual review pending');
+  if (result.inputFailure) {
+    if (json) console.log(JSON.stringify(result.receipt, null, 2));
+    else {
+      console.error(formatDiagnostics(`automated browser evidence failed: ${result.receipt.error}`, result.receipt.diagnostics));
+      console.error(capture ? 'perceptual visual review pending' : 'perceptual visual review not requested');
     }
-    process.exitCode = 1;
+    process.exitCode = result.exitCode;
     return;
   }
 
@@ -5530,12 +5538,175 @@ async function commandVisualCheck(rawArgs) {
   } else {
     const sidecarDirectory = outDir || path.dirname(result.receipt.artifact.path);
     console.log(`automated browser evidence ${result.receipt.status}: ${result.receipt.artifact.path}`);
-    console.log(`visual-check containment ${result.receipt.containment.status}; captures ${result.receipt.captures.status}; perceptual visual review pending`);
+    console.log(`${command} containment ${result.receipt.containment.status}; captures ${result.receipt.captures.status}; perceptual visual review ${result.receipt.visualReview}`);
     console.log(`receipt ${path.join(sidecarDirectory, result.receipt.sidecars.receipt)}`);
     if (result.receipt.captures.contactSheet) {
       console.log(`contact sheet ${path.join(sidecarDirectory, result.receipt.captures.contactSheet)}`);
     }
     if (result.receipt.error) console.error(result.receipt.error);
+  }
+  process.exitCode = result.exitCode;
+}
+
+async function commandVisualCheck(rawArgs) {
+  return commandBrowserEvidence(rawArgs, { command: 'visual-check', capture: true });
+}
+
+async function commandBrowserCheck(rawArgs) {
+  return commandBrowserEvidence(rawArgs, { command: 'browser-check', capture: false });
+}
+
+function extractFinalizeReceiptArgs(args) {
+  const rest = [];
+  let receiptPath;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === '--receipt') {
+      receiptPath = args[index + 1];
+      if (!receiptPath || receiptPath.startsWith('--')) rejectCliArgument('--receipt requires a JSON output path.', {
+        code: 'cli/missing-option-value',
+        subject: { option: '--receipt' },
+        supportedFixes: ['provide one .json path after --receipt'],
+      });
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith('--receipt=')) {
+      receiptPath = arg.slice('--receipt='.length);
+      if (!receiptPath) rejectCliArgument('--receipt requires a JSON output path.', {
+        code: 'cli/missing-option-value',
+        subject: { option: '--receipt' },
+        supportedFixes: ['provide one .json path after --receipt'],
+      });
+      continue;
+    }
+    rest.push(arg);
+  }
+  return { rest, receiptPath };
+}
+
+function extractCandidateSha256Args(args) {
+  const rest = [];
+  let candidateSha256;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === '--candidate-sha256') {
+      candidateSha256 = args[index + 1];
+      if (!candidateSha256 || candidateSha256.startsWith('--')) rejectCliArgument('--candidate-sha256 requires a SHA-256 digest.', {
+        code: 'cli/missing-option-value',
+        subject: { option: '--candidate-sha256' },
+        supportedFixes: ['provide the candidate sha256 from the passing validate receipt'],
+      });
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith('--candidate-sha256=')) {
+      candidateSha256 = arg.slice('--candidate-sha256='.length);
+      if (!candidateSha256) rejectCliArgument('--candidate-sha256 requires a SHA-256 digest.', {
+        code: 'cli/missing-option-value',
+        subject: { option: '--candidate-sha256' },
+        supportedFixes: ['provide the candidate sha256 from the passing validate receipt'],
+      });
+      continue;
+    }
+    rest.push(arg);
+  }
+  if (candidateSha256 !== undefined && !/^[0-9a-f]{64}$/.test(candidateSha256)) {
+    rejectCliArgument('--candidate-sha256 must be 64 lowercase hexadecimal characters.', {
+      code: 'cli/invalid-option-value',
+      subject: { option: '--candidate-sha256' },
+      evidence: { value: candidateSha256 },
+      supportedFixes: ['copy candidate.sha256 from the passing validate receipt without modification'],
+    });
+  }
+  return { rest, candidateSha256 };
+}
+
+async function commandFinalize(rawArgs) {
+  const qualityArgs = extractQualityArgs(rawArgs);
+  const repoArgs = extractRepoRootArgs(qualityArgs.rest);
+  const outDirArgs = extractOutDirArgs(repoArgs.rest);
+  const receiptArgs = extractFinalizeReceiptArgs(outDirArgs.rest);
+  const candidateArgs = extractCandidateSha256Args(receiptArgs.rest);
+  const json = candidateArgs.rest.includes('--json');
+  const knownOptions = new Set(['--json']);
+  const unknown = candidateArgs.rest.filter((arg) => arg.startsWith('--') && !knownOptions.has(arg));
+  if (unknown.length) rejectCliArgument(`Unknown finalize option "${unknown[0]}".`, {
+    code: 'cli/unknown-option',
+    subject: { option: unknown[0] },
+    supportedFixes: ['remove the unknown option and retry'],
+  });
+  const positional = candidateArgs.rest.filter((arg) => !knownOptions.has(arg));
+  const [type, input, output] = positional;
+  if (!type || !input || !output || positional.length !== 3) rejectCliArgument(usage(), {
+    code: 'cli/usage',
+    supportedFixes: ['use: archify finalize <type> <input.json> <output.html> [options]'],
+  });
+  rendererPath(type);
+
+  let runFinalize;
+  try {
+    ({ runFinalize } = await import('./finalize.mjs'));
+  } catch (error) {
+    fail(`Could not load finalize: ${error.message}`, 1);
+  }
+
+  let result;
+  try {
+    const pathIdentityRuntime = await loadPathIdentityRuntime();
+    result = await runFinalize({
+      cliPath: fileURLToPath(import.meta.url),
+      type,
+      input,
+      output,
+      quality: qualityArgs.quality || 'showcase',
+      repoRoot: repoArgs.repoRoot,
+      candidateSha256: candidateArgs.candidateSha256,
+      outDir: outDirArgs.outDir,
+      receiptPath: receiptArgs.receiptPath,
+      inspectDelivery: artifact => inspectArtifactDeliveryProvenance(artifact, true, pathIdentityRuntime),
+      deliveryPaths: artifact => ({
+        provenance: deliveryProvenancePath(artifact),
+        pending: deliveryPendingPath(artifact),
+        lock: deliverySidecarPath(artifact, '.delivery-lock.json'),
+        directoryLock: path.join(path.dirname(deliveryProvenancePath(artifact)), DELIVERY_DIRECTORY_LOCK),
+      }),
+      runBrowserCheck: options => executeBrowserEvidence({
+        ...options, command: 'browser-check', capture: false, requireProvenance: true,
+      }),
+    });
+  } catch (error) {
+    const failure = {
+      schemaVersion: 1,
+      ok: false,
+      command: 'finalize',
+      status: 'fail',
+      type,
+      quality: qualityArgs.quality || 'showcase',
+      specification: { path: path.resolve(input) },
+      artifact: { path: path.resolve(output) },
+      gates: Object.fromEntries(['validate', 'deliver', 'check', 'browser-check'].map((stage) => [stage, 'not-run'])),
+      diagnostics: error.archifyDiagnostics || [{
+        code: error.finalizeCode || 'finalize/runtime',
+        severity: 'error',
+        message: error.message,
+        ...(error.finalizeEvidence ? { evidence: error.finalizeEvidence } : {}),
+      }],
+      visualReview: 'not-requested',
+    };
+    if (json) console.log(JSON.stringify(failure));
+    else console.error(formatDiagnostics('finalize could not start', failure.diagnostics));
+    process.exitCode = 1;
+    return;
+  }
+
+  if (json) {
+    console.log(JSON.stringify(result.summary));
+  } else {
+    console.log(`finalize ${result.summary.status}: ${result.summary.artifact.path}`);
+    console.log(`gates ${Object.entries(result.summary.gates).map(([stage, status]) => `${stage}:${status}`).join(' ')}`);
+    console.log(`receipt ${result.summary.evidence.receipt}`);
+    console.log(`perceptual visual review ${result.summary.visualReview}`);
   }
   process.exitCode = result.exitCode;
 }
@@ -5587,6 +5758,13 @@ async function commandDoctor(args) {
     label: 'Visual-check runtime',
     ok: fs.existsSync(visualCheckRuntime),
     missing: fs.existsSync(visualCheckRuntime) ? 0 : 1,
+  });
+
+  const finalizeRuntime = path.join(skillRoot, 'bin/finalize.mjs');
+  checks.push({
+    label: 'Finalize runtime',
+    ok: fs.existsSync(finalizeRuntime),
+    missing: fs.existsSync(finalizeRuntime) ? 0 : 1,
   });
 
   const outputPathRuntime = path.join(skillRoot, 'renderers/shared/output-path.mjs');
@@ -6503,8 +6681,10 @@ async function commandValidate(args) {
   }
 
   const inputPath = path.resolve(input);
+  let specification;
   try {
-    const document = JSON.parse(fs.readFileSync(inputPath, 'utf8'));
+    specification = fs.readFileSync(inputPath);
+    const document = JSON.parse(specification.toString('utf8'));
     const [{ validateAuthoredOutputPath }, { validateSchema }] = await Promise.all([
       import('../renderers/shared/output-path.mjs'),
       import('../renderers/shared/validator.mjs'),
@@ -6565,7 +6745,9 @@ async function commandValidate(args) {
   let exitCode = 0;
 
   try {
-    const render = runNode([renderer, input, out], {
+    const snapshot = path.join(tmp, 'specification.snapshot.json');
+    fs.writeFileSync(snapshot, specification, { flag: 'wx' });
+    const render = runNode([renderer, snapshot, out], {
       stdio: 'pipe',
       env: rendererEnv(quality, repoRoot, true),
     });
@@ -6606,12 +6788,33 @@ async function commandValidate(args) {
         const result = JSON.parse(check.stdout);
         const engineeringProfile = engineeringProfileFromArtifact(fs.readFileSync(out));
         if (json) {
+          const candidate = {
+            path: path.resolve(input),
+            ...artifactIdentity(specification),
+          };
+          const resolvedQuality = quality || result.composition.profile || 'standard';
           console.log(JSON.stringify({
             schemaVersion: 1,
             ok: true,
             command: 'validate',
             type,
-            input: path.resolve(input),
+            input: candidate.path,
+            candidate,
+            candidateFrozen: true,
+            nextAction: {
+              command: 'finalize',
+              arguments: [
+                type,
+                candidate.path,
+                '<output.html>',
+                '--quality',
+                resolvedQuality,
+                ...(repoRoot ? ['--repo-root', repoRoot] : []),
+                '--candidate-sha256',
+                candidate.sha256,
+                '--json',
+              ],
+            },
             checks: result.checks,
             composition: result.composition,
             ...(engineeringProfile ? { engineeringProfile } : {}),
@@ -6650,6 +6853,9 @@ try {
     case 'deliver':
       await commandDeliver(args);
       break;
+    case 'finalize':
+      await commandFinalize(args);
+      break;
     case 'preview':
       await commandPreview(args);
       break;
@@ -6671,6 +6877,9 @@ try {
     case 'visual-check':
       await commandVisualCheck(args);
       break;
+    case 'browser-check':
+      await commandBrowserCheck(args);
+      break;
     case 'guide':
       await commandGuide(args);
       break;
@@ -6691,7 +6900,7 @@ try {
   }
 } catch (error) {
   if (!error.archifyArgument) throw error;
-  if (['validate', 'deliver'].includes(command) && args.includes('--json')) {
+  if (['validate', 'deliver', 'finalize'].includes(command) && args.includes('--json')) {
     reportArtifactArgumentFailure(command, error);
   } else {
     fail(error.message);
