@@ -1782,20 +1782,41 @@ export class ChromeVisualBrowser {
     return metrics;
   }
 
-  async close() {
+  close() {
+    if (!this.closePromise) this.closePromise = this.finishClose();
+    return this.closePromise;
+  }
+
+  async finishClose() {
     this.cdp.failAll(new Error('visual-check finished'));
-    if (this.child.exitCode === null && this.child.signalCode === null) {
-      this.child.kill('SIGTERM');
-      await new Promise((resolve) => {
-        const timer = setTimeout(() => {
-          if (this.child.exitCode === null && this.child.signalCode === null) this.child.kill('SIGKILL');
-          resolve();
-        }, 1500);
-        this.child.once('exit', () => {
-          clearTimeout(timer);
-          resolve();
+    try {
+      if (this.child.exitCode === null && this.child.signalCode === null) {
+        await new Promise((resolve) => {
+          let timer = null;
+          let settled = false;
+          const finish = () => {
+            if (settled) return;
+            settled = true;
+            if (timer) clearTimeout(timer);
+            this.child.removeListener('exit', finish);
+            resolve();
+          };
+          this.child.once('exit', finish);
+          this.child.kill('SIGTERM');
+          if (settled) return;
+          timer = setTimeout(() => {
+            if (this.child.exitCode === null && this.child.signalCode === null) this.child.kill('SIGKILL');
+            finish();
+          }, 1500);
         });
-      });
+      }
+    } finally {
+      // `exit` only reports that Chrome's main process is gone. A helper may
+      // still hold an inherited pipe open, so explicitly release every stream
+      // this browser instance owns before its test cleanup hook resolves.
+      for (const stream of [this.child.stderr, this.child.stdio[3], this.child.stdio[4]]) {
+        if (stream && !stream.destroyed) stream.destroy();
+      }
     }
     try {
       fs.rmSync(this.profileRoot, { recursive: true, force: true });

@@ -2180,7 +2180,7 @@ function usage() {
   archify deliver <type> <input.json> [output.html] [--json] [--open] [--quality standard|showcase] [--repo-root path]
   archify preview <type> <input.json> [output.html] [--no-open] [--quality standard|showcase] [--repo-root path]
   archify validate <type> <input.json> [--json] [--layout-json] [--quality standard|showcase] [--repo-root path]
-  archify migrate workflow <old.json> <new.json> --to-schema 2 [--json] [--repo-root path]
+  archify migrate workflow <old.json> <new.json> --to-schema 2 [--output portable.html] [--json] [--repo-root path]
   archify inspect <type> <input.json>
   archify check <output.html> [--require-provenance]
   archify visual-check <output.html> [--json] [--require-provenance] [--out-dir <dir>]
@@ -5065,7 +5065,7 @@ async function commandDeliver(args) {
         };
       }
       if (receipt.open.status !== 'opened') {
-        console.error(`Could not open the verified artifact (${receipt.open.status}). Open it manually: ${outputPath}`);
+        console.error(`Could not open the verified artifact (${receipt.open.status}). ${receipt.open.failure?.reason || 'Open it manually.'} Target: ${outputPath}`);
       }
     }
 
@@ -5932,6 +5932,7 @@ function extractMigrationOptions(args) {
   const positional = [];
   let json = false;
   let toSchema;
+  let output;
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === '--json') {
@@ -5949,10 +5950,21 @@ function extractMigrationOptions(args) {
       if (!toSchema) fail('--to-schema requires a schema version.');
       continue;
     }
+    if (arg === '--output') {
+      output = args[index + 1];
+      if (!output || output.startsWith('--')) fail('--output requires a portable HTML path.');
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith('--output=')) {
+      output = arg.slice('--output='.length);
+      if (!output) fail('--output requires a portable HTML path.');
+      continue;
+    }
     if (arg.startsWith('--')) fail(`Unknown migrate option "${arg}".`);
     positional.push(arg);
   }
-  return { positional, json, toSchema };
+  return { positional, json, toSchema, output };
 }
 
 async function commandMigrate(args) {
@@ -5966,7 +5978,7 @@ async function commandMigrate(args) {
     || options.positional.length !== 3
     || options.toSchema !== '2'
   ) {
-    fail('Usage: archify migrate workflow <old.json> <new.json> --to-schema 2 [--json] [--repo-root path]');
+    fail('Usage: archify migrate workflow <old.json> <new.json> --to-schema 2 [--output portable.html] [--json] [--repo-root path]');
   }
 
   const sourcePath = path.resolve(sourceArgument);
@@ -6005,9 +6017,29 @@ async function commandMigrate(args) {
     verifyAtomicOutput,
     verifyRegularFileBinding,
   } = await import('../renderers/shared/atomic-output.mjs');
-  if (sourceDocument?.meta?.output !== undefined) {
+  // `--output` repairs only the durable output field in the migration
+  // candidate. It never writes the source and deliberately leaves every
+  // other schema and compiler failure visible to the normal migration path.
+  let migrationSourceDocument = sourceDocument;
+  if (options.output !== undefined) {
     try {
-      validateAuthoredOutputPath(sourceDocument.meta.output);
+      validateAuthoredOutputPath(options.output);
+    } catch (error) {
+      reportMigrationFailure({
+        preExistingDiagnostics: migrationPathDiagnostics(error, sourcePath, destinationPath),
+      });
+      return;
+    }
+    if (sourceDocument?.meta && typeof sourceDocument.meta === 'object' && !Array.isArray(sourceDocument.meta)) {
+      migrationSourceDocument = {
+        ...sourceDocument,
+        meta: { ...sourceDocument.meta, output: options.output },
+      };
+    }
+  }
+  if (migrationSourceDocument?.meta?.output !== undefined) {
+    try {
+      validateAuthoredOutputPath(migrationSourceDocument.meta.output);
     } catch (error) {
       reportMigrationFailure({
         preExistingDiagnostics: migrationPathDiagnostics(error, sourcePath, destinationPath),
@@ -6018,7 +6050,7 @@ async function commandMigrate(args) {
   // Unlike render/validate, migrate has no --quality override. Pin every stage
   // to the document's durable policy and scrub any ambient profile from the
   // staged renderer by passing this value explicitly.
-  const activeQualityProfile = sourceDocument?.meta?.quality_profile || 'standard';
+  const activeQualityProfile = migrationSourceDocument?.meta?.quality_profile || 'standard';
 
   let sourceDestinationAlias;
   try {
@@ -6044,7 +6076,7 @@ async function commandMigrate(args) {
   const { migrateWorkflowDocument, serializeMigratedWorkflow } = await import('../migrations/workflow-v2.mjs');
   let migration;
   try {
-    migration = migrateWorkflowDocument(sourceDocument);
+    migration = migrateWorkflowDocument(migrationSourceDocument);
   } catch (error) {
     migration = {
       ok: false,
@@ -6060,18 +6092,6 @@ async function commandMigrate(args) {
   if (!migration.ok) {
     reportMigrationFailure(migration);
     return;
-  }
-
-  if (sourceDocument?.meta?.output === undefined) {
-    try {
-      validateAuthoredOutputPath(sourceDocument?.meta?.output);
-    } catch (error) {
-      reportMigrationFailure({
-        ...migration,
-        preExistingDiagnostics: migrationPathDiagnostics(error, sourcePath, destinationPath),
-      });
-      return;
-    }
   }
 
   const destinationDirectory = path.dirname(destinationPath);
