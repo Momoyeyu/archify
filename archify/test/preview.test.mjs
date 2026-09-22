@@ -110,7 +110,7 @@ async function waitForState(url, predicate, message, timeoutMs = 12000) {
   // timeout. An explicit timeout longer than the adaptive window is preserved.
   // The transition trace makes a genuine stalled build distinguishable from a
   // slow one when the bounded wait expires.
-  const hardWaitMs = Math.min(Math.max(timeoutMs, 20000), 30000);
+  const hardWaitMs = Math.max(timeoutMs, 20000);
   const hardDeadline = started + hardWaitMs;
   let deadline = Math.min(requestedDeadline, hardDeadline);
   let latest;
