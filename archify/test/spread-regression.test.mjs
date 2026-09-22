@@ -3,9 +3,9 @@
 // input-sized collection used to crash large-but-valid specs. Each case below
 // failed on the pre-fix revision and must now render successfully.
 //
-// The `many-components` case passes `--stack-size=128` to lower the argument
-// ceiling so a smaller fixture still exercises it; the flag only shrinks the
-// threshold, it does not change which code paths run.
+// The `many-components` case passes `--stack-size=64` to lower the argument
+// ceiling (~7k args) so a 10k-component fixture still exercises it; the flag
+// only shrinks the threshold, it does not change which code paths run.
 //
 //   node --test test/spread-regression.test.mjs
 
@@ -64,8 +64,8 @@ test('boundary wraps list larger than the call-argument limit still renders', ()
 
 test('many components render through legend layout under a shrunken stack', () => {
   const { result, output } = render('many-components', spec({
-    components: Array.from({ length: 20_000 }, (_, index) => component(index)),
-  }), ['--stack-size=128']);
+    components: Array.from({ length: 10_000 }, (_, index) => component(index)),
+  }), ['--stack-size=64']);
   assert.equal(result.status, 0, result.stderr);
   const html = fs.readFileSync(output, 'utf8');
   assert.ok(html.includes('<svg'));
