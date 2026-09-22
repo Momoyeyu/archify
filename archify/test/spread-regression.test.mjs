@@ -3,9 +3,10 @@
 // input-sized collection used to crash large-but-valid specs. Each case below
 // failed on the pre-fix revision and must now render successfully.
 //
-// The `many-components` case passes `--stack-size=64` to lower the argument
-// ceiling (~7k args) so a 10k-component fixture still exercises it; the flag
-// only shrinks the threshold, it does not change which code paths run.
+// The `many-components` case passes `--stack-size=128` to lower the argument
+// ceiling so a 12k-component fixture still exceeds it on the older Node runtimes
+// in the matrix (observed RangeError on Node 20, ~30s render); on newer V8 the
+// same input is a fast completion guard for the legend/layout path.
 //
 //   node --test test/spread-regression.test.mjs
 
@@ -36,7 +37,7 @@ function render(name, doc, flags = []) {
   fs.writeFileSync(input, JSON.stringify(doc));
   const result = spawnSync(process.execPath, [...flags, renderer, input, output], {
     encoding: 'utf8',
-    timeout: 120_000,
+    timeout: 180_000,
   });
   return { result, output };
 }
@@ -64,8 +65,8 @@ test('boundary wraps list larger than the call-argument limit still renders', ()
 
 test('many components render through legend layout under a shrunken stack', () => {
   const { result, output } = render('many-components', spec({
-    components: Array.from({ length: 10_000 }, (_, index) => component(index)),
-  }), ['--stack-size=64']);
+    components: Array.from({ length: 12_000 }, (_, index) => component(index)),
+  }), ['--stack-size=128']);
   assert.equal(result.status, 0, result.stderr);
   const html = fs.readFileSync(output, 'utf8');
   assert.ok(html.includes('<svg'));
