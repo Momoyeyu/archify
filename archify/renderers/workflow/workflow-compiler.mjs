@@ -2729,6 +2729,10 @@ function validateReadableInputsBeforeRouting() {
     }
     byLane.set(node.lane, [...(byLane.get(node.lane) || []), node]);
   }
+  // Every overlapping pair is reported at once. Failing on the first pair
+  // made an author who stacked two groups of nodes fix one, rerun, and only
+  // then learn about the other; the draft already contained both.
+  const overlaps = [];
   for (const [lane, laneNodes] of byLane) {
     for (let left = 0; left < laneNodes.length; left += 1) {
       for (let right = left + 1; right < laneNodes.length; right += 1) {
@@ -2748,7 +2752,7 @@ function validateReadableInputsBeforeRouting() {
               : [];
           });
           const message = `Workflow nodes "${leftNode.id}" and "${rightNode.id}" are less than 8px apart in lane "${lane}".`;
-          fail({
+          overlaps.push({
             code: 'workflow/node-overlap',
             severity: 'error',
             message,
@@ -2766,6 +2770,11 @@ function validateReadableInputsBeforeRouting() {
         }
       }
     }
+  }
+  if (overlaps.length) {
+    throwDiagnosticError(overlaps.length === 1
+      ? overlaps[0].message
+      : `Workflow node overlap:\n- ${overlaps.map((entry) => entry.message).join('\n- ')}`, overlaps);
   }
 }
 
