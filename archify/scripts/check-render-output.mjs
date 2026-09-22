@@ -68,6 +68,7 @@ let composition = {
 const NON_FINITE_TOKEN = /\b(?:NaN|undefined|Infinity)\b/;
 // Consume comments/CDATA as whole tokens, including any tag-like prose.
 const SVG_TAG_TOKEN = /<!--[\s\S]*?(?:-->|$)|<!\[CDATA\[[\s\S]*?(?:\]\]>|$)|<(\/?)([A-Za-z][\w:-]*)(?=[\s/>])(?:[^>"']|"[^"]*"|'[^']*')*>/g;
+const AUTOMATIC_CROSSOVER_UNDERLAY_TAG = /<path\b[^>]*\bdata-graph-role="automatic-crossover-underlay"[^>]*\/>/i;
 const HTML_VOID_ELEMENTS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
 const SVG_HTML_INTEGRATION_POINTS = new Set(['foreignobject', 'desc', 'title']);
 const HTML_ATTRIBUTE = /([A-Za-z_:][\w:.-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/g;
@@ -343,16 +344,27 @@ process.exitCode = ok ? 0 : 1;
 function collectArrows(fragment) {
   const arrows = [];
   let index = 0;
+  let previousTag = null;
+  let previousTagEnd = 0;
 
   for (const tag of fragment.matchAll(/<(path|line)\b[^>]*>/gi)) {
+    const tagStart = tag.index;
     const raw = tag[0];
+    const gap = previousTag ? fragment.slice(previousTagEnd, tagStart) : '';
+    const precedingUnderlay = previousTag
+      && /^\s*$/.test(gap)
+      && previousTag.name === 'path'
+      && previousTag.underlayAttrs;
+    previousTag = {
+      name: tag[1].toLowerCase(),
+      underlayAttrs: tag[1].toLowerCase() === 'path' && AUTOMATIC_CROSSOVER_UNDERLAY_TAG.test(raw)
+        ? parseAttrs(raw)
+        : null,
+    };
+    previousTagEnd = tagStart + raw.length;
     if (!/\bclass="[^"]*\ba-(?:default|emphasis|security|dashed)\b/.test(raw)) continue;
     if (!/\bmarker-end=/.test(raw)) continue;
     const attrs = parseAttrs(raw);
-    const precedingUnderlayTag = fragment.slice(0, tag.index).match(
-      /(<path\b[^>]*\bdata-graph-role="automatic-crossover-underlay"[^>]*\/>)\s*$/i,
-    )?.[1];
-    const precedingUnderlay = precedingUnderlayTag ? parseAttrs(precedingUnderlayTag) : null;
     const routeStrokeWidth = numberAttr(attrs, 'stroke-width');
     const underlayStrokeWidth = precedingUnderlay ? numberAttr(precedingUnderlay, 'stroke-width') : NaN;
     const verifiedCrossoverHalo = attrs['data-composition-crossover'] === 'halo'

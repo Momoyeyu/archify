@@ -37,11 +37,11 @@ export const VISUAL_CHECK_VIEWPORTS = Object.freeze([
   Object.freeze({ width: 2048, height: 1320 }),
 ]);
 
-const CAPTURE_VIEWPORTS = Object.freeze([
+export const CAPTURE_VIEWPORTS = Object.freeze([
   VISUAL_CHECK_VIEWPORTS[0],
   VISUAL_CHECK_VIEWPORTS[VISUAL_CHECK_VIEWPORTS.length - 1],
 ]);
-const THEMES = Object.freeze(['light', 'dark']);
+export const THEMES = Object.freeze(['light', 'dark']);
 const EXIT = Object.freeze({ pass: 0, fail: 1, skipped: 2 });
 export const CHROME_NO_SANDBOX_ENV = 'ARCHIFY_CHROME_NO_SANDBOX';
 const VISUAL_SIDECAR_SUFFIXES = Object.freeze([

@@ -1693,8 +1693,12 @@ test('architecture: unavoidable automatic crossing renders as a verified crossov
   const { code, stderr, outPath } = render('architecture', d);
   assert.equal(code, 0, stderr);
   const html = fs.readFileSync(outPath, 'utf8');
-  assert.equal((html.match(/data-graph-role="automatic-crossover-underlay"/g) || []).length, 2);
-  assert.equal((html.match(/data-composition-crossover="halo"/g) || []).length, 2);
+  const svg = html.match(/<svg\b[\s\S]*?<\/svg>/i)?.[0] || '';
+  assert.equal((svg.match(/data-graph-role="automatic-crossover-underlay"/g) || []).length, 2);
+  assert.equal((svg.match(/data-graph-role="automatic-crossover"/g) || []).length, 2);
+  assert.equal((svg.match(/data-composition-crossover="halo"/g) || []).length, 2);
+  assert.equal((svg.match(/data-edge-from=/g) || []).length, 2);
+  assert.doesNotMatch(svg, /automatic-crossover-underlay"[^>]*data-edge-/);
 
   const receipt = JSON.parse(execFileSync('node', [
     path.join(skillRoot, 'scripts', 'check-render-output.mjs'),

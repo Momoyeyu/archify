@@ -216,6 +216,29 @@ test('render output check: verified automatic crossover halos resolve a proper X
   assert.deepEqual(result.composition.summary, { errors: 0, warnings: 0 });
 });
 
+test('render output check: crossover halos fail closed when sibling adjacency is interrupted', () => {
+  const underlay = '<path data-graph-role="automatic-crossover-underlay" d="M 20 60 L 200 60" fill="none" stroke="var(--mask)" stroke-width="5.5" pointer-events="none"/>';
+  const route = '<path data-edge-id="left" data-edge-from="a" data-edge-to="b" data-composition-crossover="halo" d="M 20 60 L 200 60" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>';
+  const rightUnderlay = '<path data-graph-role="automatic-crossover-underlay" d="M 100 20 L 100 120" fill="none" stroke="var(--mask)" stroke-width="5.5" pointer-events="none"/>';
+  const rightRoute = '<path data-edge-id="right" data-edge-from="c" data-edge-to="d" data-composition-crossover="halo" d="M 100 20 L 100 120" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>';
+  for (const [name, separator] of [
+    ['comment', '<!-- an intervening comment -->'],
+    ['element', '<path d="M 1 1 L 2 2"/>'],
+    ['group', '<g></g>'],
+  ]) {
+    const { code, result } = checkHtml(`showcase-crossover-nonadjacent-${name}`, `
+      ${underlay}
+      ${separator}
+      ${route}
+      ${rightUnderlay}
+      ${rightRoute}
+    `, 'showcase');
+    assert.notEqual(code, 0, name);
+    assert.equal(result.composition.metrics.properCrossings, 1, name);
+    assert.equal(result.composition.metrics.resolvedCrossovers, 0, name);
+  }
+});
+
 test('render output check: a crossover marker without a matching underlay fails closed', () => {
   const { code, result } = checkHtml('showcase-unverified-crossover-halo', `
     <path data-graph-role="automatic-crossover-underlay" d="M 20 61 L 200 61" fill="none" stroke="var(--mask)" stroke-width="5.5" pointer-events="none"/>
