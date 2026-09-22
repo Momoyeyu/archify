@@ -7,6 +7,8 @@ import assert from 'node:assert/strict';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const skillRoot = path.join(here, '..');
 const skill = readFileSync(path.join(skillRoot, 'SKILL.md'), 'utf8');
+const defaults = readFileSync(path.join(skillRoot, 'references', 'authoring-defaults.md'), 'utf8');
+const updateAwareness = readFileSync(path.join(skillRoot, 'references', 'update-awareness.md'), 'utf8');
 const authoringContract = readFileSync(path.join(skillRoot, 'references', 'authoring-contract.md'), 'utf8');
 const frontmatter = skill.match(/^---\n([\s\S]*?)\n---/);
 
@@ -49,25 +51,25 @@ test('main skill stays a bounded authoring router with progressive references', 
 });
 
 test('update awareness is notification-only and never replaces the requested workflow', () => {
-  assert.match(skill, /`scripts\/check-update\.mjs`/);
-  assert.match(skill, /`silent`[\s\S]*without mentioning/i);
-  assert.match(skill, /`update_available`[\s\S]*compact notice/i);
-  assert.match(skill, /information, not permission/i);
-  assert.match(skill, /`severity` is `security`[\s\S]*security update[\s\S]*emphasis only, never user autonomy/i);
-  assert.match(skill, /continue the user's original task/i);
-  assert.match(skill, /installed version unchanged/i);
+  assert.match(skill + updateAwareness, /`scripts\/check-update\.mjs`/);
+  assert.match(skill + updateAwareness, /`silent`[\s\S]*without mentioning/i);
+  assert.match(skill + updateAwareness, /`update_available`[\s\S]*compact notice/i);
+  assert.match(skill + updateAwareness, /information, not permission/i);
+  assert.match(skill + updateAwareness, /`severity` is `security`[\s\S]*security update[\s\S]*emphasis only, never user autonomy/i);
+  assert.match(skill + updateAwareness, /continue the user's original task/i);
+  assert.match(skill + updateAwareness, /installed version unchanged/i);
   assert.doesNotMatch(skill, /npx skills update|gh skill update/i);
 });
 
 test('language behavior stays within the bounded locale contract', () => {
-  assert.match(skill, /one primary authored language/);
-  assert.match(skill, /explicit user choice; otherwise follow the request or conversation's dominant language/);
-  assert.match(skill, /`meta\.locale` controls only renderer-owned Viewer UI/);
-  assert.match(skill, /use `"en"`, `"zh-CN"`, or `"es"`/);
-  assert.match(skill, /For every other language, omit `meta\.locale`/);
-  assert.match(skill, /fixed Viewer UI and `<html lang>` fall back to English/);
-  assert.match(skill, /renderer never translates authored content/i);
-  assert.match(skill, /product names.*code identifiers.*protocols.*API paths.*environment names/);
+  assert.match(defaults, /one primary authored language/);
+  assert.match(defaults, /explicit user choice; otherwise follow the request or conversation's dominant language/);
+  assert.match(defaults, /`meta\.locale` controls only renderer-owned Viewer UI/);
+  assert.match(defaults, /use `"en"`, `"zh-CN"`, or `"es"`/);
+  assert.match(defaults, /For every other language, omit `meta\.locale`/);
+  assert.match(defaults, /fixed Viewer UI and `<html lang>` fall back to English/);
+  assert.match(defaults, /renderer never translates authored content/i);
+  assert.match(defaults, /product names.*code identifiers.*protocols.*API paths.*environment names/);
   assert.match(authoringContract, /`meta\.locale` controls only renderer-owned reader surfaces/);
   assert.match(authoringContract, /outside `en`, `zh-CN`, and `es`/);
   assert.match(authoringContract, /artifact is\s+not fully localized/);
@@ -78,7 +80,7 @@ test('language behavior stays within the bounded locale contract', () => {
 });
 
 test('skill keeps the title hierarchy compact by default', () => {
-  assert.match(skill, /Omit `meta\.subtitle` by default/);
-  assert.match(skill, /Never invent a subtitle that restates the title, nodes, or cards/);
+  assert.match(defaults, /Omit `meta\.subtitle` by default/);
+  assert.match(defaults, /Never invent a subtitle that restates the title, nodes, or cards/);
   assert.match(authoringContract, /omitted or blank subtitle must not leave an empty visual row/);
 });

@@ -18,6 +18,8 @@ import {
   findChrome,
   persistVisualCheckFailure,
   runVisualCheck,
+  runBrowserCheck,
+  browserCheckSidecarPaths,
   sidecarPaths,
 } from '../bin/visual-check.mjs';
 import { sameLocation } from '../renderers/shared/path-semantics.mjs';
@@ -55,6 +57,7 @@ function fakeBrowser({
   stageCollisionAt,
   stageGapAt,
   screenshotFailure,
+  resolvedThemeAt,
 } = {}) {
   const calls = [];
   return {
@@ -81,7 +84,7 @@ function fakeBrowser({
         innerHeight: height,
         scrollWidth: width + (overflow ? 1 : 0),
         scrollHeight: height + (readableScroll ? 240 : 0) + (tall ? 300 : 0),
-        resolvedTheme: theme,
+        resolvedTheme: resolvedThemeAt?.({ theme }) ?? theme,
         ...(tall ? {
           pageComposition: {
             bodyPaddingPx: 12, headerPx: 40, guidedViewsPx: 60, diagramChromePx: 76,
@@ -3051,4 +3054,50 @@ test('visual-check reports local inspection cleanup failure alongside an evidenc
     && entry.recoveryDirectory === inspectionDirectory
     && /synthetic inspection cleanup denied/.test(entry.reason)
   )), 'the conflict must report the retained local inspection directory');
+});
+
+test('browser-check proves rendered behavior without creating screenshots or requiring perceptual review', async () => {
+  const input = artifact('browser-check-passing.html');
+  const browser = fakeBrowser();
+  const result = await runBrowserCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => browser,
+  });
+
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.receipt.command, 'browser-check');
+  assert.equal(result.receipt.status, 'pass');
+  assert.equal(result.receipt.visualReview, 'not-requested');
+  assert.equal(result.receipt.themeStates.status, 'pass');
+  assert.equal(result.receipt.themeStates.viewports.length, 4);
+  assert.equal(result.receipt.captures.status, 'not-requested');
+  assert.deepEqual(result.receipt.captures.screenshots, []);
+  assert.equal(result.receipt.captures.contactSheet, null);
+  assert.equal(browser.calls.length, VISUAL_CHECK_VIEWPORTS.length + 2);
+  assert.equal(browser.calls.every(({ screenshotPath }) => screenshotPath === undefined), true);
+
+  const outputs = browserCheckSidecarPaths(input);
+  assert.equal(fs.existsSync(outputs.receipt), true);
+  assert.equal(fs.existsSync(outputs.contactSheet), false);
+  assert.equal(outputs.screenshots.every(({ path: screenshot }) => !fs.existsSync(screenshot)), true);
+});
+
+test('browser-check fails when an endpoint theme does not resolve without needing image inspection', async () => {
+  const input = artifact('browser-check-theme-mismatch.html');
+  const browser = fakeBrowser({
+    resolvedThemeAt: ({ theme }) => theme === 'dark' ? 'light' : theme,
+  });
+  const result = await runBrowserCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => browser,
+  });
+
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.receipt.status, 'fail');
+  assert.equal(result.receipt.themeStates.status, 'fail');
+  assert.equal(result.receipt.themeStates.viewports.filter(({ ok }) => !ok).length, 2);
+  assert.equal(result.receipt.diagnostics.filter(({ code }) => code === 'viewer/theme-state').length, 2);
+  assert.equal(result.receipt.captures.status, 'not-requested');
 });

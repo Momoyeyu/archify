@@ -128,7 +128,7 @@ test('the sublabel diagnostic reports the width in force, not the historical con
 test('the fast authoring path explains when to opt into spread', () => {
   const schema = JSON.parse(fs.readFileSync(path.join(skillRoot, 'schemas/sequence.schema.json'), 'utf8'));
   const description = schema.properties.meta.properties.column_fit.description;
-  const skill = fs.readFileSync(path.join(skillRoot, 'SKILL.md'), 'utf8');
+  const skill = fs.readFileSync(path.join(skillRoot, 'references/authoring-defaults.md'), 'utf8');
   const rendererReadme = fs.readFileSync(path.join(skillRoot, 'renderers/sequence/README.md'), 'utf8');
 
   assert.match(description, /wide viewBox/);
