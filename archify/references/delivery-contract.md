@@ -190,11 +190,15 @@ Archify intentionally separates durable authored paths from command-line paths:
   Windows spelling restrictions. Every host rejects NUL, unpaired surrogates,
   and components that exceed its supported bound.
 
-These contracts are not interchangeable: an explicit CLI output does not hide
-an invalid durable `meta.output` (including a missing value), and `validate` and `migrate` check
-the authored output even when they do not publish to that path. To migrate an
-older v1 document that omitted it, add a portable POSIX-relative `.html` path
-to `meta.output`; no schema-version change is otherwise required.
+These contracts are not interchangeable: an explicit CLI artifact output does
+not hide an invalid durable `meta.output` (including a missing value), and
+`validate` checks the authored output even when it does not publish to that
+path. A workflow v1-to-v2 migration may explicitly receive a portable durable
+replacement through `migrate workflow old.json new.json --to-schema 2 --output
+reports/diagram.html`; that value is written only to its separate verified v2
+destination. It does not repair the source or bypass any non-output schema or
+compiler error. For every other repair, add a portable POSIX-relative `.html`
+path to `meta.output`; no schema-version change is otherwise required.
 
 Use `validate` after every candidate edit. CLI HTML output paths must end in
 `.html`, including after symbolic-link resolution. Compare receipt paths must
