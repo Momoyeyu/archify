@@ -1645,7 +1645,9 @@ function parsePublicationRecoveryRecord(buffer) {
     && validEntry
     && typeof target.commitPath === 'string' && path.isAbsolute(target.commitPath)
     && typeof target.parentPath === 'string' && path.isAbsolute(target.parentPath)
+    // path-contract-allow: lexical-capability -- A record must exactly decompose the captured canonical target spelling.
     && typeof target.name === 'string' && target.name === path.basename(target.commitPath)
+    // path-contract-allow: lexical-capability -- A record must exactly decompose the captured canonical target spelling.
     && target.parentPath === path.dirname(target.commitPath)
     && parseDecimal(target.parentDevice) !== null && parseDecimal(target.parentInode) !== null;
   if (!valid) return relation('unknown', 'publication-recovery-record-invalid');
@@ -1689,6 +1691,7 @@ function verifyPublicationRecoveryDirectory(directory, metadata, record) {
       recoveryDirectory: directory,
     });
   }
+  // path-contract-allow: lexical-capability -- The generated private-directory component is an exact record-bound capability.
   if (path.basename(directory) !== record.recovery.name
     || !parentMetadata.isDirectory()
     || parentMetadata.dev !== record.target.parentDevice
@@ -1712,8 +1715,12 @@ function verifyRetiredPublicationSlot(record) {
   const { target } = record;
   const slot = captureWriteSlot(target.requestedPath);
   if (slot.status !== 'captured') return slot;
-  if (slot.slot.commitPath !== target.commitPath
-    || slot.slot.parentPath !== target.parentPath
+  // path-contract-allow: lexical-capability -- The recaptured canonical commit spelling must exactly match the recorded capability.
+  const commitPathChanged = slot.slot.commitPath !== target.commitPath;
+  // path-contract-allow: lexical-capability -- The recaptured canonical parent spelling must exactly match the recorded capability.
+  const parentPathChanged = slot.slot.parentPath !== target.parentPath;
+  if (commitPathChanged
+    || parentPathChanged
     || slot.slot.name !== target.name
     || slot.slot.parentDevice !== target.parentDevice
     || slot.slot.parentInode !== target.parentInode) {

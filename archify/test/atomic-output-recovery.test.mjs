@@ -102,6 +102,22 @@ function runRecovery(directory) {
   };
 }
 
+test('recovery CLI help is successful and unknown options do not name a recovery directory', () => {
+  for (const option of ['--help', '-h']) {
+    const result = spawnSync(process.execPath, [recoveryCli, option], { encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /^Usage: node bin\/recover-output\.mjs/m);
+    assert.equal(result.stderr, '');
+  }
+
+  const result = spawnSync(process.execPath, [recoveryCli, '--unexpected-option'], {
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 64, result.stderr);
+  assert.equal(result.stdout, '');
+  assert.match(result.stderr, /^Usage: node bin\/recover-output\.mjs/m);
+});
+
 function portableRecoveryFixture(t) {
   const root = workspace(t, 'archify-portable-publication-recovery-');
   const output = path.join(root, 'diagram.html');
