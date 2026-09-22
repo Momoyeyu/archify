@@ -46,7 +46,7 @@ function spec(overrides) {
   return {
     schema_version: 1,
     diagram_type: 'architecture',
-    meta: { title: 'Spread regression' },
+    meta: { title: 'Spread regression', output: 'spread-regression.html' },
     components: [],
     boundaries: [],
     connections: [],
