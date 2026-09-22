@@ -577,8 +577,10 @@ test('cli: opener failure does not invalidate a verified delivery or pollute jso
   const receipt = JSON.parse(result.stdout);
   assert.equal(receipt.ok, true);
   assert.equal(receipt.open.status, 'failed');
+  assert.equal(receipt.open.failure.code, 'opener/nonzero-exit');
   assert.equal(receipt.open.target, fs.realpathSync.native(out));
   assert.match(result.stderr, /Could not open the verified artifact/);
+  assert.match(result.stderr, /exited with status 17\. Open the target manually\./);
   assert.match(result.stderr, new RegExp(out.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.equal(fs.existsSync(out), true);
   assert.equal(receipt.artifact.sha256, sha256(out));

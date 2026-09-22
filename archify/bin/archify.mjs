@@ -5044,7 +5044,7 @@ async function commandDeliver(args) {
         };
       }
       if (receipt.open.status !== 'opened') {
-        console.error(`Could not open the verified artifact (${receipt.open.status}). Open it manually: ${outputPath}`);
+        console.error(`Could not open the verified artifact (${receipt.open.status}). ${receipt.open.failure?.reason || 'Open it manually.'} Target: ${outputPath}`);
       }
     }
 
