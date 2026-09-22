@@ -54,7 +54,7 @@ route pins are present. Keep semantic edge labels and act on the compiler
 diagnostic. The canonical layout, pin, migration, and receipt contract is in
 [`renderers/workflow/README.md`](renderers/workflow/README.md#layout-contracts).
 
-Lifecycle note: phase columns `0..4` occupy the main rail; event/terminal column `N` in `0..2` aligns exactly beneath main column `N + 2`. A recoverable state uses `type: "failure"` plus a real transition back to the active state.
+Lifecycle note: phase columns `0..4` occupy the main rail; event/terminal column `N` in `0..2` aligns exactly beneath main column `N + 2`. Every lane other than `main` and `terminal` shares the one middle band, so two such states in the same column need distinct `yOffset` values. A recoverable state uses `type: "failure"` plus a real transition back to the active state.
 
 ## Type router
 
