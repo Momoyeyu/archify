@@ -103,11 +103,37 @@ creates the new public name with an exclusive hard link. A caught failure rolls
 back when the public slot and recovery binding still permit it. A process
 interruption between those namespace operations can instead leave the public
 path absent while the verified previous bytes remain in an adjacent private
-recovery backup. Single-artifact publication uses
-`.archify-remove-*/previous`; paired flows retain the backup in their private
-transaction staging directory. Preserve and inspect that backup before serial
-recovery; for `deliver`, the pending journal and lock keep strict checkers
-fail-closed. The portable Node.js filesystem API has no pathname
+recovery backup. Single-artifact publication records the original slot/alias
+identity and backup inode, mode, SHA-256, and byte count in private
+`.archify-remove-*/publication-recovery-v1.json`, beside `previous`. To make a
+specific interrupted publication visible again, stop concurrent writers and run:
+
+```bash
+node bin/recover-output.mjs /absolute/path/to/.archify-remove-<id> --json
+```
+
+This is explicit recovery, not a directory scanner. Before linking, the helper
+checks for a changed parent or alias, an altered/hardlinked record or backup,
+digest or inode mismatch, and any existing public target. It restores only by
+no-clobber hard link, so a new claimant is preserved rather than overwritten;
+it never recursively removes unknown entries. A completed recovery is
+idempotent. The record is evidence to be independently verified, not an
+authority to restore arbitrary private bytes: the helper accepts it only from
+the recorded generated child of the original physical target parent, with the
+same directory identity. Name the exact directory reported by the interrupted
+process and inspect an uncertain record manually. A non-cooperating process can
+still swap pathnames after those checks and before Node.js `linkSync`; Node does
+not expose a descriptor-bound link operation. Post-link identity verification
+then fails closed and retains recovery evidence, rather than claiming recovery
+or deleting an uncertain name. If recovery itself is interrupted after the
+link, the old public bytes and private backup can both remain; a later recovery
+run preserves the public target and needs explicit operator resolution. The
+record is fsynced before the old public name is retired on platforms supporting
+directory sync, and the tested guarantee is recovery after a killed process;
+this is not a claim of power-loss, storage-controller, NFS, or SMB durability.
+Paired flows retain their backup in private transaction staging. For `deliver`,
+the pending journal and lock keep strict checkers fail-closed. The portable
+Node.js filesystem API has no pathname
 compare-and-swap that both replaces an existing name atomically and refuses to
 overwrite a late claimant: `rename` would close the visibility gap only by
 overwriting that claimant.
