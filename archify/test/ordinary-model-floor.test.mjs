@@ -914,7 +914,7 @@ test('packaged skill puts a bounded ordinary-model path before progressive featu
     'Fresh authorship means new stable IDs, domain wording, and layout',
     'Write the candidate before inspecting renderer internals',
     'Start with automatic routes and labels',
-    'Do not add `via`, `channelX`, `channelY`, or `labelAt` before a diagnostic',
+    'Do not add `via`, `route`, `fromSide`, `toSide`, `channelX`, `channelY`, or `labelAt` before a diagnostic',
     'Set `meta.quality_profile` to `"showcase"`',
     'A recoverable state uses `type: "failure"` plus a real transition back to the active state',
     'after every candidate edit',
