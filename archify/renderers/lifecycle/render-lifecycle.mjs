@@ -534,7 +534,7 @@ function renderLifecycleRail() {
     .filter((state) => bandFor(state.lane) === 'phase')
     .map((state) => state.col);
   if (!mainCols.length) return '';
-  const railEnd = layout.phaseXs[Math.max(...mainCols)] + 38;
+  const railEnd = layout.phaseXs[mainCols.reduce((max, col) => Math.max(max, col))] + 38;
   return `        <path data-lifecycle-rail="" d="M 154 ${layout.phaseY + 31} L ${railEnd} ${layout.phaseY + 31}" class="a-emphasis" stroke-width="2.2" marker-end="url(#arrowhead-emphasis)"/>`;
 }
 

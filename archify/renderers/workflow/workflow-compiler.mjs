@@ -3254,12 +3254,20 @@ function readableCandidateCost(
   const directLength = Math.abs(points.at(-1)[0] - points[0][0]) + Math.abs(points.at(-1)[1] - points[0][1]);
   const interiorPreferred28Deficit = segmentLengths.slice(1, -1)
     .reduce((total, length) => total + Math.max(0, 28 - length), 0);
-  const xs = points.map(([x]) => x);
-  const ys = points.map(([, y]) => y);
-  const canvasGrowthPx = Math.max(0, -Math.min(...xs))
-    + Math.max(0, Math.max(...xs) - minimumCanvasWidth)
-    + Math.max(0, -Math.min(...ys))
-    + Math.max(0, Math.max(...ys) - autoHeight);
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const [x, y] of points) {
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+  }
+  const canvasGrowthPx = Math.max(0, -minX)
+    + Math.max(0, maxX - minimumCanvasWidth)
+    + Math.max(0, -minY)
+    + Math.max(0, maxY - autoHeight);
   const from = nodes.get(edge.from);
   const to = nodes.get(edge.to);
   const naturalStart = anchor(from, naturalFromSide);
