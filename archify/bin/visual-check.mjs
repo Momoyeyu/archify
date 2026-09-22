@@ -2487,9 +2487,12 @@ async function runBrowserEvidence({
       file: path.basename(entry.path),
     }));
     const allObservations = [...observations.values()];
-    receipt.themeStates.viewports = CAPTURE_VIEWPORTS.flatMap(({ width, height }) => THEMES.map(theme => {
-      const entry = observations.get(screenshotKey(width, height, theme));
-      return { width, height, requestedTheme: theme, resolvedTheme: entry.resolvedTheme, ok: entry.resolvedTheme === theme };
+    receipt.themeStates.viewports = allObservations.map((entry) => ({
+      width: entry.width,
+      height: entry.height,
+      requestedTheme: entry.theme,
+      resolvedTheme: entry.resolvedTheme,
+      ok: entry.resolvedTheme === entry.theme,
     }));
     const themeStatePass = receipt.themeStates.viewports.every(entry => entry.ok);
     const containmentPass = allObservations.every((entry) => entry.ok);

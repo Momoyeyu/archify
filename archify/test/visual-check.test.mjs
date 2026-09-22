@@ -84,7 +84,7 @@ function fakeBrowser({
         innerHeight: height,
         scrollWidth: width + (overflow ? 1 : 0),
         scrollHeight: height + (readableScroll ? 240 : 0) + (tall ? 300 : 0),
-        resolvedTheme: resolvedThemeAt?.({ theme }) ?? theme,
+        resolvedTheme: resolvedThemeAt?.({ width, height, theme }) ?? theme,
         ...(tall ? {
           pageComposition: {
             bodyPaddingPx: 12, headerPx: 40, guidedViewsPx: 60, diagramChromePx: 76,
@@ -3070,7 +3070,7 @@ test('browser-check proves rendered behavior without creating screenshots or req
   assert.equal(result.receipt.status, 'pass');
   assert.equal(result.receipt.visualReview, 'not-requested');
   assert.equal(result.receipt.themeStates.status, 'pass');
-  assert.equal(result.receipt.themeStates.viewports.length, 4);
+  assert.equal(result.receipt.themeStates.viewports.length, 6);
   assert.equal(result.receipt.captures.status, 'not-requested');
   assert.deepEqual(result.receipt.captures.screenshots, []);
   assert.equal(result.receipt.captures.contactSheet, null);
@@ -3101,3 +3101,29 @@ test('browser-check fails when an endpoint theme does not resolve without needin
   assert.equal(result.receipt.diagnostics.filter(({ code }) => code === 'viewer/theme-state').length, 2);
   assert.equal(result.receipt.captures.status, 'not-requested');
 });
+
+for (const [command, run] of [['browser-check', runBrowserCheck], ['visual-check', runVisualCheck]]) {
+  for (const width of [1600, 1920]) {
+    test(`${command} rejects a mismatched light theme at the ${width}px intermediate viewport`, async () => {
+      const input = artifact(`${command}-intermediate-theme-${width}.html`);
+      const browser = fakeBrowser({
+        resolvedThemeAt: (entry) => entry.width === width ? 'dark' : entry.theme,
+      });
+      const result = await run({
+        artifactPath: input,
+        chromePath: '/fake/chrome',
+        browserFactory: async () => browser,
+      });
+
+      assert.equal(result.exitCode, 1);
+      assert.equal(result.receipt.ok, false);
+      assert.equal(result.receipt.status, 'fail');
+      assert.equal(result.receipt.themeStates.status, 'fail');
+      assert.deepEqual(result.receipt.themeStates.viewports.filter(({ ok }) => !ok), [{
+        width, height: width === 1600 ? 1000 : 1080,
+        requestedTheme: 'light', resolvedTheme: 'dark', ok: false,
+      }]);
+      assert.equal(result.receipt.diagnostics.filter(({ code }) => code === 'viewer/theme-state').length, 1);
+    });
+  }
+}

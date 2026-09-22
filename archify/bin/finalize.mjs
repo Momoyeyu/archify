@@ -14,7 +14,6 @@ import {
   CAPTURE_VIEWPORTS,
   ChromeVisualBrowser,
   findChrome,
-  THEMES,
   VISUAL_CHECK_VIEWPORTS,
 } from './visual-check.mjs';
 
@@ -153,7 +152,8 @@ function validBrowserEvidence(receipt) {
       entry.theme === 'light' && entry.ok === true && entry.viewerChromeOk === true
     ))
     && exactViewportCoverage(receipt.themeStates?.viewports,
-      CAPTURE_VIEWPORTS.flatMap(({ width, height }) => THEMES.map((theme) => ({ width, height, theme }))),
+      [...VISUAL_CHECK_VIEWPORTS.map((viewport) => ({ ...viewport, theme: 'light' })),
+        ...CAPTURE_VIEWPORTS.map((viewport) => ({ ...viewport, theme: 'dark' }))],
       (entry, expected) => entry.ok === true
         && entry.requestedTheme === expected.theme
         && entry.resolvedTheme === expected.theme);
