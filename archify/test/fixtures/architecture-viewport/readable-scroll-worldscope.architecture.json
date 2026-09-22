@@ -3,6 +3,7 @@
   "diagram_type": "architecture",
   "meta": {
     "title": "WorldScope 极高路线可读滚动",
+    "output": "readable-scroll-worldscope.html",
     "locale": "zh-CN",
     "quality_profile": "showcase"
   },

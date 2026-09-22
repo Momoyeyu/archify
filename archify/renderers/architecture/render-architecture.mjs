@@ -12,6 +12,7 @@ import { translateMessage as i18nText } from '../shared/i18n.mjs';
 import { gridLayout, resolveComponentPos, validateGridPlacement } from './grid.mjs';
 import { createRouter } from './routing.mjs';
 import { placeAutomaticLabels } from './labels.mjs';
+import { cleanRouteDetourProblems } from '../shared/route-quality.mjs';
 import {
   asArray,
   isFinitePoint,
@@ -664,6 +665,18 @@ function validateArchitecture() {
     relationCollection: 'connections',
     profile: arch.meta?.quality_profile,
     routeHint: 'move route/via points into a wider corridor or move the component so every turn has room to read'
+  }));
+  problems.push(...cleanRouteDetourProblems({
+    relations: arch.connections,
+    obstacles: components.values(),
+    contentRects: [...components.values(), ...boundaries],
+    endpointIds: new Set(components.keys()),
+    pathFor,
+    fromSideFor: (conn) => connectionEndpointSide(conn, 'source'),
+    toSideFor: (conn) => connectionEndpointSide(conn, 'target'),
+    diagramType: 'architecture',
+    relationCollection: 'connections',
+    profile: arch.meta?.quality_profile,
   }));
 
   // Connection labels must not land on top of components.

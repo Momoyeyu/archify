@@ -3,6 +3,7 @@
   "diagram_type": "architecture",
   "meta": {
     "title": "WorldScope 系统架构",
+    "output": "worldscope.html",
     "locale": "zh-CN",
     "quality_profile": "showcase"
   },

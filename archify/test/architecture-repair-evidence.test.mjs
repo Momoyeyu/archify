@@ -15,7 +15,7 @@ function setup(t, positions, viewBox = [600, 420]) {
   const input = path.join(cwd, 'source.json');
   const diagram = {
     schema_version: 1, diagram_type: 'architecture',
-    meta: { title: 'Backend', quality_profile: 'standard', viewBox },
+    meta: { title: 'Backend', output: 'diagram.html', quality_profile: 'standard', viewBox },
     components: positions.map((pos, index) => ({ id: `n${index}`, type: 'backend', label: `Node ${index}`, pos, size: [120, 60] })),
     boundaries: [{ kind: 'region', label: 'Backend', wraps: positions.map((_, i) => `n${i}`) }],
   };

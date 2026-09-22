@@ -108,6 +108,7 @@ in the generated viewer.
 - In architecture, data-flow, and lifecycle diagrams, explicit `route: "straight"` requests one direct segment, which may be diagonal when endpoint sides are not pinned. The artifact checker preserves this intent; explicit sides, opaque-node clearance, and other quality gates still apply. `via` takes precedence and retains existing rules, including data-flow's requirement for orthogonal via segments.
 - Automatic Port Spread is a default renderer behavior for architecture, workflow, data-flow, and lifecycle diagrams. Shared automatic endpoints spread deterministically and symmetrically with a 16px corner gutter. It does not apply to sequence messages, single relationships, or explicit `via`, `channelX`, `channelY`, `labelAt`, or non-`auto` routes.
 - Showcase route rhythm: every nonzero segment must be at least 8px; every interior segment must be at least 16px. When spread ports are nearly parallel, the router uses a 24px endpoint stub and a 16px outside bridge instead of manufacturing a tiny dogleg.
+- Showcase route compactness: an explicit Architecture route fails with `composition/excessive-route-detour` when its orthogonal length is at least 2.5 times an obstacle-aware legal route, adds at least 200px, and sends a control point at least 96px beyond the content envelope. The evidence records both lengths, ratio, excess, bounds, and excursion. Remove an unnecessary `via` or move the diagnosed corridor inward instead of enlarging the canvas. Related relationships that overlap on the same outer corridor by at least 32px are treated as an intentional bus and remain valid.
 - Shared endpoint corridors are allowed only when they remain semantically unambiguous. Unrelated collinear overlap of 8px or more fails showcase.
 - Container borders are intentional pass-through geometry, but a long edge running along a structural border is not.
 - An edge crossing an unrelated opaque node is always a hard failure, independent of quality profile.
@@ -221,7 +222,7 @@ Compare diagnostics by code, subject, and stage instead of total count alone.
 1. Fix missing/invalid `meta.quality_profile` and schema errors.
 2. Fix node overlap or out-of-range placement.
 3. Fix edge-through-node and endpoint-direction errors.
-4. Fix crossings, ambiguous corridors, border runs, and route rhythm.
+4. Fix crossings, ambiguous corridors, border runs, excessive detours, and route rhythm.
 5. Fix label-to-node, label-to-label, then label-to-route clearance.
 6. Fix labels that leave the canvas: move the label with `labelAt`/`labelDx`/`labelDy`/`labelSegment`, or widen `meta.viewBox`. Suggested `labelDx`/`labelDy` values replace the authored field; they are not added to it.
 

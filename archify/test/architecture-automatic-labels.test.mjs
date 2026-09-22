@@ -23,7 +23,7 @@ function inspect(t, diagram, extra = []) {
 function vertical() {
   return {
     schema_version: 1, diagram_type: 'architecture',
-    meta: { title: 'Cache read', quality_profile: 'showcase', viewBox: [480, 480] },
+    meta: { title: 'Cache read', output: 'diagram.html', quality_profile: 'showcase', viewBox: [480, 480] },
     components: [
       { id: 'api', type: 'backend', label: 'API', pos: [120, 70] },
       { id: 'cache', type: 'database', label: 'Cache', pos: [120, 320] },
