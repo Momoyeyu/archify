@@ -11,6 +11,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
   CHROME_STARTUP_TIMEOUT_MS,
+  verticalBudgetFixes,
   ChromeVisualBrowser,
   VISUAL_CHECK_VIEWPORTS,
   chromeVisualBrowserArgs,
@@ -47,6 +48,7 @@ function stagingDirectories(directory) {
 
 function fakeBrowser({
   overflowAt,
+  tallAt,
   readableScrollAt,
   unreadableAt,
   chromeCollisionAt,
@@ -67,6 +69,7 @@ function fakeBrowser({
         else fs.writeFileSync(screenshotPath, png, { flag: 'wx' });
       }
       const overflow = overflowAt?.({ width, height, theme }) || false;
+      const tall = tallAt?.({ width, height, theme }) || false;
       const readableScroll = readableScrollAt?.({ width, height, theme }) || false;
       const unreadable = unreadableAt?.({ width, height, theme }) || false;
       const chromeCollision = chromeCollisionAt?.({ width, height, theme }) || false;
@@ -77,8 +80,14 @@ function fakeBrowser({
         innerWidth: width,
         innerHeight: height,
         scrollWidth: width + (overflow ? 1 : 0),
-        scrollHeight: height + (readableScroll ? 240 : 0),
+        scrollHeight: height + (readableScroll ? 240 : 0) + (tall ? 300 : 0),
         resolvedTheme: theme,
+        ...(tall ? {
+          pageComposition: {
+            bodyPaddingPx: 12, headerPx: 40, guidedViewsPx: 60, diagramChromePx: 76,
+            svgPx: 800, cardsPx: 212, viewBoxHeight: 1000,
+          },
+        } : {}),
         readerLayout: readableScroll ? 'adaptive' : null,
         readerOverflow: readableScroll ? 'authored' : null,
         readerFit: readableScroll ? 'intrinsic-height' : null,
@@ -2581,6 +2590,45 @@ test('visual-check returns 1 and preserves evidence when any viewport overflows'
   });
   assert.equal(diagnostic?.evidence?.scrollWidth, 1601);
   assert.equal(fs.existsSync(sidecarPaths(input).contactSheet), true);
+});
+
+test('vertical overflow fixes state the stacked page budget and the actionable target', () => {
+  const page = { bodyPaddingPx: 12, headerPx: 40, guidedViewsPx: 60, diagramChromePx: 76, svgPx: 800, cardsPx: 212, viewBoxHeight: 1000 };
+  const base = { overflowY: true, innerHeight: 900, scrollHeight: 1200, diagramWidth: 930, pageComposition: page };
+
+  const atMinimum = verticalBudgetFixes({ ...base, readerLayout: 'adaptive', readerOverflow: 'authored' });
+  assert.match(atMinimum[0], /300px too tall/);
+  assert.match(atMinimum[0], /12px body padding \+ 40px header \+ 60px guided views \+ 76px diagram chrome \+ 800px SVG \+ 212px cards = 1200px against 900px/);
+  assert.match(atMinimum[0], /reduce the viewBox height to at most 625 \(from 1000\)/, 'SVG height follows viewBox height at the fixed minimum width: 1000 * 500 / 800');
+  assert.equal(atMinimum.length, 1, 'cards (212px) cannot absorb a 300px excess, so no card alternative is offered');
+
+  const fullWidth = verticalBudgetFixes({ ...base, readerLayout: null, readerOverflow: null });
+  assert.match(fullWidth[0], /viewBox ratio is below 1\.55/);
+  assert.match(fullWidth[0], /remove meta\.viewBox|1\.55x wider than tall/);
+
+  const cardsAbsorb = verticalBudgetFixes({ ...base, scrollHeight: 1000, readerLayout: 'adaptive', readerOverflow: 'authored' });
+  assert.match(cardsAbsorb[1], /cards take at most 112px/);
+
+  assert.deepEqual(verticalBudgetFixes({ ...base, pageComposition: undefined }), [], 'old artifacts without composition metrics keep the generic fix');
+  assert.deepEqual(verticalBudgetFixes({ ...base, overflowY: false }), []);
+});
+
+test('visual-check reports the page composition when a viewport overflows vertically', async () => {
+  const input = artifact('tall-overflow.html');
+  const result = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser({ tallAt: ({ width }) => width === 1440 }),
+  });
+
+  assert.equal(result.exitCode, 1);
+  const diagnostic = result.receipt.diagnostics.find((entry) => entry.code === 'viewer/viewport-overflow');
+  assert.equal(diagnostic.evidence.pageComposition.svgPx, 800);
+  assert.match(diagnostic.evidence.pageCompositionMeasurement, /sum to scrollHeight/);
+  assert.match(diagnostic.supportedFixes[0], /300px too tall/);
+  assert.equal(diagnostic.supportedFixes.some((fix) => /contain the rendered layout within/.test(fix)), false, 'the numeric budget replaces the generic instruction');
+  const viewport = result.receipt.containment.viewports.find(({ width }) => width === 1440);
+  assert.equal(viewport.pageComposition.cardsPx, 212);
 });
 
 test('visual-check accepts only Reader-declared readable vertical page scrolling', async () => {
