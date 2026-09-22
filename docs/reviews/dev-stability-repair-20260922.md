@@ -79,6 +79,30 @@ Focused repair checks completed before integration:
 - Recovery and existing atomic-write suite: 52 passing, including malformed or
   moved records, new claimants, parent swaps and interrupted recovery.
 
-Final combined-suite, archive, recovery and remote CI results are recorded below
-when those gates complete. Counts above overlap and must not be summed as unique
-coverage. Native Windows behavior is established by Windows CI, not macOS skips.
+## Combined-candidate verification
+
+- Real Chrome shared gate: 227 passing, no failures or skips, natural process
+  exit (511.6 seconds). This run started at `a4bed379`; subsequent changes were
+  CI/test contracts, delivery documentation, recovery CLI argument handling and
+  non-behavioral lexical-capability annotations, not Viewer/browser code.
+- Website: Astro check and build passed; 7/7 parity/public-staging cases passed.
+  Check reported two deprecated-copy-API hints, zero errors or warnings.
+- First full combined run: 2,137 tests, 2,063 passing, five failures and 69
+  platform/browser-gate skips. The five failures exposed duplicated CI browser
+  steps, the expanded site-asset inventory, an obsolete exact README phrase,
+  the delivery-contract phrase, and unannotated recovery capability equality.
+  These were repaired without removing their behavioral assertions.
+- Follow-up checks: browser gate/scope/action pins 10/10; Pages/Windows contract
+  1/1; asset/onboarding contracts 14/14; adjacent website/readme contracts 19/19;
+  delivery contract plus migration 41/41; path boundary/recovery/atomic writes
+  59/59; output paths 40/40.
+- Extracted archive at `a4bed379` passed the standard dependency-free package
+  smoke, real recovery fixture, and explicit-output migration followed by
+  validate/render/check. Later packaged documentation and recovery CLI argument
+  changes require the final archive rebuild and freshness gate.
+
+The final rerun, final archive receipt and cross-platform CI status belong to the
+submitted PR's exact-head checks and verification receipt. This source report
+records the investigation and local integration evidence, not a release claim.
+Counts overlap and must not be summed as unique coverage. Native Windows behavior
+is established by Windows CI, not macOS skips.
