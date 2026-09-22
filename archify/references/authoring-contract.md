@@ -317,3 +317,22 @@ fail with a diagnostic rather than emitting a guessed link.
 ## Hand-placed fallback
 
 Use only when no renderer can run. Start from `assets/template.html`, keep semantic CSS classes, preserve the inline SVG/accessibility structure, and run the delivery visual checklist. Never introduce inline literal colors that break dark/light parity.
+
+## Node icons
+
+For domain-specific diagrams, set an optional `icon` on architecture components,
+workflow/dataflow nodes, sequence participants, or lifecycle states. Choose
+`calendar`, `clock`, `person`, `briefcase`, `flag`, or `moon` for everyday concepts;
+the complete catalog (including existing technical and lifecycle symbols) is
+`common.schema.json#/$defs/nodeIcon`. Use `icon: "none"` to hide the corner symbol.
+Omitting `icon` keeps the type-based default. These inline SVG symbols are
+renderer-owned and export with the diagram; URLs and raw SVG are not accepted.
+
+Icon selection changes only the corner symbol. The node's type still determines
+color and semantic grouping; brand marks remain independent. For a holiday
+workflow, pair `type: "backend", icon: "calendar"` with
+`meta.legend.entries.backend.label: "假期"`, and use `icon: "briefcase"` plus
+an appropriate legend label for make-up work. Keep the node label meaningful:
+icons are decorative and are hidden from assistive technology.
+
+See [holiday planning](../examples/holiday-planning.workflow.json) for a complete workflow example.

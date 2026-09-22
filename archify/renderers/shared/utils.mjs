@@ -46,6 +46,12 @@ const SIGIL_TONE = {
 };
 
 const SIGIL_SHAPE = {
+  calendar: `<rect x="2" y="3.5" width="12" height="10.5" rx="2"/><path d="M5 2v3M11 2v3M2 7h12M5 10h2M9 10h2"/>`,
+  clock: `<circle cx="8" cy="8" r="6"/><path d="M8 4v4l3 2"/>`,
+  person: `<circle cx="8" cy="4.5" r="2.5"/><path d="M3 14v-2a5 5 0 0 1 10 0v2"/>`,
+  briefcase: `<rect x="2" y="5" width="12" height="9" rx="2"/><path d="M5 5V2h6v3M2 9h12M7 9v2h2V9"/>`,
+  flag: `<path d="M3 14V2h10l-2 3 2 3H3"/>`,
+  moon: `<path d="M13.5 10A6 6 0 0 1 6 2.5 6 6 0 1 0 13.5 10Z"/>`,
   frontend: `<rect x="2" y="3" width="12" height="10" rx="2"/>
             <path d="M2 6.5h12"/>
             <circle cx="4.1" cy="4.8" r=".7" class="sigil-fill"/>
@@ -74,7 +80,8 @@ const SIGIL_SHAPE = {
             <circle cx="8" cy="8" r="1.2" class="sigil-fill"/>`,
 };
 
-// A quiet, renderer-owned role stamp. It is authored SVG content rather than a
+// A quiet, renderer-owned corner symbol (type default or authored icon). It is
+// SVG content rather than a
 // viewer overlay, so it survives canonical export while adding no focus target,
 // accessible name, layout box, or interaction state of its own.
 // Shared with label clearance so the reserved rail matches the actual icon.
@@ -82,9 +89,11 @@ export const SEMANTIC_SIGIL_INSET = 6;
 export const SEMANTIC_SIGIL_SIZE = 11;
 export const SEMANTIC_SIGIL_FOOTPRINT = SEMANTIC_SIGIL_INSET + SEMANTIC_SIGIL_SIZE;
 
-export function renderSemanticSigil(kind, { x, y, size = SEMANTIC_SIGIL_SIZE } = {}) {
-  const normalized = Object.hasOwn(SIGIL_SHAPE, kind) ? kind : 'neutral';
-  const tone = SIGIL_TONE[normalized] || 'external';
+export function renderSemanticSigil(kind, { x, y, size = SEMANTIC_SIGIL_SIZE, icon } = {}) {
+  if (icon === 'none') return '';
+  const selected = icon ?? kind;
+  const normalized = Object.hasOwn(SIGIL_SHAPE, selected) ? selected : 'neutral';
+  const tone = SIGIL_TONE[kind] || 'external';
   const scale = size / 16;
   return `<g aria-hidden="true" data-semantic-sigil="${esc(normalized)}" class="semantic-sigil s-${tone}" transform="translate(${x} ${y}) scale(${scale})">
             ${SIGIL_SHAPE[normalized]}
