@@ -71,3 +71,19 @@ test('Chrome pipe EOF fails the pending first command without waiting for proces
     await browser.close();
   }
 });
+
+test('Chrome close releases inherited process pipes after the main process exits', async () => {
+  const child = chromeChild();
+  const browser = browserFor(child);
+  child.exitCode = 0;
+  child.emit('exit', 0, null);
+  const session = assert.rejects(browser.sessionPromise, /visual-check finished/);
+  const first = browser.close();
+  const second = browser.close();
+  assert.strictEqual(second, first);
+  await first;
+  await session;
+  assert.equal(child.stderr.destroyed, true);
+  assert.equal(child.stdio[3].destroyed, true);
+  assert.equal(child.stdio[4].destroyed, true);
+});
