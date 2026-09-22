@@ -1345,48 +1345,65 @@ export function automaticPortRhythmBridge(
   const toVector = PORT_OUTWARD_VECTOR[toSide];
   if (!fromVector || !toVector) return null;
 
-  const startStub = [
-    start[0] + fromVector[0] * endpointStubPx,
-    start[1] + fromVector[1] * endpointStubPx,
-  ];
-  const endStub = [
-    end[0] + toVector[0] * endpointStubPx,
-    end[1] + toVector[1] * endpointStubPx,
-  ];
+  const opposedFacingGap = (
+    (fromSide === 'right' && toSide === 'left' && end[0] > start[0])
+    || (fromSide === 'left' && toSide === 'right' && start[0] > end[0])
+  ) ? Math.abs(end[0] - start[0]) : (
+    (fromSide === 'bottom' && toSide === 'top' && end[1] > start[1])
+    || (fromSide === 'top' && toSide === 'bottom' && start[1] > end[1])
+  ) ? Math.abs(end[1] - start[1]) : null;
+  const boundedStubPx = opposedFacingGap != null
+    && opposedFacingGap - endpointStubPx * 2 < interiorSegmentPx
+    ? Math.max(8, Math.min(endpointStubPx, (opposedFacingGap - interiorSegmentPx) / 2))
+    : null;
+  const stubDistances = [endpointStubPx];
+  if (boundedStubPx != null && boundedStubPx >= 8 && boundedStubPx !== endpointStubPx) {
+    stubDistances.push(boundedStubPx);
+  }
   const candidates = [];
   const verticalSides = new Set(['top', 'bottom']);
   const horizontalSides = new Set(['left', 'right']);
 
-  if (verticalSides.has(fromSide) && verticalSides.has(toSide)
-      && Math.abs(start[0] - end[0]) < interiorSegmentPx) {
-    for (const channelX of [
-      Math.max(start[0], end[0]) + interiorSegmentPx,
-      Math.min(start[0], end[0]) - interiorSegmentPx,
-    ]) {
-      candidates.push([
-        start,
-        startStub,
-        [channelX, startStub[1]],
-        [channelX, endStub[1]],
-        endStub,
-        end,
-      ]);
+  for (const stubPx of stubDistances) {
+    const startStub = [
+      start[0] + fromVector[0] * stubPx,
+      start[1] + fromVector[1] * stubPx,
+    ];
+    const endStub = [
+      end[0] + toVector[0] * stubPx,
+      end[1] + toVector[1] * stubPx,
+    ];
+    if (verticalSides.has(fromSide) && verticalSides.has(toSide)
+        && Math.abs(start[0] - end[0]) < interiorSegmentPx) {
+      for (const channelX of [
+        Math.max(start[0], end[0]) + interiorSegmentPx,
+        Math.min(start[0], end[0]) - interiorSegmentPx,
+      ]) {
+        candidates.push([
+          start,
+          startStub,
+          [channelX, startStub[1]],
+          [channelX, endStub[1]],
+          endStub,
+          end,
+        ]);
+      }
     }
-  }
-  if (horizontalSides.has(fromSide) && horizontalSides.has(toSide)
-      && Math.abs(start[1] - end[1]) < interiorSegmentPx) {
-    for (const channelY of [
-      Math.max(start[1], end[1]) + interiorSegmentPx,
-      Math.min(start[1], end[1]) - interiorSegmentPx,
-    ]) {
-      candidates.push([
-        start,
-        startStub,
-        [startStub[0], channelY],
-        [endStub[0], channelY],
-        endStub,
-        end,
-      ]);
+    if (horizontalSides.has(fromSide) && horizontalSides.has(toSide)
+        && Math.abs(start[1] - end[1]) < interiorSegmentPx) {
+      for (const channelY of [
+        Math.max(start[1], end[1]) + interiorSegmentPx,
+        Math.min(start[1], end[1]) - interiorSegmentPx,
+      ]) {
+        candidates.push([
+          start,
+          startStub,
+          [startStub[0], channelY],
+          [endStub[0], channelY],
+          endStub,
+          end,
+        ]);
+      }
     }
   }
 

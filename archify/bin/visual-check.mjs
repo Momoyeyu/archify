@@ -52,6 +52,7 @@ const VISUAL_SIDECAR_SUFFIXES = Object.freeze([
   )),
 ]);
 const visualEvidenceOwnerships = new WeakSet();
+export const CHROME_STARTUP_TIMEOUT_MS = 90000;
 
 function sha256(buffer) {
   return createHash('sha256').update(buffer).digest('hex');
@@ -1368,13 +1369,16 @@ class PipeCdp {
   failure(stage, error) {
     const code = error?.code ? ` [${error.code}]` : '';
     const details = this.failureDetails();
-    return new Error([
+    const failure = new Error([
       `Chrome DevTools ${stage} failed: ${error?.message || String(error)}${code}`,
       details,
       `Chrome transport: Node ${process.version}, libuv ${process.versions.uv}, ${process.platform}; pid=${this.child.pid ?? 'unavailable'}, exitCode=${this.child.exitCode}, signalCode=${this.child.signalCode}.`,
       `Chrome read pipe: readable=${this.readPipe.readable}, ended=${this.readPipe.readableEnded}, destroyed=${this.readPipe.destroyed}, receivedBytes=${this.receivedBytes}, messages=${this.receivedMessages}, bufferedBytes=${Buffer.byteLength(this.buffer)}.`,
       `Chrome write pipe: writable=${this.writePipe.writable}, ended=${this.writePipe.writableEnded}, destroyed=${this.writePipe.destroyed}, completedWrites=${this.completedWrites}, writtenBytes=${this.writtenBytes}, bufferedBytes=${this.writePipe.writableLength}.`,
     ].filter(Boolean).join('\n'));
+    if (error?.code) failure.code = error.code;
+    if (error?.method) failure.method = error.method;
+    return failure;
   }
 
   consume(chunk) {
@@ -1419,7 +1423,10 @@ class PipeCdp {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        reject(this.failure('command timeout', new Error(`${method}: timed out after ${timeoutMs}ms`)));
+        const error = new Error(`${method}: timed out after ${timeoutMs}ms`);
+        error.code = 'ERR_CHROME_CDP_TIMEOUT';
+        error.method = method;
+        reject(this.failure('protocol timeout', error));
       }, timeoutMs);
       this.pending.set(id, { method, resolve, reject, timer });
       try {
@@ -1511,6 +1518,7 @@ export class ChromeVisualBrowser {
     env = process.env,
     getuid = typeof process.getuid === 'function' ? () => process.getuid() : null,
     spawnImpl = spawn,
+    startupTimeoutMs = CHROME_STARTUP_TIMEOUT_MS,
   } = {}) {
     this.profileRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-visual-check-profile-'));
     this.stderr = '';
@@ -1535,11 +1543,17 @@ export class ChromeVisualBrowser {
         ].filter(Boolean).join('\n');
       },
     });
+    this.startupTimeoutMs = startupTimeoutMs;
     this.sessionPromise = this.attach();
   }
 
   async attach() {
-    const targets = await this.cdp.send('Target.getTargets');
+    // Process launch can be delayed substantially on a busy desktop. Keep the
+    // longer allowance inside one gate invocation so an authoring agent does
+    // not turn startup jitter into repeated tool calls or candidate edits.
+    const targets = await this.cdp.send(
+      'Target.getTargets', {}, undefined, this.startupTimeoutMs,
+    );
     let target = targets.targetInfos?.find((item) => item.type === 'page');
     if (!target) {
       const created = await this.cdp.send('Target.createTarget', { url: 'about:blank' });
@@ -1580,6 +1594,9 @@ export class ChromeVisualBrowser {
       var fontsReady = document.fonts && document.fonts.ready
         ? document.fonts.ready.catch(function () {})
         : Promise.resolve();
+      if (window.Archify && Archify.layoutStability && typeof Archify.layoutStability.whenStable === 'function') {
+        return fontsReady.then(function () { return Archify.layoutStability.whenStable(); });
+      }
       return fontsReady.then(function () {
         if (window.Archify && Archify.readerLayout && typeof Archify.readerLayout.whenStable === 'function') {
           return Archify.readerLayout.whenStable();
@@ -1617,22 +1634,40 @@ export class ChromeVisualBrowser {
       var viewBoxWidth = viewBox ? viewBox.width : 0;
       var scale = viewBoxWidth > 0 ? Math.min(1, diagramWidth / viewBoxWidth) : 0;
       var minimum = null;
+      var minimumNonEdge = null;
+      var minimumEdge = null;
       if (svg && scale > 0) {
-        Array.from(svg.querySelectorAll('text[data-node-label], text[data-boundary-label], text[data-detail="context"], [data-edge-id] g[data-detail="context"] > text')).forEach(function (text) {
-          var detail = text.closest('[data-edge-id]') ? 'message' : text.hasAttribute('data-node-label')
+        Array.from(svg.querySelectorAll('text[data-node-label], text[data-boundary-label], text[data-detail="context"], g[data-detail="context"] text')).forEach(function (text) {
+          if (text.getAttribute('data-detail') === 'fine' || text.closest('[data-detail="fine"]')) return;
+          var edge = text.closest('[data-edge-from][data-edge-to]');
+          var node = text.closest('[data-node-id]');
+          var context = text.getAttribute('data-detail') === 'context' || Boolean(text.closest('g[data-detail="context"]'));
+          var detail = text.hasAttribute('data-node-label')
             ? 'primary'
-            : text.hasAttribute('data-boundary-label') ? 'boundary' : 'context';
-          if (detail === 'context' && !text.closest('[data-node-id]')) return;
+            : text.hasAttribute('data-boundary-label') ? 'boundary'
+              : context && edge ? 'edge' : 'context';
+          if (detail === 'context' && !node) return;
           var sourceFontPx = parseFloat(text.getAttribute('font-size') || '');
           if (!Number.isFinite(sourceFontPx)) return;
           var projectedFontPx = sourceFontPx * scale;
-          if (!minimum || projectedFontPx < minimum.projectedFontPx) {
-            minimum = {
-              text: (text.textContent || '').trim(),
-              detail: detail,
-              sourceFontPx: sourceFontPx,
-              projectedFontPx: projectedFontPx
-            };
+          var entry = {
+            text: (text.textContent || '').trim(),
+            detail: detail,
+            owner: edge ? {
+              kind: 'edge',
+              id: edge.getAttribute('data-edge-id'),
+              from: edge.getAttribute('data-edge-from'),
+              to: edge.getAttribute('data-edge-to')
+            } : node ? { kind: 'node', id: node.getAttribute('data-node-id') }
+              : detail === 'boundary' ? { kind: 'boundary', id: null } : null,
+            sourceFontPx: sourceFontPx,
+            projectedFontPx: projectedFontPx
+          };
+          if (!minimum || projectedFontPx < minimum.projectedFontPx) minimum = entry;
+          if (detail === 'edge') {
+            if (!minimumEdge || projectedFontPx < minimumEdge.projectedFontPx) minimumEdge = entry;
+          } else if (!minimumNonEdge || projectedFontPx < minimumNonEdge.projectedFontPx) {
+            minimumNonEdge = entry;
           }
         });
       }
@@ -1690,8 +1725,11 @@ export class ChromeVisualBrowser {
         viewBoxWidth: viewBoxWidth,
         workflowLanes: workflowLanes,
         minimumProjectedNodeTextPx: minimum ? minimum.projectedFontPx : null,
+        minimumProjectedNonEdgeTextPx: minimumNonEdge ? minimumNonEdge.projectedFontPx : null,
+        minimumProjectedEdgeTextPx: minimumEdge ? minimumEdge.projectedFontPx : null,
         minimumProjectedNodeText: minimum ? minimum.text : null,
         minimumProjectedNodeTextDetail: minimum ? minimum.detail : null,
+        minimumProjectedNodeTextOwner: minimum ? minimum.owner : null,
         hasLegend: Boolean(legendRect && legendRect.width && legendRect.height),
         hasNavigationDock: Boolean(navigationDockRect && navigationDockRect.width && navigationDockRect.height),
         legendDockIntersectionArea: stageDockIntersectionArea > 0
@@ -1755,6 +1793,12 @@ function observation({ width, height, theme, metrics }) {
   const minimumProjectedNodeTextPx = metrics.minimumProjectedNodeTextPx == null
     ? null
     : Number(metrics.minimumProjectedNodeTextPx);
+  const minimumProjectedNonEdgeTextPx = metrics.minimumProjectedNonEdgeTextPx == null
+    ? null
+    : Number(metrics.minimumProjectedNonEdgeTextPx);
+  const minimumProjectedEdgeTextPx = metrics.minimumProjectedEdgeTextPx == null
+    ? null
+    : Number(metrics.minimumProjectedEdgeTextPx);
   const readabilityOk = minimumProjectedNodeTextPx == null
     || minimumProjectedNodeTextPx >= MIN_PROJECTED_NODE_TEXT_PX;
   const readerLayout = metrics.readerLayout || null;
@@ -1806,8 +1850,11 @@ function observation({ width, height, theme, metrics }) {
     viewBoxWidth: Number(metrics.viewBoxWidth) || null,
     ...(metrics.workflowLanes?.length ? { workflowLanes: metrics.workflowLanes } : {}),
     minimumProjectedNodeTextPx,
+    minimumProjectedNonEdgeTextPx,
+    minimumProjectedEdgeTextPx,
     minimumProjectedNodeText: metrics.minimumProjectedNodeText || null,
     minimumProjectedNodeTextDetail: metrics.minimumProjectedNodeTextDetail || null,
+    minimumProjectedNodeTextOwner: metrics.minimumProjectedNodeTextOwner || null,
     minimumRequiredNodeTextPx: MIN_PROJECTED_NODE_TEXT_PX,
     readabilityOk,
     hasLegend: Boolean(metrics.hasLegend),
@@ -1965,11 +2012,12 @@ function observationDiagnostics({ artifact, allObservations, readabilityObservat
       evidence: {
         text: entry.minimumProjectedNodeText,
         detail: entry.minimumProjectedNodeTextDetail,
+        owner: entry.minimumProjectedNodeTextOwner,
         minimumProjectedNodeTextPx: entry.minimumProjectedNodeTextPx,
         minimumRequiredNodeTextPx: entry.minimumRequiredNodeTextPx,
       },
       supportedFixes: [
-        `increase projected node text to at least ${entry.minimumRequiredNodeTextPx}px at ${entry.width}x${entry.height}, then rerun visual-check`,
+        `increase projected ${entry.minimumProjectedNodeTextOwner?.kind === 'edge' ? 'relationship label' : entry.minimumProjectedNodeTextOwner?.kind === 'boundary' ? 'boundary label' : 'node text'} to at least ${entry.minimumRequiredNodeTextPx}px at ${entry.width}x${entry.height}, then rerun visual-check`,
       ],
     }));
   }
@@ -2376,6 +2424,8 @@ export async function runVisualCheck({
     }
     return { exitCode: receipt.ok ? EXIT.pass : EXIT.fail, receipt };
   } catch (error) {
+    const startupTimeout = error.code === 'ERR_CHROME_CDP_TIMEOUT'
+      && error.method === 'Target.getTargets';
     receipt.status = 'fail';
     receipt.ok = false;
     receipt.error = error.message;
@@ -2387,11 +2437,18 @@ export async function runVisualCheck({
     receipt.captures.contactSheet = null;
     if (error.deliveryProvenance) receipt.provenance = error.deliveryProvenance.status;
     receipt.diagnostics = error.archifyDiagnostics || [failureDiagnostic({
-      code: 'viewer/visual-check-runtime',
-      message: 'visual-check could not complete its Chrome inspection.',
+      code: startupTimeout ? 'viewer/chrome-startup-timeout' : 'viewer/visual-check-runtime',
+      message: startupTimeout
+        ? 'Chrome did not finish its initial DevTools handshake within the startup window.'
+        : 'visual-check could not complete its Chrome inspection.',
       subject: { artifact },
       evidence: { reason: error.message },
-      supportedFixes: ['resolve the reported Chrome inspection error, then rerun visual-check'],
+      supportedFixes: startupTimeout
+        ? [
+          'do not edit or simplify the artifact because this is a browser-startup failure',
+          `retry visual-check once after host load subsides; if it repeats, stop and report the environment failure`,
+        ]
+        : ['resolve the reported Chrome inspection error, then rerun visual-check'],
     })];
     return {
       exitCode: EXIT.fail,

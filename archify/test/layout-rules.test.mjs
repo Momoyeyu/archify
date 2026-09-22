@@ -1813,6 +1813,40 @@ test('architecture: route rhythm warns in standard and blocks a showcase micro s
   assert.match(stderr, /wider corridor|move the component/);
 });
 
+test('architecture: automatic reciprocal adjacent routes keep the showcase interior floor', () => {
+  const doc = {
+    schema_version: 1,
+    diagram_type: 'architecture',
+    meta: { title: 'Automatic adjacent request and response', quality_profile: 'showcase' },
+    components: [
+      { id: 'listener', type: 'backend', label: 'Node HTTP listener', pos: [260, 270], size: [170, 78] },
+      { id: 'handler', type: 'backend', label: 'HTTP request handler', pos: [490, 270], size: [180, 84] },
+    ],
+    connections: [
+      { id: 'request-envelope', from: 'listener', to: 'handler', label: 'method · path · body' },
+      { id: 'json-response', from: 'handler', to: 'listener', label: '401 / 400 / 404 / 409 / 202 / 200' },
+    ],
+  };
+  assert.ok(doc.connections.every((connection) => (
+    !('route' in connection) && !('via' in connection) && !('fromSide' in connection) && !('toSide' in connection)
+  )));
+
+  const { code, stderr, outPath } = render('architecture', doc);
+  assert.equal(code, 0, stderr);
+  const html = fs.readFileSync(outPath, 'utf8');
+  for (const id of ['request-envelope', 'json-response']) {
+    const encoded = html.match(new RegExp(
+      `data-edge-id="${id}" data-composition-points="([^"]+)"`,
+    ))?.[1];
+    assert.ok(encoded, `expected rendered composition points for ${id}`);
+    const points = encoded.split(';').map((point) => point.split(',').map(Number));
+    const interiorLengths = points.slice(1, -2).map((point, index) => (
+      Math.abs(point[0] - points[index + 2][0]) + Math.abs(point[1] - points[index + 2][1])
+    ));
+    assert.ok(interiorLengths.every((length) => length >= 16), `${id} has cramped interior: ${encoded}`);
+  }
+});
+
 test('architecture: container border run is blocking in standard and showcase', () => {
   for (const profile of ['standard', 'showcase']) {
     const d = load('architecture');

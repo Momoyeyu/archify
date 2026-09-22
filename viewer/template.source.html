@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="archify 2.17.0-dev.1">
+  <meta name="archify-reader-contract" content="declared-wide-v1">
   <title>[PROJECT NAME] Architecture Diagram</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
@@ -1028,6 +1029,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
        embed, presentation, print, and unmarked non-wide diagrams retain their own
        established layout contracts.
        ============================================================ */
+    // Fixed script-private participants; the CLI sees only the joint wait below.
+    const archifyLayoutOwners = { reader: null, viewerChrome: null };
     Archify.waitForStableLayout = function (options) {
       options = options || {};
       var maximumFrames = Math.max(1, Number(options.maximumFrames) || 240);
@@ -1070,6 +1073,49 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
 /* ARCHIFY:READER_LAYOUT */
 /* ARCHIFY:CHROME_LAYOUT */
+    Archify.layoutStability = {
+      whenStable: function () {
+        var reader = archifyLayoutOwners.reader;
+        var chrome = archifyLayoutOwners.viewerChrome;
+        if (!reader || !chrome) {
+          return Promise.reject(new Error('Joint layout owners are unavailable.'));
+        }
+        var observedFontsReady = document.fonts && document.fonts.ready;
+        var fontCyclePending = false;
+        var fontGeneration = 0;
+        function scheduleOwners() { reader.schedule(); chrome.schedule(); }
+        function fontsPending() {
+          var fonts = document.fonts;
+          var ready = fonts && fonts.ready;
+          if (ready && (ready !== observedFontsReady || (fonts.status === 'loading' && !fontCyclePending))) {
+            observedFontsReady = ready;
+            fontCyclePending = true;
+            var generation = ++fontGeneration;
+            ready.catch(function () {}).then(function () {
+              if (generation !== fontGeneration) return;
+              fontCyclePending = false;
+              scheduleOwners();
+            });
+          }
+          return fontCyclePending || Boolean(fonts && fonts.status === 'loading');
+        }
+        return Archify.waitForStableLayout({
+          maximumFrames: 960,
+          schedule: scheduleOwners,
+          pending: function () {
+            // Recapture readiness for font cycles that begin during sampling.
+            return fontsPending() || reader.pending() || chrome.pending();
+          },
+          snapshot: function () {
+            return JSON.stringify([
+              ['reader', reader.snapshot()],
+              ['viewerChrome', chrome.snapshot()]
+            ]);
+          },
+          timeoutMessage: 'Joint reader and viewer chrome layout did not reach stable dimensions.'
+        });
+      }
+    };
 /* ARCHIFY:CAMERA */
 /* ARCHIFY:RADAR */
 

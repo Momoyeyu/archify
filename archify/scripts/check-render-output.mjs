@@ -7,6 +7,8 @@ import { collectAmbiguousCorridors, collectBorderRuns, collectLabelCanvasOverflo
 import {
   DESKTOP_READABILITY_VIEWPORT,
   DESKTOP_READER_DIAGRAM_WIDTH,
+  DECLARED_WIDE_READER_CONTRACT,
+  declaredWideReadabilityBudget,
   MIN_PROJECTED_NODE_TEXT_PX,
   projectedNodeTextPx,
 } from '../renderers/shared/desktop-readability.mjs';
@@ -72,6 +74,7 @@ const AUTOMATIC_CROSSOVER_UNDERLAY_TAG = /<path\b[^>]*\bdata-graph-role="automat
 const HTML_VOID_ELEMENTS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
 const SVG_HTML_INTEGRATION_POINTS = new Set(['foreignobject', 'desc', 'title']);
 const HTML_ATTRIBUTE = /([A-Za-z_:][\w:.-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/g;
+const readerContract = readerContractFromHtml(html);
 const NUMERIC_ATTRS = new Set([
   'x', 'y', 'x1', 'y1', 'x2', 'y2', 'dx', 'dy', 'cx', 'cy', 'r', 'rx', 'ry', 'fx', 'fy',
   'fr', 'width', 'height', 'd', 'points', 'pathlength', 'transform', 'viewbox', 'offset',
@@ -109,7 +112,8 @@ if (svgMatches.length === 1) {
   addCheck('finite_svg', nonFiniteAttrs.length === 0, nonFiniteAttrs);
   const legendStart = svg.indexOf('<!-- Legend -->');
   const beforeLegend = legendStart >= 0 ? svg.slice(0, legendStart) : svg;
-  const desktopReadabilityIssue = collectDesktopReadability(svgAttrs, beforeLegend);
+  const desktopReadability = collectDesktopReadability(svgAttrs, beforeLegend, readerContract);
+  const desktopReadabilityIssue = desktopReadability.issue;
   const arrows = collectArrows(beforeLegend);
   const diagonal = arrows.flatMap((arrow) => diagonalStraightSegments(arrow).map((segment) => ({ arrow, ...segment })));
   addCheck(
@@ -197,10 +201,11 @@ if (svgMatches.length === 1) {
       labelCanvasOverflowIssues: labelCanvasOverflow.length,
       minLabelRouteClearance: minimumLabelRouteClearance(labelRouteMeasurements),
       desktopReadabilityIssues: desktopReadabilityIssue ? 1 : 0,
-      minProjectedNodeTextPx: desktopReadabilityIssue?.projectedFontPx ?? null,
+      minProjectedNodeTextPx: desktopReadability.evidence.minimumProjectedTextPx,
       ...roundedRouteMetrics(routeMetrics),
     },
     suggestedLimits: { bendsPerRelationship: 2, stretch: 1.35, segmentPx: 16, microSegmentPx: 8 },
+    desktopReadability: desktopReadability.evidence,
     issues: [
       ...containerBorderRuns.map((hit) => ({
         severity: qualityGatesEnforced ? 'error' : 'warning',
@@ -273,9 +278,15 @@ if (svgMatches.length === 1) {
         severity: desktopReadabilityIsError ? 'error' : 'warning',
         code: 'composition/desktop-readability',
         ...(desktopReadabilityIssue.nodeId ? { nodeId: desktopReadabilityIssue.nodeId } : {}),
+        owner: desktopReadabilityIssue.owner,
         viewportWidth: DESKTOP_READABILITY_VIEWPORT.width,
         viewportHeight: DESKTOP_READABILITY_VIEWPORT.height,
-        availableDiagramWidth: DESKTOP_READER_DIAGRAM_WIDTH,
+        availableDiagramWidth: desktopReadability.evidence.availableDiagramWidth,
+        budgetBasis: desktopReadability.evidence.budgetBasis,
+        readerContract: desktopReadability.evidence.readerContract,
+        requestedTargetPx: desktopReadability.evidence.requestedTargetPx,
+        requestedTargetMet: desktopReadability.evidence.requestedTargetMet,
+        budgetLimit: desktopReadability.evidence.limit,
         viewBoxWidth: desktopReadabilityIssue.viewBoxWidth,
         scale: desktopReadabilityIssue.scale,
         text: desktopReadabilityIssue.text,
@@ -728,48 +739,117 @@ function viewBoxSize(svgAttrs) {
   return viewBoxRect(svgAttrs).slice(2);
 }
 
-function collectDesktopReadability(svgAttrs, fragment) {
-  const [viewBoxWidth] = viewBoxSize(svgAttrs);
-  if (!Number.isFinite(viewBoxWidth) || viewBoxWidth <= 0) return null;
-  const scale = Math.min(1, DESKTOP_READER_DIAGRAM_WIDTH / viewBoxWidth);
-  let worst = null;
-  const nodeOwners = [];
-  // Walk groups alongside text so nested decoration retains the owning node,
-  // without leaking that identity into a following boundary or loose label.
+function hasAttribute(attrs, name) {
+  return new RegExp('(?:^|\\s)' + name + '(?:\\s*=|\\s|$)', 'i').test(attrs);
+}
+
+function readerContractFromHtml(source) {
+  const markers = [...source.matchAll(/<meta\b[^>]*>/gi)]
+    .map((match) => parseAttrs(match[0]))
+    .filter((attrs) => attrs.name === 'archify-reader-contract');
+  return markers.length === 1 && markers[0].content === DECLARED_WIDE_READER_CONTRACT
+    ? DECLARED_WIDE_READER_CONTRACT
+    : null;
+}
+
+function collectDesktopReadability(svgAttrs, fragment, contract) {
+  const [viewBoxWidth, viewBoxHeight] = viewBoxSize(svgAttrs);
+  const requestedMinimumTextPx = Number.parseFloat(svgAttrs['data-reader-min-text'] || '');
+  const entries = [];
+  let invalidSemanticText = false;
+  const groups = [];
+  // Keep the complete ancestry, rather than a node-only stack: an edge can
+  // share its context group with its label or nest that group (Sequence).
   for (const match of fragment.matchAll(/<!--[\s\S]*?(?:-->|$)|<!\[CDATA\[[\s\S]*?(?:\]\]>|$)|<text\b([^>]*)>([\s\S]*?)<\/text>|<g\b[^>]*>|<\/g\s*>/gi)) {
-    // Comment and CDATA contents cannot open or close a real SVG group.
     if (match[0].startsWith('<!')) continue;
     if (match[1] === undefined) {
-      if (/^<\/g/i.test(match[0])) nodeOwners.pop();
-      else if (!/\/\s*>$/.test(match[0])) {
-        const attrs = parseAttrs(match[0]);
-        nodeOwners.push(attrs['data-node-id'] || nodeOwners.at(-1));
-      }
+      if (/^<\/g/i.test(match[0])) groups.pop();
+      else if (!/\/\s*>$/.test(match[0])) groups.push(parseAttrs(match[0]));
       continue;
     }
-    const primary = /\bdata-node-label(?:\s*=|\s|$)/i.test(match[1]);
-    const boundary = /\bdata-boundary-label(?:\s*=|\s|$)/i.test(match[1]);
-    const context = /\bdata-detail\s*=\s*"context"/i.test(match[1]);
-    if (!primary && !boundary && !context) continue;
     const attrs = parseAttrs(match[1]);
+    if (attrs['data-detail'] === 'fine' || groups.some((group) => group['data-detail'] === 'fine')) continue;
+    const primary = hasAttribute(match[1], 'data-node-label');
+    const boundary = hasAttribute(match[1], 'data-boundary-label');
+    const context = attrs['data-detail'] === 'context'
+      || groups.some((group) => group['data-detail'] === 'context');
+    const nodeOwner = [...groups].reverse().find((group) => group['data-node-id']);
+    const edgeOwner = [...groups].reverse().find((group) => group['data-edge-from'] && group['data-edge-to']);
+    const owner = primary
+      ? { kind: 'node', id: nodeOwner?.['data-node-id'] || null }
+      : boundary ? { kind: 'boundary', id: null }
+        : context && edgeOwner ? {
+          kind: 'edge', id: edgeOwner['data-edge-id'] || null,
+          from: edgeOwner['data-edge-from'], to: edgeOwner['data-edge-to'],
+        }
+          : context && nodeOwner ? { kind: 'node', id: nodeOwner['data-node-id'] }
+            : null;
+    // A context text with neither semantic owner is legend/fine/loose copy.
+    if (!owner) continue;
     const fontSize = Number.parseFloat(attrs['font-size'] || '');
-    if (!Number.isFinite(fontSize)) continue;
-    const projected = projectedNodeTextPx(fontSize, viewBoxWidth);
-    if (projected >= MIN_PROJECTED_NODE_TEXT_PX) continue;
-    const candidate = {
-      ...(nodeOwners.at(-1) ? { nodeId: nodeOwners.at(-1) } : {}),
-      viewBoxWidth,
-      scale,
+    if (!Number.isFinite(fontSize)) {
+      invalidSemanticText = true;
+      continue;
+    }
+    if (fontSize <= 0) invalidSemanticText = true;
+    entries.push({
+      ...(owner.kind === 'node' && owner.id ? { nodeId: owner.id } : {}),
+      owner,
       text: stripTags(match[2]).trim(),
-      detail: primary
-        ? 'primary'
-        : boundary ? 'boundary' : 'context',
+      detail: primary ? 'primary' : boundary ? 'boundary' : owner.kind === 'edge' ? 'edge' : 'context',
       sourceFontPx: fontSize,
-      projectedFontPx: projected,
-    };
-    if (!worst || candidate.projectedFontPx < worst.projectedFontPx) worst = candidate;
+    });
   }
-  return worst;
+  const minimumSourceTextPx = entries.length ? Math.min(...entries.map((entry) => entry.sourceFontPx)) : Number.NaN;
+  const eligible = contract === DECLARED_WIDE_READER_CONTRACT
+    && svgAttrs['data-reader-fit'] === 'intrinsic-height'
+    && Number.isFinite(requestedMinimumTextPx) && requestedMinimumTextPx > 0
+    && !invalidSemanticText && entries.length > 0;
+  const declared = eligible ? declaredWideReadabilityBudget({
+    viewBoxWidth,
+    viewBoxHeight,
+    minimumSourceTextPx,
+    requestedMinimumTextPx,
+  }) : null;
+  const availableDiagramWidth = declared?.guaranteedSvgWidth ?? DESKTOP_READER_DIAGRAM_WIDTH;
+  const budgetBasis = declared ? 'recognized-declared-wide' : 'legacy-930';
+  const scale = Number.isFinite(viewBoxWidth) && viewBoxWidth > 0
+    ? Math.min(1, availableDiagramWidth / viewBoxWidth) : Number.NaN;
+  const projected = entries.map((entry) => ({
+    ...entry,
+    viewBoxWidth,
+    scale,
+    projectedFontPx: projectedNodeTextPx(entry.sourceFontPx, viewBoxWidth, availableDiagramWidth),
+  }));
+  const worst = projected.reduce((current, entry) => (
+    !current || entry.projectedFontPx < current.projectedFontPx ? entry : current
+  ), null);
+  const projectedMinimumTextPx = Number.isFinite(worst?.projectedFontPx) ? worst.projectedFontPx : null;
+  const hardFloorMet = Number.isFinite(worst?.projectedFontPx)
+    ? worst.projectedFontPx >= MIN_PROJECTED_NODE_TEXT_PX : null;
+  const requestedTargetMet = worst && Number.isFinite(requestedMinimumTextPx)
+    ? worst.projectedFontPx >= requestedMinimumTextPx : null;
+  const evidence = {
+    budgetBasis,
+    readerContract: contract,
+    availableDiagramWidth,
+    actualBudgetPx: availableDiagramWidth,
+    ...(declared ? {
+      actualReaderWidth: declared.actualReaderWidth,
+      desiredReaderWidth: declared.desiredReaderWidth,
+      viewportCap: declared.viewportCap,
+      limit: declared.limit,
+    } : { limit: 'legacy' }),
+    requestedTargetPx: Number.isFinite(requestedMinimumTextPx) ? requestedMinimumTextPx : null,
+    requestedTargetMet,
+    hardFloorPx: MIN_PROJECTED_NODE_TEXT_PX,
+    hardFloorMet,
+    minimumOwner: worst?.owner || null,
+    minimumSourceTextPx: worst?.sourceFontPx ?? null,
+    minimumProjectedTextPx: projectedMinimumTextPx,
+    semanticTextCount: entries.length,
+  };
+  return { evidence, issue: worst && hardFloorMet === false ? worst : null };
 }
 
 function estimatedTextWidth(text, fontSize) {

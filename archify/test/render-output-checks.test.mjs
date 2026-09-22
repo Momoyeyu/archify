@@ -30,9 +30,9 @@ test('render output check: finite_svg preserves slashes in unquoted HTML attribu
   }
 });
 
-function checkHtml(name, svgBody, profile = 'standard', viewBox = '0 0 240 160') {
+function checkHtml(name, svgBody, profile = 'standard', viewBox = '0 0 240 160', head = '', svgAttributes = '') {
   const htmlPath = path.join(tmp, `${name}.html`);
-  fs.writeFileSync(htmlPath, `<!doctype html><html><body><svg viewBox="${viewBox}" data-quality-profile="${profile}">${svgBody}</svg></body></html>`);
+  fs.writeFileSync(htmlPath, `<!doctype html><html><head>${head}</head><body><svg viewBox="${viewBox}" data-quality-profile="${profile}"${svgAttributes}>${svgBody}</svg></body></html>`);
   try {
     const stdout = execFileSync('node', [checker, htmlPath], { encoding: 'utf8' });
     return { code: 0, result: JSON.parse(stdout) };
@@ -112,6 +112,107 @@ test('render output check: includes semantic boundary labels in desktop readabil
   assert.equal(issue?.text, 'Disaster recovery boundary');
   assert.equal(issue?.detail, 'boundary');
   assert.ok(issue?.projectedFontPx < issue?.minimumProjectedFontPx);
+});
+
+test('render output check: recognized declared-wide Reader admits the hard floor but records an unmet 7.5 target', () => {
+  const { code, result } = checkHtml('recognized-declared-wide-edge', `
+    <g data-edge-from="listener" data-edge-to="handler" data-detail="context">
+      <text x="120" y="160" class="t-muted" font-size="8">method path body</text>
+      <text data-detail="fine" x="120" y="172" class="t-dim" font-size="1">fine annotation</text>
+    </g>
+  `, 'showcase', '0 0 1438 800', '<meta name="archify-reader-contract" content="declared-wide-v1">', ' data-reader-fit="intrinsic-height" data-reader-min-text="7.5"');
+
+  assert.equal(code, 0, JSON.stringify(result, null, 2));
+  assert.equal(result.composition.desktopReadability.budgetBasis, 'recognized-declared-wide');
+  assert.equal(result.composition.desktopReadability.availableDiagramWidth, 1346);
+  assert.equal(result.composition.desktopReadability.minimumOwner.kind, 'edge');
+  assert.equal(result.composition.desktopReadability.minimumOwner.id, null);
+  assert.equal(result.composition.desktopReadability.semanticTextCount, 1);
+  assert.equal(result.composition.desktopReadability.hardFloorMet, true);
+  assert.equal(result.composition.desktopReadability.requestedTargetPx, 7.5);
+  assert.equal(result.composition.desktopReadability.requestedTargetMet, false);
+  assert.ok(result.composition.desktopReadability.minimumProjectedTextPx < 7.5);
+});
+
+test('render output check: ordinary metadata preserves legacy readability and bare semantic markers', () => {
+  const { code, result } = checkHtml('ordinary-meta-legacy-primary', `
+    <g data-node-id="compact-node">
+      <text data-node-label x="160" y="126" class="t-primary" font-size="8">Compact node</text>
+    </g>
+  `, 'showcase', '0 0 1300 700', '<meta name="viewport" content="width=device-width">');
+  assert.notEqual(code, 0);
+  assert.equal(result.composition.desktopReadability.budgetBasis, 'legacy-930');
+  const issue = result.composition.issues.find((item) => item.code === 'composition/desktop-readability');
+  assert.equal(issue?.detail, 'primary');
+  assert.equal(issue?.owner.kind, 'node');
+});
+
+test('render output check: marker recognition is exact and old fit/min-only HTML keeps the 930px floor', () => {
+  const body = `
+    <g data-edge-from="listener" data-edge-to="handler" data-detail="context">
+      <text x="120" y="160" class="t-muted" font-size="8">method path body</text>
+    </g>
+  `;
+  const svgAttributes = ' data-reader-fit="intrinsic-height" data-reader-min-text="7.5"';
+  for (const [name, head, attributes] of [
+    ['old-fit-min-only', '', svgAttributes],
+    ['unknown-reader-contract', '<meta name="archify-reader-contract" content="declared-wide-v2">', svgAttributes],
+    ['duplicate-reader-contract', '<meta name="archify-reader-contract" content="declared-wide-v1"><meta name="archify-reader-contract" content="declared-wide-v1">', svgAttributes],
+    ['invalid-reader-minimum', '<meta name="archify-reader-contract" content="declared-wide-v1">', ' data-reader-fit="intrinsic-height" data-reader-min-text="NaN"'],
+    ['explicit-viewbox-geometry', '<meta name="archify-reader-contract" content="declared-wide-v1">', ' data-reader-min-text="7.5"'],
+  ]) {
+    const { code, result } = checkHtml(name, body, 'showcase', '0 0 1438 800', head, attributes);
+    assert.notEqual(code, 0, name);
+    assert.equal(result.composition.desktopReadability.budgetBasis, 'legacy-930', name);
+    assert.equal(result.composition.issues.find((item) => item.code === 'composition/desktop-readability')?.detail, 'edge', name);
+  }
+});
+
+test('render output check: an edge below 6 remains warning in standard and error in showcase', () => {
+  const body = `
+    <g data-edge-from="listener" data-edge-to="handler" data-detail="context">
+      <text x="120" y="160" class="t-muted" font-size="5">short semantic edge label</text>
+    </g>
+  `;
+  const head = '<meta name="archify-reader-contract" content="declared-wide-v1">';
+  const svgAttributes = ' data-reader-fit="intrinsic-height" data-reader-min-text="7.5"';
+  const standard = checkHtml('declared-wide-standard-edge', body, 'standard', '0 0 1438 800', head, svgAttributes);
+  const showcase = checkHtml('declared-wide-showcase-edge', body, 'showcase', '0 0 1438 800', head, svgAttributes);
+  assert.equal(standard.code, 0);
+  assert.equal(standard.result.composition.issues.find((item) => item.code === 'composition/desktop-readability')?.severity, 'warning');
+  assert.notEqual(showcase.code, 0);
+  assert.equal(showcase.result.composition.issues.find((item) => item.code === 'composition/desktop-readability')?.severity, 'error');
+});
+
+test('render output check: finite non-positive semantic text remains below the 6px floor', () => {
+  const contract = '<meta name="archify-reader-contract" content="declared-wide-v1">';
+  const attributes = ' data-reader-fit="intrinsic-height" data-reader-min-text="7.5"';
+  for (const [name, body] of [
+    ['zero-only', '<g data-edge-from="a" data-edge-to="b" data-detail="context"><text x="1" y="1" font-size="0">zero</text></g>'],
+    ['negative-only', '<g data-edge-from="a" data-edge-to="b" data-detail="context"><text x="1" y="1" font-size="-1">negative</text></g>'],
+    ['zero-with-normal', '<g data-edge-from="a" data-edge-to="b" data-detail="context"><text x="1" y="1" font-size="8">ordinary</text><text x="1" y="2" font-size="0">zero</text></g>'],
+  ]) {
+    const showcase = checkHtml(`${name}-showcase`, body, 'showcase', '0 0 1438 800', contract, attributes);
+    const standard = checkHtml(`${name}-standard`, body, 'standard', '0 0 1438 800', contract, attributes);
+    assert.notEqual(showcase.code, 0, name);
+    assert.equal(showcase.result.composition.desktopReadability.budgetBasis, 'legacy-930', name);
+    assert.equal(showcase.result.composition.issues.find((item) => item.code === 'composition/desktop-readability')?.severity, 'error', name);
+    assert.equal(standard.code, 0, name);
+    assert.equal(standard.result.composition.issues.find((item) => item.code === 'composition/desktop-readability')?.severity, 'warning', name);
+  }
+});
+
+test('render output check: fine detail on a context edge is excluded before ownership classification', () => {
+  const { code, result } = checkHtml('fine-context-edge', `
+    <g data-edge-from="a" data-edge-to="b" data-detail="context">
+      <text x="1" y="1" font-size="8">ordinary relationship label</text>
+      <g data-detail="fine"><text x="1" y="2" font-size="1">fine nested note</text></g>
+    </g>
+  `, 'showcase', '0 0 1438 800', '<meta name="archify-reader-contract" content="declared-wide-v1">', ' data-reader-fit="intrinsic-height" data-reader-min-text="7.5"');
+  assert.equal(code, 0, JSON.stringify(result, null, 2));
+  assert.equal(result.composition.desktopReadability.minimumOwner.kind, 'edge');
+  assert.equal(result.composition.desktopReadability.semanticTextCount, 1);
+  assert.ok(result.composition.desktopReadability.minimumProjectedTextPx >= 6);
 });
 
 test('render output check: accepts orthogonal arrows away from legend', () => {

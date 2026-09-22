@@ -10,6 +10,7 @@ import { PassThrough } from 'node:stream';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
+  CHROME_STARTUP_TIMEOUT_MS,
   ChromeVisualBrowser,
   VISUAL_CHECK_VIEWPORTS,
   chromeVisualBrowserArgs,
@@ -2075,6 +2076,34 @@ test('visual-check restore rollback preserves a successor swapped at its public 
   assert.equal(fs.existsSync(outputs.contactSheet), true);
   assert.deepEqual(fs.readFileSync(outputs.contactSheet), successor);
   assert.deepEqual(entryIdentity(outputs.contactSheet), successorIdentity);
+});
+
+test('visual-check keeps slow Chrome startup inside one bounded gate invocation', async () => {
+  assert.equal(CHROME_STARTUP_TIMEOUT_MS, 90000);
+  const input = artifact('chrome-startup-timeout.html');
+  const child = fakeChromeChild();
+
+  const result = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => new ChromeVisualBrowser('/fake/chrome', {
+      startupTimeoutMs: 5,
+      spawnImpl: () => child,
+    }),
+  });
+
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.receipt.diagnostics[0]?.code, 'viewer/chrome-startup-timeout');
+  assert.match(result.receipt.error, /Target\.getTargets: timed out after 5ms/);
+  assert.match(result.receipt.error, /Chrome process: still running/);
+  assert.match(
+    result.receipt.diagnostics[0]?.supportedFixes?.join('\n') || '',
+    /do not edit or simplify the artifact/,
+  );
+  assert.match(
+    result.receipt.diagnostics[0]?.supportedFixes?.join('\n') || '',
+    /retry visual-check once.*stop and report the environment failure/,
+  );
 });
 
 for (const scenario of [

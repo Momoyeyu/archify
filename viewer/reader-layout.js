@@ -43,9 +43,13 @@
       }
       function minimumReadableScale() {
         var sourceMinimum = null;
-        Array.from(svg.querySelectorAll(
+        var selectors = [
           'text[data-node-label], text[data-boundary-label], text[data-detail="context"]'
-        )).forEach(function (text) {
+        ];
+        if (measuredHeightFit && ratio >= WIDE_RATIO && Number.isFinite(declaredMinimumText)) {
+          selectors.push('g[data-detail="context"][data-edge-from][data-edge-to] > text');
+        }
+        Array.from(svg.querySelectorAll(selectors.join(', '))).forEach(function (text) {
           if (text.getAttribute('data-detail') === 'context' && !text.closest('[data-node-id]')) return;
           var sourceFontPx = parseFloat(text.getAttribute('font-size') || '');
           if (Number.isFinite(sourceFontPx)) {
@@ -121,11 +125,20 @@
         var readableWidth = viewBox && viewBox.width > 0
           ? viewBox.width * minimumReadableScale() + chrome.diagramX
           : MIN_READER_WIDTH;
-        var minWidth = Math.min(
-          measuredHeightFit && ratio < WIDE_RATIO ? readableWidth : MIN_READER_WIDTH,
-          viewportCap
-        );
         var maxWidth = Math.min(MAX_READER_WIDTH, viewportCap);
+        var readableMinimumWidth = measuredHeightFit && ratio < WIDE_RATIO
+          ? readableWidth
+          : measuredHeightFit && ratio >= WIDE_RATIO && Number.isFinite(declaredMinimumText)
+            ? Math.max(MIN_READER_WIDTH, readableWidth)
+            : MIN_READER_WIDTH;
+        var minWidth;
+        if (measuredHeightFit && ratio < WIDE_RATIO) {
+          minWidth = Math.min(readableMinimumWidth, viewportCap);
+        } else if (measuredHeightFit && ratio >= WIDE_RATIO && Number.isFinite(declaredMinimumText)) {
+          minWidth = Math.min(readableMinimumWidth, maxWidth);
+        } else {
+          minWidth = Math.min(readableMinimumWidth, viewportCap);
+        }
         var fixedHeight = chrome.bodyY + chrome.diagramY + SAFE_BOTTOM_GAP +
           outerHeight(header) + outerHeight(guided) + outerHeight(cards);
         var availableSvgHeight = Math.max(1, window.innerHeight - fixedHeight);
@@ -161,14 +174,16 @@
           Math.round(diagramRect.height * 100) / 100
         ].join('|');
       }
+      function layoutPending() { return Boolean(frame || settleFrame); }
       function whenStable() {
         return Archify.waitForStableLayout({
           schedule: schedule,
-          pending: function () { return Boolean(frame || settleFrame); },
+          pending: layoutPending,
           snapshot: stableSnapshot,
           timeoutMessage: 'Adaptive reader layout did not reach stable dimensions.'
         });
       }
+      archifyLayoutOwners.reader = { schedule: schedule, pending: layoutPending, snapshot: stableSnapshot };
 
       window.addEventListener('resize', schedule, { passive: true });
       window.addEventListener('load', schedule, { once: true });
