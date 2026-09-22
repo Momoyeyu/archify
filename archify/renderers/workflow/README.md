@@ -74,6 +74,17 @@ node archify/bin/archify.mjs migrate workflow old.json new.json --to-schema 2 --
 Running the command again with its schema-v2 output as the new source is an
 idempotent verification pass: the destination bytes and geometry stay unchanged.
 
+If a legacy v1 source is blocked solely because `meta.output` is missing or no
+longer portable, supply its replacement for the separate v2 destination:
+
+```bash
+node archify/bin/archify.mjs migrate workflow old.json new.json --to-schema 2 --output reports/workflow.html --json
+```
+
+`--output` must itself be a portable POSIX-relative `.html` path. It updates
+only the verified destination candidate; the source bytes remain unchanged and
+all non-output schema and compiler diagnostics still block migration.
+
 The command never overwrites the source by default. It maps absolute
 `via[*][0]`, `labelAt[0]`, and `channelX` values from legacy to solved rank
 space, preserves y coordinates unless a reported vertical constraint needs
