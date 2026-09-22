@@ -60,11 +60,12 @@ test('vertical auto label clears the source without moving endpoints and is cons
   assert.equal(check.status, 0, check.stdout + check.stderr);
 });
 
-test('frozen K2.8 draft loses two label defects but retains its actual route crossing', t => {
+test('frozen K2.8 draft clears its labels and renderer-owned automatic crossing', t => {
   const diagram = JSON.parse(fs.readFileSync(path.join(root, 'test/fixtures/architecture-label-repair/worldscope.json')));
   const { result, report } = inspect(t, diagram);
-  assert.equal(result.status, 1);
-  assert.deepEqual(report.diagnostics.map(d => d.code), ['composition/proper-crossing']);
+  assert.equal(result.status, 0, result.stdout);
+  assert.equal(report.ok, true);
+  assert.equal(report.diagnostics, undefined);
   assertLabelsClear(diagram, report);
   const standard = structuredClone(diagram);
   standard.meta.quality_profile = 'standard';
@@ -106,15 +107,16 @@ test('clear horizontal label and explicit route points stay unchanged', t => {
   assert.deepEqual(report.connections[0].labelAt, [320, 90]);
 });
 
-test('no nearby valid position preserves the diagnostic instead of hiding or shrinking the label', t => {
+test('bounded fallback finds a clear position without hiding or shrinking the label', t => {
   const diagram = vertical();
   diagram.components[1].pos = [120, 160];
   diagram.components.push(
-    { id: 'left', type: 'backend', label: 'Left', pos: [0, 90], size: [116, 150] },
-    { id: 'right', type: 'backend', label: 'Right', pos: [244, 90], size: [116, 150] },
+    { id: 'left', type: 'backend', label: 'Left', pos: [0, 90], size: [112, 150] },
+    { id: 'right', type: 'backend', label: 'Right', pos: [248, 90], size: [112, 150] },
   );
   const { result, report } = inspect(t, diagram);
-  assert.equal(result.status, 1);
-  assert.deepEqual(report.connections[0].labelAt, [180, 120]);
+  assert.equal(result.status, 0, result.stdout);
+  assert.notDeepEqual(report.connections[0].labelAt, [180, 120]);
   assert.equal(report.labels[0].text, 'Read cache');
+  assertLabelsClear(diagram, report);
 });

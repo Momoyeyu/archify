@@ -232,7 +232,7 @@ Run `validate` after every edit. Consume `diagnostics[]` by stable `code`, exact
 
 ### Architecture
 
-Use one left-to-right spine with short vertical branches. Prefer 6–12 primary components and group only real ownership, trust, process, or deployment boundaries. Boundaries do not replace relationships.
+Use one obvious primary reading path, which may step across meaningful rows when the source-driven topology needs room. Include every component required to explain the requested responsibilities and boundaries; omit only genuinely irrelevant detail. Group only real ownership, trust, process, or deployment boundaries. Boundaries do not replace relationships.
 
 Grid placement is preferred when the schema supports it. Free positions are appropriate for a bounded exception, not for prose-level coordinate planning. Keep external actors outside the system boundary when that is factually true.
 

@@ -3,6 +3,7 @@ import {
   asArray,
   isFinitePoint,
   normalizeRoutePoints,
+  properSegmentIntersection,
   segmentIntersectsRect,
 } from './geometry.mjs';
 
@@ -170,13 +171,6 @@ function emptyControlPointClearance(points, contentRects) {
   return { maximum, point: controls[distances.indexOf(maximum)] };
 }
 
-function rectsIntersect(left, right) {
-  return left.x <= right.x + right.width
-    && left.x + left.width >= right.x
-    && left.y <= right.y + right.height
-    && left.y + left.height >= right.y;
-}
-
 function pointBlocked(point, obstacles) {
   return obstacles.some((rect) => (
     point[0] >= rect.x && point[0] <= rect.x + rect.width
@@ -188,23 +182,111 @@ function segmentBlocked(start, end, obstacles) {
   return obstacles.some((rect) => segmentIntersectsRect({ start, end }, rect));
 }
 
-function shortestGridRoute({ start, end, points, obstacles, fromSide, toSide, clearance, maximumObstacleCount }) {
-  if (!OUTWARD[fromSide] || !OUTWARD[toSide]) return null;
-  const stubDistance = clearance + 2;
-  const startStub = moveOutward(start, fromSide, stubDistance);
-  const endStub = moveOutward(end, toSide, stubDistance);
-  const routeBounds = boundsForPoints([...points, startStub, endStub]);
-  const searchRect = {
-    x: routeBounds.left - 24,
-    y: routeBounds.top - 24,
-    width: routeBounds.width + 48,
-    height: routeBounds.height + 48,
-  };
+function segmentConflictsWithAvoided(start, end, avoidedSegments, minimumOverlapPx) {
+  return avoidedSegments.some((segment) => (
+    properSegmentIntersection(start, end, segment.start, segment.end)
+      || orthogonalTouchOnAvoidedInterior(start, end, segment.start, segment.end)
+      || collinearOverlap(start, end, segment.start, segment.end) >= minimumOverlapPx
+  ));
+}
+
+function orthogonalTouchOnAvoidedInterior(start, end, avoidedStart, avoidedEnd) {
+  const epsilon = 0.0001;
+  const candidateHorizontal = Math.abs(start[1] - end[1]) <= epsilon;
+  const candidateVertical = Math.abs(start[0] - end[0]) <= epsilon;
+  const avoidedHorizontal = Math.abs(avoidedStart[1] - avoidedEnd[1]) <= epsilon;
+  const avoidedVertical = Math.abs(avoidedStart[0] - avoidedEnd[0]) <= epsilon;
+  if (candidateHorizontal && avoidedVertical) {
+    const x = avoidedStart[0];
+    const y = start[1];
+    return x >= Math.min(start[0], end[0]) - epsilon
+      && x <= Math.max(start[0], end[0]) + epsilon
+      && y > Math.min(avoidedStart[1], avoidedEnd[1]) + epsilon
+      && y < Math.max(avoidedStart[1], avoidedEnd[1]) - epsilon;
+  }
+  if (candidateVertical && avoidedHorizontal) {
+    const x = start[0];
+    const y = avoidedStart[1];
+    return y >= Math.min(start[1], end[1]) - epsilon
+      && y <= Math.max(start[1], end[1]) + epsilon
+      && x > Math.min(avoidedStart[0], avoidedEnd[0]) + epsilon
+      && x < Math.max(avoidedStart[0], avoidedEnd[0]) - epsilon;
+  }
+  return false;
+}
+
+function pointOnSegmentInterior(point, start, end) {
+  const epsilon = 0.0001;
+  const cross = (end[0] - start[0]) * (point[1] - start[1])
+    - (end[1] - start[1]) * (point[0] - start[0]);
+  if (Math.abs(cross) > epsilon) return false;
+  const dot = (point[0] - start[0]) * (point[0] - end[0])
+    + (point[1] - start[1]) * (point[1] - end[1]);
+  return dot < -epsilon;
+}
+
+function pointOnAvoidedInterior(point, avoidedSegments) {
+  return avoidedSegments.some((segment) => (
+    pointOnSegmentInterior(point, segment.start, segment.end)
+  ));
+}
+
+function writeGridMetrics(metrics, patch) {
+  if (!metrics || typeof metrics !== 'object') return;
+  Object.assign(metrics, patch);
+}
+
+export function shortestOrthogonalGridRoute({
+  start,
+  end,
+  points,
+  obstacles,
+  fromSide,
+  toSide,
+  clearance,
+  maximumObstacleCount,
+  endpointStubPx = clearance + 2,
+  maximumGridNodes = Infinity,
+  avoidedSegments = [],
+  minimumAvoidedOverlapPx = 8,
+  routeSeparationPx = 8,
+  metrics,
+}) {
+  writeGridMetrics(metrics, {
+    status: 'initializing',
+    maximumGridNodes,
+    obstacleCount: 0,
+    avoidedSegmentCount: 0,
+    coordinateCount: 0,
+    candidateNodeCount: 0,
+    usableNodeCount: 0,
+    graphEdgeCount: 0,
+    visitedNodeCount: 0,
+  });
+  if (!OUTWARD[fromSide] || !OUTWARD[toSide]) {
+    writeGridMetrics(metrics, { status: 'unsupported-endpoint-side' });
+    return null;
+  }
+  const startStub = moveOutward(start, fromSide, endpointStubPx);
+  const endStub = moveOutward(end, toSide, endpointStubPx);
+  // The graph may legally leave the initial endpoint bounds to find a clear
+  // corridor. Keep every bounded obstacle and occupied relationship visible
+  // to that search; filtering them against the initial box lets a detour walk
+  // straight through geometry that only becomes relevant after it leaves the
+  // box. The explicit obstacle/node budgets below keep this deterministic.
   const expanded = [...obstacles]
     .filter((rect) => rect && isFinitePoint(rect.x, rect.y, rect.width, rect.height))
-    .map((rect) => expandedRect(rect, clearance))
-    .filter((rect) => rectsIntersect(rect, searchRect));
-  if (expanded.length > maximumObstacleCount) return null;
+    .map((rect) => expandedRect(rect, clearance));
+  const relevantAvoidedSegments = [...avoidedSegments]
+    .filter((segment) => segment?.start && segment?.end);
+  writeGridMetrics(metrics, {
+    obstacleCount: expanded.length,
+    avoidedSegmentCount: relevantAvoidedSegments.length,
+  });
+  if (expanded.length > maximumObstacleCount) {
+    writeGridMetrics(metrics, { status: 'obstacle-budget-exceeded' });
+    return null;
+  }
 
   const xs = new Set([startStub[0], endStub[0], ...points.map(([x]) => x)]);
   const ys = new Set([startStub[1], endStub[1], ...points.map(([, y]) => y)]);
@@ -214,28 +296,67 @@ function shortestGridRoute({ start, end, points, obstacles, fromSide, toSide, cl
     ys.add(rect.y - 1);
     ys.add(rect.y + rect.height + 1);
   }
+  for (const segment of relevantAvoidedSegments) {
+    const [segmentStart, segmentEnd] = [segment.start, segment.end];
+    xs.add(segmentStart[0]);
+    xs.add(segmentEnd[0]);
+    ys.add(segmentStart[1]);
+    ys.add(segmentEnd[1]);
+    if (Math.abs(segmentStart[0] - segmentEnd[0]) <= 0.0001) {
+      xs.add(segmentStart[0] - routeSeparationPx);
+      xs.add(segmentStart[0] + routeSeparationPx);
+    }
+    if (Math.abs(segmentStart[1] - segmentEnd[1]) <= 0.0001) {
+      ys.add(segmentStart[1] - routeSeparationPx);
+      ys.add(segmentStart[1] + routeSeparationPx);
+    }
+  }
   const orderedX = [...xs].sort((a, b) => a - b);
   const orderedY = [...ys].sort((a, b) => a - b);
+  const candidateNodeCount = orderedX.length * orderedY.length;
+  writeGridMetrics(metrics, {
+    coordinateCount: orderedX.length + orderedY.length,
+    candidateNodeCount,
+  });
+  if (candidateNodeCount > maximumGridNodes) {
+    writeGridMetrics(metrics, { status: 'node-budget-exceeded' });
+    return null;
+  }
   const nodes = new Map();
   for (const x of orderedX) {
     for (const y of orderedY) {
       const point = [x, y];
-      if (!pointBlocked(point, expanded)) nodes.set(pointKey(point), point);
+      if (!pointBlocked(point, expanded)
+          && !pointOnAvoidedInterior(point, relevantAvoidedSegments)) {
+        nodes.set(pointKey(point), point);
+      }
     }
   }
-  if (!nodes.has(pointKey(startStub)) || !nodes.has(pointKey(endStub))) return null;
+  writeGridMetrics(metrics, { usableNodeCount: nodes.size });
+  if (!nodes.has(pointKey(startStub)) || !nodes.has(pointKey(endStub))) {
+    writeGridMetrics(metrics, { status: 'endpoint-blocked' });
+    return null;
+  }
 
   const adjacency = new Map([...nodes.keys()].map((key) => [key, []]));
+  let graphEdgeCount = 0;
   const connectLine = (line) => {
     for (let index = 0; index < line.length - 1; index += 1) {
       const left = line[index];
       const right = line[index + 1];
       if (segmentBlocked(left, right, expanded)) continue;
+      if (segmentConflictsWithAvoided(
+        left,
+        right,
+        relevantAvoidedSegments,
+        minimumAvoidedOverlapPx,
+      )) continue;
       const distance = Math.abs(right[0] - left[0]) + Math.abs(right[1] - left[1]);
       const leftKey = pointKey(left);
       const rightKey = pointKey(right);
       adjacency.get(leftKey).push([rightKey, distance]);
       adjacency.get(rightKey).push([leftKey, distance]);
+      graphEdgeCount += 1;
     }
   };
   for (const y of orderedY) {
@@ -244,6 +365,7 @@ function shortestGridRoute({ start, end, points, obstacles, fromSide, toSide, cl
   for (const x of orderedX) {
     connectLine(orderedY.map((y) => nodes.get(pointKey([x, y]))).filter(Boolean));
   }
+  writeGridMetrics(metrics, { graphEdgeCount });
 
   const source = pointKey(startStub);
   const target = pointKey(endStub);
@@ -251,11 +373,13 @@ function shortestGridRoute({ start, end, points, obstacles, fromSide, toSide, cl
   const previous = new Map();
   const queue = new MinHeap();
   queue.push(source, 0);
+  let visitedNodeCount = 0;
   while (queue.entries.length) {
     const next = queue.pop();
     const current = next.key;
     const currentDistance = next.distance;
     if (currentDistance !== distances.get(current)) continue;
+    visitedNodeCount += 1;
     if (current === target) break;
     for (const [neighbor, weight] of adjacency.get(current) || []) {
       const candidate = currentDistance + weight;
@@ -265,14 +389,22 @@ function shortestGridRoute({ start, end, points, obstacles, fromSide, toSide, cl
       queue.push(neighbor, candidate);
     }
   }
-  if (!distances.has(target)) return null;
+  writeGridMetrics(metrics, { visitedNodeCount });
+  if (!distances.has(target)) {
+    writeGridMetrics(metrics, { status: 'no-route' });
+    return null;
+  }
   const reversed = [];
   for (let key = target; key; key = previous.get(key)) {
     reversed.push(nodes.get(key));
     if (key === source) break;
   }
-  if (pointKey(reversed.at(-1)) !== source) return null;
+  if (pointKey(reversed.at(-1)) !== source) {
+    writeGridMetrics(metrics, { status: 'broken-predecessor-chain' });
+    return null;
+  }
   const shortestPoints = normalizeRoutePoints([start, ...reversed.reverse(), end]);
+  writeGridMetrics(metrics, { status: 'routed' });
   return {
     points: shortestPoints,
     length: orthogonalLength(shortestPoints),
@@ -381,7 +513,7 @@ export function cleanRouteDetourProblems({
 
     const fromSide = fromSideFor?.(relation) || inferredSide(points, 'source');
     const toSide = toSideFor?.(relation) || inferredSide(points, 'target');
-    const shortest = shortestGridRoute({
+    const shortest = shortestOrthogonalGridRoute({
       start,
       end,
       points,

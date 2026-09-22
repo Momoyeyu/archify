@@ -574,6 +574,7 @@ export function cleanCrossingProblems({
   profile = 'standard',
   profileIsAuthoritative = false,
   mergeForwardCollinearWaypoints = false,
+  crossingResolved = () => false,
   routeHint = 'adjust route/via or channel coordinates so the relationships use separate corridors'
 }) {
   if (qualityProfileForGate(profile, profileIsAuthoritative) !== 'showcase') return [];
@@ -620,6 +621,7 @@ export function cleanCrossingProblems({
         }
       }
       if (!hit) continue;
+      if (crossingResolved(left.relation, right.relation, hit)) continue;
 
       const describe = ({ relation, index }) => {
         const id = relation.id ? ` id "${relation.id}"` : '';
@@ -1251,7 +1253,7 @@ function collinearAxisOverlap(a, b, c, d) {
   };
 }
 
-function properSegmentIntersection(a, b, c, d) {
+export function properSegmentIntersection(a, b, c, d) {
   const abC = crossProduct(a, b, c);
   const abD = crossProduct(a, b, d);
   const cdA = crossProduct(c, d, a);

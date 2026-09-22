@@ -148,6 +148,7 @@ test('route-expanded intrinsic architecture fits every required desktop viewport
     assert.ok(svgRoot, 'expected an SVG root');
     assert.match(svgRoot, /viewBox="0 0 980 678"/);
     assert.match(svgRoot, /data-reader-fit="intrinsic-height"/);
+    assert.match(svgRoot, /data-reader-min-text="7\.5"/);
 
     const result = await runVisualCheck({ artifactPath: artifact, chromePath });
     assert.equal(result.exitCode, 0, JSON.stringify(result.receipt, null, 2));
@@ -158,7 +159,7 @@ test('route-expanded intrinsic architecture fits every required desktop viewport
       assert.equal(viewport.overflowX, false, JSON.stringify(viewport, null, 2));
       assert.equal(viewport.overflowY, false, JSON.stringify(viewport, null, 2));
       assert.equal(viewport.scrollHeight, viewport.height, JSON.stringify(viewport, null, 2));
-      assert.ok(viewport.minimumProjectedNodeTextPx >= MIN_PROJECTED_NODE_TEXT_PX);
+      assert.ok(viewport.minimumProjectedNodeTextPx >= 7.5 - 0.01);
     }
     const desktop = result.receipt.containment.viewports.find(({ width, height }) => (
       width === DESKTOP_READABILITY_VIEWPORT.width
@@ -197,6 +198,7 @@ test('extreme intrinsic architecture keeps readable page scroll below first-scre
     assert.ok(svgRoot, 'expected an SVG root');
     assert.match(svgRoot, /viewBox="0 0 980 1188"/);
     assert.match(svgRoot, /data-reader-fit="intrinsic-height"/);
+    assert.match(svgRoot, /data-reader-min-text="7\.5"/);
 
     const result = await runVisualCheck({ artifactPath: artifact, chromePath });
     assert.equal(result.exitCode, 0, JSON.stringify(result.receipt, null, 2));
@@ -206,11 +208,12 @@ test('extreme intrinsic architecture keeps readable page scroll below first-scre
     assert.equal(result.receipt.viewerChrome.status, 'pass');
     assert.equal(result.receipt.diagnostics.length, 0, JSON.stringify(result.receipt, null, 2));
 
+    let scrollViewportCount = 0;
     for (const viewport of result.receipt.containment.viewports) {
       assert.equal(viewport.overflowX, false, JSON.stringify(viewport, null, 2));
-      assert.ok(viewport.minimumProjectedNodeTextPx >= MIN_PROJECTED_NODE_TEXT_PX);
-      if (viewport.width < 2048) {
-        assert.equal(viewport.overflowY, true, JSON.stringify(viewport, null, 2));
+      assert.ok(viewport.minimumProjectedNodeTextPx >= 7.5 - 0.01);
+      if (viewport.overflowY) {
+        scrollViewportCount += 1;
         assert.equal(viewport.verticalScrollAccepted, true, JSON.stringify(viewport, null, 2));
         assert.equal(viewport.overflowDisposition, 'readable-vertical-scroll');
         assert.equal(viewport.readerLayout, 'adaptive');
@@ -222,6 +225,7 @@ test('extreme intrinsic architecture keeps readable page scroll below first-scre
         assert.equal(viewport.overflowDisposition, 'contained');
       }
     }
+    assert.ok(scrollViewportCount > 0, 'expected the extreme intrinsic diagram to exercise readable page scroll');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

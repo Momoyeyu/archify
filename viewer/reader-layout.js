@@ -18,6 +18,10 @@
       var MIN_READER_WIDTH = 960;
       var MAX_READER_WIDTH = 1920;
       var MIN_PROJECTED_NODE_TEXT_PX = 6;
+      var declaredMinimumText = svg ? parseFloat(svg.getAttribute('data-reader-min-text') || '') : null;
+      var requestedMinimumText = Number.isFinite(declaredMinimumText)
+        ? Math.max(MIN_PROJECTED_NODE_TEXT_PX, declaredMinimumText)
+        : MIN_PROJECTED_NODE_TEXT_PX;
       var SAFE_BOTTOM_GAP = 12;
 
       if (diagram && ratio >= WIDE_RATIO) {
@@ -49,7 +53,7 @@
           }
         });
         return sourceMinimum != null
-          ? Math.min(1, MIN_PROJECTED_NODE_TEXT_PX / sourceMinimum)
+          ? Math.min(1, requestedMinimumText / sourceMinimum)
           : 1;
       }
       function eligible() {

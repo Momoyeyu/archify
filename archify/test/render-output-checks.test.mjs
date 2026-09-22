@@ -203,6 +203,33 @@ test('render output check: showcase rejects a proper X with semantic identities'
   assert.deepEqual(result.composition.summary, { errors: 1, warnings: 0 });
 });
 
+test('render output check: verified automatic crossover halos resolve a proper X', () => {
+  const { code, result } = checkHtml('showcase-verified-crossover-halo', `
+    <path data-graph-role="automatic-crossover-underlay" d="M 20 60 L 200 60" fill="none" stroke="var(--mask)" stroke-width="5.5" pointer-events="none"/>
+    <path data-edge-id="left" data-edge-from="a" data-edge-to="b" data-composition-crossover="halo" d="M 20 60 L 200 60" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+    <path data-graph-role="automatic-crossover-underlay" d="M 100 20 L 100 120" fill="none" stroke="var(--mask)" stroke-width="5.5" pointer-events="none"/>
+    <path data-edge-id="right" data-edge-from="c" data-edge-to="d" data-composition-crossover="halo" d="M 100 20 L 100 120" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+  `, 'showcase');
+  assert.equal(code, 0, JSON.stringify(result.composition.issues));
+  assert.equal(result.composition.metrics.properCrossings, 0);
+  assert.equal(result.composition.metrics.resolvedCrossovers, 1);
+  assert.deepEqual(result.composition.summary, { errors: 0, warnings: 0 });
+});
+
+test('render output check: a crossover marker without a matching underlay fails closed', () => {
+  const { code, result } = checkHtml('showcase-unverified-crossover-halo', `
+    <path data-graph-role="automatic-crossover-underlay" d="M 20 61 L 200 61" fill="none" stroke="var(--mask)" stroke-width="5.5" pointer-events="none"/>
+    <path data-edge-id="left" data-edge-from="a" data-edge-to="b" data-composition-crossover="halo" d="M 20 60 L 200 60" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+    <path data-graph-role="automatic-crossover-underlay" d="M 100 20 L 100 120" fill="none" stroke="var(--mask)" stroke-width="5.5" pointer-events="none"/>
+    <path data-edge-id="right" data-edge-from="c" data-edge-to="d" data-composition-crossover="halo" d="M 100 20 L 100 120" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+  `, 'showcase');
+  assert.notEqual(code, 0);
+  assert.equal(result.composition.metrics.properCrossings, 1);
+  assert.equal(result.composition.metrics.resolvedCrossovers, 0);
+  const crossing = result.composition.issues.find((item) => item.code === 'composition/proper-crossing');
+  assert.equal(crossing?.severity, 'error');
+});
+
 test('render output check: shared endpoints and endpoint touches pass showcase', () => {
   const { code, result } = checkHtml('showcase-exemptions', `
     <path data-edge-from="a" data-edge-to="b" d="M 20 60 L 200 60" class="a-default" marker-end="url(#arrowhead)"/>

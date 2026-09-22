@@ -302,6 +302,12 @@ function layoutBoundaryTitles(rawBoundaries, minimumFontSize) {
 // would fall below the desktop-readability floor once labels grow it). Routing
 // reads only components and connections, never boundaries or the viewBox.
 const { pathFor, connectionSides, connectionEndpointSide } = createRouter(components, arch.connections);
+function hasAutomaticRouteGeometry(connection) {
+  return !Array.isArray(connection?.via)
+    && (!connection?.route || connection.route === 'auto')
+    && connection?.channelX === undefined
+    && connection?.channelY === undefined;
+}
 // The auto canvas has to cover these rects; an authored viewBox is never
 // resized to fit them — there the containment rule reports the clipping.
 let connectionLabels = connectionLabelRects();
@@ -636,6 +642,12 @@ function validateArchitecture() {
     diagramType: 'architecture',
     relationCollection: 'connections',
     profile: arch.meta?.quality_profile,
+    // Automatic architecture routes render with an opaque crossover halo.
+    // That makes a proper X visually unambiguous while explicit authored
+    // crossings remain a blocking composition error.
+    crossingResolved: (left, right) => (
+      hasAutomaticRouteGeometry(left) && hasAutomaticRouteGeometry(right)
+    ),
     routeHint: 'adjust route/via or fromSide/toSide so the connections use separate corridors'
   }));
   problems.push(...cleanAmbiguousCorridorProblems({
@@ -770,7 +782,11 @@ function renderConnectionPath(conn, index) {
   const [cls, marker] = arrowClassMap[conn.variant || 'default'] || arrowClassMap.default;
   const routed = pathFor(conn);
   const strokeWidth = conn.width || (conn.variant === 'emphasis' ? 1.8 : 1.5);
-  return `        <path ${focusEdgeAttrs(conn.from, conn.to, conn.label, index, conn.id)} data-composition-points="${routePointsValue(routed.points)}"${authoredStraightRouteAttrs(conn, routed.points)} d="${routed.d}" class="${cls}"${animateAttr(arch.meta, 'edge', index)} stroke-width="${strokeWidth}" marker-end="url(#${marker})"/>`;
+  const underlay = hasAutomaticRouteGeometry(conn)
+    ? `        <path data-graph-role="automatic-crossover-underlay" d="${routed.d}" fill="none" stroke="var(--mask)" stroke-width="${strokeWidth + 4}" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>\n`
+    : '';
+  const crossover = hasAutomaticRouteGeometry(conn) ? ' data-composition-crossover="halo"' : '';
+  return `${underlay}        <path ${focusEdgeAttrs(conn.from, conn.to, conn.label, index, conn.id)} data-composition-points="${routePointsValue(routed.points)}"${crossover}${authoredStraightRouteAttrs(conn, routed.points)} d="${routed.d}" class="${cls}"${animateAttr(arch.meta, 'edge', index)} stroke-width="${strokeWidth}" marker-end="url(#${marker})"/>`;
 }
 
 function renderConnectionLabel(conn, index) {
@@ -840,7 +856,11 @@ function renderSvg() {
   // threshold. Authored viewBoxes remain authoritative and keep the
   // established Viewer contract.
   const readerFit = arch.meta?.viewBox ? '' : ' data-reader-fit="intrinsic-height"';
-  return `      <svg viewBox="0 0 ${viewBox[0]} ${viewBox[1]}" ${svgRootAttrs(arch.meta)}${readerFit}>
+  // A complete repository architecture is allowed to use normal page scroll;
+  // keep its common-desktop text at a comfortable reading size instead of
+  // shrinking a semantically rich graph to the universal emergency floor.
+  const readerMinimumText = arch.meta?.viewBox ? '' : ' data-reader-min-text="7.5"';
+  return `      <svg viewBox="0 0 ${viewBox[0]} ${viewBox[1]}" ${svgRootAttrs(arch.meta)}${readerFit}${readerMinimumText}>
 ${svgAccessibleText(arch.meta, 'architecture')}
 ${renderDefinitions()}
 

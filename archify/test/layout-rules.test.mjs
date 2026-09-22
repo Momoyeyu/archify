@@ -1309,6 +1309,7 @@ test('architecture: measured auto canvases opt into height-aware reader fitting'
   const automaticSvg = fs.readFileSync(rendered.outPath, 'utf8').match(/<svg\b[^>]*>/)?.[0];
   assert.ok(automaticSvg, 'expected an SVG root for the automatic canvas');
   assert.match(automaticSvg, /data-reader-fit="intrinsic-height"/);
+  assert.match(automaticSvg, /data-reader-min-text="7\.5"/);
 
   const authored = structuredClone(automatic);
   authored.meta.viewBox = [1080, 620];
@@ -1317,6 +1318,7 @@ test('architecture: measured auto canvases opt into height-aware reader fitting'
   const authoredSvg = fs.readFileSync(pinned.outPath, 'utf8').match(/<svg\b[^>]*>/)?.[0];
   assert.ok(authoredSvg, 'expected an SVG root for the authored canvas');
   assert.doesNotMatch(authoredSvg, /data-reader-fit=/);
+  assert.doesNotMatch(authoredSvg, /data-reader-min-text=/);
 });
 
 // Boundary-title fonts are resolved against the same width the canvas actually
@@ -1488,6 +1490,26 @@ test('architecture: default auto route selects a safe orthogonal candidate aroun
   assert.match(html, /data-composition-points="560,318;856,318;856,160;880,160"/);
 });
 
+test('architecture: aligned automatic endpoints still route around an unrelated component', () => {
+  const d = {
+    schema_version: 1,
+    diagram_type: 'architecture',
+    meta: { title: 'Aligned obstacle regression', quality_profile: 'showcase' },
+    components: [
+      { id: 'source', type: 'backend', label: 'Source', pos: [40, 120], size: [140, 60] },
+      { id: 'blocker', type: 'security', label: 'Blocker', pos: [240, 120], size: [140, 60] },
+      { id: 'target', type: 'database', label: 'Target', pos: [440, 120], size: [140, 60] },
+    ],
+    connections: [{ id: 'source-target', from: 'source', to: 'target' }],
+  };
+  const { code, stderr, outPath } = render('architecture', d);
+  assert.equal(code, 0, `aligned automatic route must avoid the blocker: ${stderr}`);
+  const html = fs.readFileSync(outPath, 'utf8');
+  const encoded = html.match(/data-edge-id="source-target" data-composition-points="([^"]+)"/)?.[1];
+  assert.ok(encoded, 'expected rendered composition points for source-target');
+  assert.ok(encoded.split(';').length >= 6, `expected obstacle-avoiding bends, found ${encoded}`);
+});
+
 test('architecture: auto route enters explicit top and bottom ports perpendicularly', () => {
   const d = {
     schema_version: 1,
@@ -1527,6 +1549,34 @@ test('architecture: auto route preserves inferred side normals when the primary 
   const html = fs.readFileSync(outPath, 'utf8');
   assert.match(html, /data-composition-points="700,130;184,130;184,330;160,330"/);
   assert.doesNotMatch(html, /data-composition-points="700,130;700,230;160,230;160,330"/);
+});
+
+test('architecture: auto route finds a multi-bend path when both side-safe doglegs are blocked', () => {
+  const d = {
+    schema_version: 1,
+    diagram_type: 'architecture',
+    meta: { title: 'Multi-bend automatic route regression', quality_profile: 'showcase' },
+    components: [
+      { id: 'server', type: 'backend', label: 'Server', pos: [280, 240], size: [180, 64] },
+      { id: 'upper-blocker', type: 'backend', label: 'Upper blocker', pos: [530, 240], size: [180, 64] },
+      { id: 'lower-blocker', type: 'backend', label: 'Lower blocker', pos: [530, 360], size: [180, 64] },
+      { id: 'client', type: 'external', label: 'Client', pos: [780, 360], size: [190, 64] },
+    ],
+    connections: [
+      { id: 'client-server', from: 'client', to: 'server' },
+    ],
+  };
+  const { code, stderr, outPath } = render('architecture', d);
+  assert.equal(code, 0, `automatic multi-bend route must render cleanly: ${stderr}`);
+  const html = fs.readFileSync(outPath, 'utf8');
+  const encoded = html.match(/data-edge-id="client-server" data-composition-points="([^"]+)"/)?.[1];
+  assert.ok(encoded, 'expected rendered composition points for client-server');
+  const points = encoded.split(';').map((point) => point.split(',').map(Number));
+  assert.ok(points.length >= 6, `expected a multi-bend route, found ${encoded}`);
+  assert.equal(points[0][1], points[1][1], 'route must leave the inferred left port horizontally');
+  assert.ok(points[1][0] < points[0][0], 'route must leave the inferred left port leftward');
+  assert.equal(points.at(-2)[1], points.at(-1)[1], 'route must enter the inferred right port horizontally');
+  assert.ok(points.at(-2)[0] > points.at(-1)[0], 'route must enter the inferred right port leftward');
 });
 
 test('architecture: explicit via cannot run tangentially into an authored top port', () => {
@@ -1569,12 +1619,20 @@ test('architecture: explicit orthogonal route remains authoritative when it cros
   assert.match(stderr, /connections\[0\] "api" -> "queue" crosses component "cache"/);
 });
 
-test('architecture: auto route still fails closed when doglegs and side-aware bridges are blocked', () => {
-  const d = autoRoutePassThroughDocument({ from: 'api', to: 'queue', variant: 'dashed' });
+test('architecture: auto route clears stacked blockers after doglegs and side-aware bridges are blocked', () => {
+  const d = autoRoutePassThroughDocument({ id: 'api-queue', from: 'api', to: 'queue', variant: 'dashed' });
   d.components.push({ id: 'guard', type: 'security', label: 'Guard', pos: [825, 215], size: [70, 50] });
-  const { code, stderr } = render('architecture', d);
-  assert.notEqual(code, 0, `expected non-zero exit; stderr:\n${stderr}`);
-  assert.match(stderr, /connections\[0\] "api" -> "queue" crosses component "cache"/);
+  const { code, stderr, outPath } = render('architecture', d);
+  assert.equal(code, 0, `automatic multi-bend route must clear both blockers: ${stderr}`);
+  const html = fs.readFileSync(outPath, 'utf8');
+  const encoded = html.match(/data-edge-id="api-queue" data-composition-points="([^"]+)"/)?.[1];
+  assert.ok(encoded, 'expected rendered composition points for api-queue');
+  const points = encoded.split(';').map((point) => point.split(',').map(Number));
+  assert.ok(points.length >= 6, `expected a multi-bend route, found ${encoded}`);
+  assert.equal(points[0][1], points[1][1], 'route must leave the inferred right port horizontally');
+  assert.ok(points[1][0] > points[0][0], 'route must leave the inferred right port rightward');
+  assert.equal(points.at(-2)[1], points.at(-1)[1], 'route must enter the inferred left port horizontally');
+  assert.ok(points.at(-2)[0] < points.at(-1)[0], 'route must enter the inferred left port rightward');
 });
 
 test('architecture: explicit waypoints around an obstacle remain valid by default', () => {
@@ -1614,6 +1672,37 @@ test('architecture: showcase rejects an unrelated proper edge crossing', () => {
   assert.match(stderr, /at \[240, 190\]/);
   assert.match(stderr, /segments 1 and 1/);
   assert.match(stderr, /route\/via|fromSide\/toSide/);
+});
+
+test('architecture: unavoidable automatic crossing renders as a verified crossover', () => {
+  const d = {
+    schema_version: 1,
+    diagram_type: 'architecture',
+    meta: { title: 'Automatic crossover', quality_profile: 'showcase' },
+    components: [
+      { id: 'left', type: 'frontend', label: 'Left', pos: [40, 170], size: [80, 60] },
+      { id: 'right', type: 'backend', label: 'Right', pos: [480, 170], size: [80, 60] },
+      { id: 'top', type: 'database', label: 'Top', pos: [260, 20], size: [80, 60] },
+      { id: 'bottom', type: 'external', label: 'Bottom', pos: [260, 320], size: [80, 60] },
+    ],
+    connections: [
+      { id: 'horizontal', from: 'left', to: 'right', fromSide: 'right', toSide: 'left' },
+      { id: 'vertical', from: 'top', to: 'bottom', fromSide: 'bottom', toSide: 'top' },
+    ],
+  };
+  const { code, stderr, outPath } = render('architecture', d);
+  assert.equal(code, 0, stderr);
+  const html = fs.readFileSync(outPath, 'utf8');
+  assert.equal((html.match(/data-graph-role="automatic-crossover-underlay"/g) || []).length, 2);
+  assert.equal((html.match(/data-composition-crossover="halo"/g) || []).length, 2);
+
+  const receipt = JSON.parse(execFileSync('node', [
+    path.join(skillRoot, 'scripts', 'check-render-output.mjs'),
+    outPath,
+  ], { encoding: 'utf8' }));
+  assert.equal(receipt.ok, true, JSON.stringify(receipt.composition.issues));
+  assert.equal(receipt.composition.metrics.properCrossings, 0);
+  assert.equal(receipt.composition.metrics.resolvedCrossovers, 1);
 });
 
 test('architecture: showcase preserves a straight-through explicit waypoint as an authored touch', () => {

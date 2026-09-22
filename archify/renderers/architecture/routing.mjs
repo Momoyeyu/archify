@@ -10,10 +10,12 @@ import {
   defaultFromSide,
   defaultToSide,
   chosenSide,
+  properSegmentIntersection,
   routeHonorsEndpointSides,
   normalizeRoutePoints,
   roundedPath,
 } from '../shared/geometry.mjs';
+import { shortestOrthogonalGridRoute } from '../shared/route-quality.mjs';
 
 /**
  * Router bound to one set of measured component boxes.
@@ -22,6 +24,24 @@ import {
  * @param {Array<object>} connections the connection list to spread ports across
  */
 export function createRouter(components, connections) {
+  const planningMetrics = {
+    routeCount: 0,
+    explicitRouteCount: 0,
+    automaticRouteCount: 0,
+    gridSearchCount: 0,
+    gridRoutedCount: 0,
+    gridCandidateNodeCount: 0,
+    gridUsableNodeCount: 0,
+    gridEdgeCount: 0,
+    gridVisitedNodeCount: 0,
+    avoidedSegmentCount: 0,
+    conflictFallbackCount: 0,
+    maximumGridSearchCount: 64,
+    gridBudgetExhaustedCount: 0,
+    crossoverRoutedCount: 0,
+    gridAttempts: [],
+  };
+
   // ---- Connection routing ------------------------------------------------------
   function routeClearsComponents(conn, points, clearance = 2) {
     const endpointIds = new Set([conn.from, conn.to]);
@@ -44,6 +64,107 @@ export function createRouter(components, connections) {
       if (index < lastSegment && segmentIntersectsRect(segment, to)) return false;
     }
     return true;
+  }
+
+  function relationshipsShareEndpoint(left, right) {
+    return left.from === right.from
+      || left.from === right.to
+      || left.to === right.from
+      || left.to === right.to;
+  }
+
+  function collinearOverlapLength(leftStart, leftEnd, rightStart, rightEnd) {
+    const epsilon = 0.0001;
+    if (Math.abs(leftStart[0] - leftEnd[0]) <= epsilon
+        && Math.abs(rightStart[0] - rightEnd[0]) <= epsilon
+        && Math.abs(leftStart[0] - rightStart[0]) <= epsilon) {
+      return Math.max(0,
+        Math.min(Math.max(leftStart[1], leftEnd[1]), Math.max(rightStart[1], rightEnd[1]))
+          - Math.max(Math.min(leftStart[1], leftEnd[1]), Math.min(rightStart[1], rightEnd[1])));
+    }
+    if (Math.abs(leftStart[1] - leftEnd[1]) <= epsilon
+        && Math.abs(rightStart[1] - rightEnd[1]) <= epsilon
+        && Math.abs(leftStart[1] - rightStart[1]) <= epsilon) {
+      return Math.max(0,
+        Math.min(Math.max(leftStart[0], leftEnd[0]), Math.max(rightStart[0], rightEnd[0]))
+          - Math.max(Math.min(leftStart[0], leftEnd[0]), Math.min(rightStart[0], rightEnd[0])));
+    }
+    return 0;
+  }
+
+  function orthogonalTouchOnResolvedInterior(start, end, resolvedStart, resolvedEnd) {
+    const epsilon = 0.0001;
+    const candidateHorizontal = Math.abs(start[1] - end[1]) <= epsilon;
+    const candidateVertical = Math.abs(start[0] - end[0]) <= epsilon;
+    const resolvedHorizontal = Math.abs(resolvedStart[1] - resolvedEnd[1]) <= epsilon;
+    const resolvedVertical = Math.abs(resolvedStart[0] - resolvedEnd[0]) <= epsilon;
+    if (candidateHorizontal && resolvedVertical) {
+      const x = resolvedStart[0];
+      const y = start[1];
+      return x >= Math.min(start[0], end[0]) - epsilon
+        && x <= Math.max(start[0], end[0]) + epsilon
+        && y > Math.min(resolvedStart[1], resolvedEnd[1]) + epsilon
+        && y < Math.max(resolvedStart[1], resolvedEnd[1]) - epsilon;
+    }
+    if (candidateVertical && resolvedHorizontal) {
+      const x = start[0];
+      const y = resolvedStart[1];
+      return y >= Math.min(start[1], end[1]) - epsilon
+        && y <= Math.max(start[1], end[1]) + epsilon
+        && x > Math.min(resolvedStart[0], resolvedEnd[0]) + epsilon
+        && x < Math.max(resolvedStart[0], resolvedEnd[0]) - epsilon;
+    }
+    return false;
+  }
+
+  function unrelatedResolvedRoutes(conn, resolvedRoutes) {
+    return resolvedRoutes.filter((entry) => !relationshipsShareEndpoint(conn, entry.conn));
+  }
+
+  function routeConflictsWithResolved(conn, points, resolvedRoutes) {
+    const unrelated = unrelatedResolvedRoutes(conn, resolvedRoutes);
+    for (const entry of unrelated) {
+      for (let left = 0; left < points.length - 1; left += 1) {
+        for (let right = 0; right < entry.points.length - 1; right += 1) {
+          if (properSegmentIntersection(
+            points[left],
+            points[left + 1],
+            entry.points[right],
+            entry.points[right + 1],
+          )) return true;
+          if (orthogonalTouchOnResolvedInterior(
+            points[left],
+            points[left + 1],
+            entry.points[right],
+            entry.points[right + 1],
+          )) return true;
+          if (collinearOverlapLength(
+            points[left],
+            points[left + 1],
+            entry.points[right],
+            entry.points[right + 1],
+          ) >= 8) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  function routeOverlapsResolved(conn, points, resolvedRoutes) {
+    const unrelated = unrelatedResolvedRoutes(conn, resolvedRoutes);
+    for (const entry of unrelated) {
+      for (let left = 0; left < points.length - 1; left += 1) {
+        for (let right = 0; right < entry.points.length - 1; right += 1) {
+          if (collinearOverlapLength(
+            points[left],
+            points[left + 1],
+            entry.points[right],
+            entry.points[right + 1],
+          ) >= 8) return true;
+        }
+      }
+    }
+    return false;
   }
 
   const OUTWARD_SIDE_VECTOR = {
@@ -194,7 +315,7 @@ export function createRouter(components, connections) {
     return { start, end };
   }
 
-  function routeVia(conn, from, to, start, end, fromSide, toSide) {
+  function routeVia(conn, from, to, start, end, fromSide, toSide, resolvedRoutes = []) {
     if (conn.via) return conn.via;
     switch (conn.route || 'auto') {
       case 'straight':
@@ -212,12 +333,19 @@ export function createRouter(components, connections) {
         // Direct line unless the anchors are clearly orthogonal-friendly.
         const deltaX = Math.abs(start[0] - end[0]);
         const deltaY = Math.abs(start[1] - end[1]);
-        if ((deltaX < 4 || deltaY < 4) && routeHonorsEndpointSides([start, end], fromSide, toSide)) return [];
+        if (deltaX < 4 || deltaY < 4) {
+          const direct = [start, end];
+          if (routeHonorsEndpointSides(direct, fromSide, toSide)
+              && routeClearsEndpointComponents(direct, from, to)
+              && routeClearsComponents(conn, direct)
+              && !routeConflictsWithResolved(conn, direct, resolvedRoutes)) return [];
+        }
 
         const rhythmBridge = automaticPortRhythmBridge(start, end, fromSide, toSide, {
           accept: (points) => (
             routeClearsEndpointComponents(points, from, to)
             && routeClearsComponents(conn, points)
+            && !routeConflictsWithResolved(conn, points, resolvedRoutes)
           ),
         });
         if (rhythmBridge) return rhythmBridge.slice(1, -1);
@@ -237,7 +365,9 @@ export function createRouter(components, connections) {
           for (const channelX of outsideChannels) {
             const candidate = [[channelX, start[1]], [channelX, end[1]]];
             const points = [start, ...candidate, end];
-            if (routeHonorsEndpointSides(points, fromSide, toSide) && routeClearsComponents(conn, points)) return candidate;
+            if (routeHonorsEndpointSides(points, fromSide, toSide)
+                && routeClearsComponents(conn, points)
+                && !routeConflictsWithResolved(conn, points, resolvedRoutes)) return candidate;
           }
         }
 
@@ -251,7 +381,9 @@ export function createRouter(components, connections) {
           for (const channelY of outsideChannels) {
             const candidate = [[start[0], channelY], [end[0], channelY]];
             const points = [start, ...candidate, end];
-            if (routeHonorsEndpointSides(points, fromSide, toSide) && routeClearsComponents(conn, points)) return candidate;
+            if (routeHonorsEndpointSides(points, fromSide, toSide)
+                && routeClearsComponents(conn, points)
+                && !routeConflictsWithResolved(conn, points, resolvedRoutes)) return candidate;
           }
         }
 
@@ -275,25 +407,102 @@ export function createRouter(components, connections) {
         const ordered = [
           ...(nearParallelPorts ? sideAware : sideSafe),
           ...(nearParallelPorts ? sideSafe : sideAware),
-          ...candidates.filter((candidate) => !sideSafe.includes(candidate)),
         ];
         for (const candidate of ordered) {
           const points = [start, ...candidate, end];
-          if (routeClearsEndpointComponents(points, from, to) && routeClearsComponents(conn, points)) return candidate;
+          if (routeClearsEndpointComponents(points, from, to)
+              && routeClearsComponents(conn, points)
+              && !routeConflictsWithResolved(conn, points, resolvedRoutes)) return candidate;
+        }
+
+        // Two-bend doglegs are deliberately cheap, but a real architecture can
+        // place adjacent components on both of those corridors. Search a
+        // bounded obstacle grid before falling back to a route that the Clean
+        // Flow gate already knows violates the inferred endpoint directions.
+        // This keeps ordinary multi-bend avoidance renderer-owned instead of
+        // forcing the author to hand-place via points.
+        if (planningMetrics.gridSearchCount >= planningMetrics.maximumGridSearchCount) {
+          planningMetrics.gridBudgetExhaustedCount += 1;
+          planningMetrics.conflictFallbackCount += 1;
+          return sideSafe[0] || sideAware[0] || horizontalFirst;
+        }
+        // First-draft architecture graphs are not always planar at their
+        // authored node positions. The renderer gives automatic crossings a
+        // visible halo, so the grid owns opaque-node avoidance and rejects
+        // ambiguous shared corridors without forcing the model to hand-route
+        // a sprawling perimeter detour. Cheap candidates above still prefer a
+        // genuinely crossing-free path whenever one is available.
+        const avoidedSegments = [];
+        const gridMetrics = {};
+        planningMetrics.gridSearchCount += 1;
+        planningMetrics.avoidedSegmentCount += avoidedSegments.length;
+        const searched = shortestOrthogonalGridRoute({
+          start,
+          end,
+          points: [start, end],
+          obstacles: [...components.values()],
+          fromSide,
+          toSide,
+          clearance: 2,
+          maximumObstacleCount: 80,
+          endpointStubPx: 24,
+          maximumGridNodes: 4096,
+          avoidedSegments,
+          minimumAvoidedOverlapPx: 8,
+          routeSeparationPx: 8,
+          metrics: gridMetrics,
+        });
+        planningMetrics.gridCandidateNodeCount += gridMetrics.candidateNodeCount || 0;
+        planningMetrics.gridUsableNodeCount += gridMetrics.usableNodeCount || 0;
+        planningMetrics.gridEdgeCount += gridMetrics.graphEdgeCount || 0;
+        planningMetrics.gridVisitedNodeCount += gridMetrics.visitedNodeCount || 0;
+        const clearsEndpoints = searched
+          ? routeClearsEndpointComponents(searched.points, from, to) : false;
+        const clearsComponents = searched
+          ? routeClearsComponents(conn, searched.points) : false;
+        const clearsRelationships = searched
+          ? !routeConflictsWithResolved(conn, searched.points, resolvedRoutes) : false;
+        const clearsSharedCorridors = searched
+          ? !routeOverlapsResolved(conn, searched.points, resolvedRoutes) : false;
+        const accepted = Boolean(
+          searched && clearsEndpoints && clearsComponents && clearsSharedCorridors,
+        );
+        planningMetrics.gridAttempts.push({
+          relationship: conn.id || `${conn.from}->${conn.to}`,
+          fromSide,
+          toSide,
+          inputAvoidedSegmentCount: avoidedSegments.length,
+          ...gridMetrics,
+          accepted,
+          ...(!accepted && searched ? {
+            rejectedBy: [
+              ...(!clearsEndpoints ? ['endpoint-components'] : []),
+              ...(!clearsComponents ? ['components'] : []),
+              ...(!clearsSharedCorridors ? ['shared-corridor'] : []),
+            ],
+            candidatePoints: searched.points,
+          } : {}),
+        });
+        if (accepted) {
+          planningMetrics.gridRoutedCount += 1;
+          if (!clearsRelationships) planningMetrics.crossoverRoutedCount += 1;
+          return searched.points.slice(1, -1);
         }
 
         // Both bounded doglegs are blocked. Keep the best endpoint-safe route
         // when one exists so the universal Clean Flow gate reports the actual
         // obstacle; otherwise preserve the historical deterministic fallback
         // and let the endpoint-direction gate explain the side mismatch.
+        planningMetrics.conflictFallbackCount += 1;
         return sideSafe[0] || sideAware[0] || horizontalFirst;
       }
     }
   }
 
   const pathCache = new Map();
+  const selectedSides = new Map();
   const automaticPorts = automaticPortSpread(connections, components);
-  function connectionSides(conn) {
+  function inferredConnectionSides(conn) {
     const from = components.get(conn.from);
     const to = components.get(conn.to);
     return {
@@ -302,18 +511,34 @@ export function createRouter(components, connections) {
     };
   }
 
+  function connectionSides(conn) {
+    if (!routesPlanned && !routesPlanning) planRoutes();
+    return selectedSides.get(conn) || inferredConnectionSides(conn);
+  }
+
   function connectionEndpointSide(conn, endpoint) {
     const field = endpoint === 'source' ? 'fromSide' : 'toSide';
     if (conn[field] && conn[field] !== 'auto') return conn[field];
     return connectionSides(conn)[field];
   }
 
-  function pathFor(conn) {
-    if (pathCache.has(conn)) return pathCache.get(conn);
+  function hasAuthoredRouteGeometry(conn) {
+    return Boolean(
+      conn?.via
+      || (conn?.route && conn.route !== 'auto')
+      || conn?.channelX !== undefined
+      || conn?.channelY !== undefined
+    );
+  }
+
+  function connectionGeometry(conn, sides = inferredConnectionSides(conn)) {
     const from = components.get(conn.from);
     const to = components.get(conn.to);
-    const ports = automaticPorts.get(conn);
-    const { fromSide, toSide } = connectionSides(conn);
+    const inferred = inferredConnectionSides(conn);
+    const usesInferredSides = sides.fromSide === inferred.fromSide
+      && sides.toSide === inferred.toSide;
+    const ports = usesInferredSides ? automaticPorts.get(conn) : null;
+    const { fromSide, toSide } = sides;
     const baseStart = ports?.from || anchor(from, fromSide);
     const baseEnd = ports?.to || anchor(to, toSide);
     const { start, end } = alignFacingPorts(
@@ -326,11 +551,133 @@ export function createRouter(components, connections) {
       toSide,
       ports,
     );
-    const points = [start, ...routeVia(conn, from, to, start, end, fromSide, toSide), end];
-    const routed = { d: roundedPath(points, 8), points };
+    return { from, to, start, end, fromSide, toSide };
+  }
+
+  function routedForGeometry(conn, resolvedRoutes, geometry) {
+    const { from, to, start, end, fromSide, toSide } = geometry;
+    const authoredPoints = [
+      start,
+      ...routeVia(conn, from, to, start, end, fromSide, toSide, resolvedRoutes),
+      end,
+    ];
+    // Explicit waypoints are author-owned geometry. Keep even a collinear
+    // waypoint: it can intentionally split a route at a semantic touch point,
+    // and preserving it is part of the backwards-compatible authoring contract.
+    // Automatic routes remain normalized so the renderer does not emit noisy
+    // duplicate turns or zero-length segments.
+    const points = hasAuthoredRouteGeometry(conn)
+      ? authoredPoints
+      : normalizeRoutePoints(authoredPoints);
+    return { d: roundedPath(points, 8), points };
+  }
+
+  function cachePath(conn, routed, sides) {
     pathCache.set(conn, routed);
+    selectedSides.set(conn, { fromSide: sides.fromSide, toSide: sides.toSide });
     return routed;
   }
 
-  return { pathFor, connectionSides, connectionEndpointSide };
+  const SIDE_ORDER = ['right', 'bottom', 'left', 'top'];
+  function candidateSidePairs(conn) {
+    const inferred = inferredConnectionSides(conn);
+    const authoredFrom = conn.fromSide && conn.fromSide !== 'auto' ? conn.fromSide : null;
+    const authoredTo = conn.toSide && conn.toSide !== 'auto' ? conn.toSide : null;
+    const fromOptions = authoredFrom
+      ? [authoredFrom]
+      : [inferred.fromSide, ...SIDE_ORDER.filter((side) => side !== inferred.fromSide)];
+    const toOptions = authoredTo
+      ? [authoredTo]
+      : [inferred.toSide, ...SIDE_ORDER.filter((side) => side !== inferred.toSide)];
+    return fromOptions.flatMap((fromSide) => toOptions.map((toSide) => ({
+      fromSide,
+      toSide,
+      deviationCount: Number(fromSide !== inferred.fromSide) + Number(toSide !== inferred.toSide),
+    }))).sort((left, right) => {
+      if (left.deviationCount !== right.deviationCount) {
+        return left.deviationCount - right.deviationCount;
+      }
+      const leftGeometry = connectionGeometry(conn, left);
+      const rightGeometry = connectionGeometry(conn, right);
+      const leftDistance = Math.abs(leftGeometry.end[0] - leftGeometry.start[0])
+        + Math.abs(leftGeometry.end[1] - leftGeometry.start[1]);
+      const rightDistance = Math.abs(rightGeometry.end[0] - rightGeometry.start[0])
+        + Math.abs(rightGeometry.end[1] - rightGeometry.start[1]);
+      return leftDistance - rightDistance;
+    });
+  }
+
+  function routeIsClear(conn, routed, geometry, resolvedRoutes) {
+    return routed.points.length >= 2
+      && routeHonorsEndpointSides(routed.points, geometry.fromSide, geometry.toSide)
+      && routeClearsEndpointComponents(routed.points, geometry.from, geometry.to)
+      && routeClearsComponents(conn, routed.points)
+      && !routeOverlapsResolved(conn, routed.points, resolvedRoutes);
+  }
+
+  function computePath(conn, resolvedRoutes) {
+    if (hasAuthoredRouteGeometry(conn)) {
+      const sides = inferredConnectionSides(conn);
+      return cachePath(conn, routedForGeometry(
+        conn,
+        resolvedRoutes,
+        connectionGeometry(conn, sides),
+      ), sides);
+    }
+
+    let firstFallback = null;
+    for (const sides of candidateSidePairs(conn)) {
+      const geometry = connectionGeometry(conn, sides);
+      const routed = routedForGeometry(conn, resolvedRoutes, geometry);
+      if (!firstFallback) firstFallback = { routed, sides };
+      if (routeIsClear(conn, routed, geometry, resolvedRoutes)) {
+        return cachePath(conn, routed, sides);
+      }
+    }
+    return cachePath(conn, firstFallback.routed, firstFallback.sides);
+  }
+
+  let routesPlanned = false;
+  let routesPlanning = false;
+  function planRoutes() {
+    if (routesPlanned || routesPlanning) return;
+    routesPlanning = true;
+    const indexed = connections
+      .map((conn, index) => ({ conn, index }))
+      .filter(({ conn }) => components.has(conn.from) && components.has(conn.to));
+    const explicit = indexed.filter(({ conn }) => hasAuthoredRouteGeometry(conn));
+    const automatic = indexed.filter(({ conn }) => !hasAuthoredRouteGeometry(conn))
+      .sort((left, right) => {
+        const leftFrom = components.get(left.conn.from);
+        const leftTo = components.get(left.conn.to);
+        const rightFrom = components.get(right.conn.from);
+        const rightTo = components.get(right.conn.to);
+        const leftDistance = Math.abs(leftTo.cx - leftFrom.cx) + Math.abs(leftTo.cy - leftFrom.cy);
+        const rightDistance = Math.abs(rightTo.cx - rightFrom.cx) + Math.abs(rightTo.cy - rightFrom.cy);
+        return leftDistance - rightDistance || left.index - right.index;
+      });
+    const resolvedRoutes = [];
+    for (const { conn } of [...explicit, ...automatic]) {
+      const routed = computePath(conn, resolvedRoutes);
+      resolvedRoutes.push({ conn, points: routed.points });
+    }
+    planningMetrics.routeCount = resolvedRoutes.length;
+    planningMetrics.explicitRouteCount = explicit.length;
+    planningMetrics.automaticRouteCount = automatic.length;
+    routesPlanning = false;
+    routesPlanned = true;
+  }
+
+  function pathFor(conn) {
+    planRoutes();
+    if (pathCache.has(conn)) return pathCache.get(conn);
+    return computePath(conn, []);
+  }
+
+  function routingMetrics() {
+    planRoutes();
+    return { ...planningMetrics };
+  }
+
+  return { pathFor, connectionSides, connectionEndpointSide, routingMetrics };
 }

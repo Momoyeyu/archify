@@ -42,6 +42,7 @@ let composition = {
   summary: { errors: 0, warnings: 0 },
   metrics: {
     properCrossings: 0,
+    resolvedCrossovers: 0,
     ambiguousCorridors: 0,
     containerBorderRuns: 0,
     labelRouteClearanceIssues: 0,
@@ -115,7 +116,13 @@ if (svgMatches.length === 1) {
     diagonal.length === 0,
     diagonal.map(({ arrow, segmentIndex }) => `${arrow.kind} ${arrow.index} segment ${segmentIndex + 1}: expected an orthogonal segment or an explicitly authored direct straight route; ${arrow.raw}`),
   );
-  const relationshipCrossings = collectRelationshipCrossings(arrows);
+  const measuredRelationshipCrossings = collectRelationshipCrossings(arrows);
+  const resolvedCrossovers = measuredRelationshipCrossings.filter((hit) => (
+    hit.left.crossoverHalo && hit.right.crossoverHalo
+  ));
+  const relationshipCrossings = measuredRelationshipCrossings.filter((hit) => (
+    !hit.left.crossoverHalo || !hit.right.crossoverHalo
+  ));
   const compositionFrames = collectCompositionFrames(beforeLegend);
   const containerBorderRuns = collectBorderRuns({
     routedRelations: arrows
@@ -182,6 +189,7 @@ if (svgMatches.length === 1) {
     },
     metrics: {
       properCrossings: relationshipCrossings.length,
+      resolvedCrossovers: resolvedCrossovers.length,
       ambiguousCorridors: ambiguousCorridors.length,
       containerBorderRuns: containerBorderRuns.length,
       labelRouteClearanceIssues: labelRouteClearance.length,
@@ -341,6 +349,20 @@ function collectArrows(fragment) {
     if (!/\bclass="[^"]*\ba-(?:default|emphasis|security|dashed)\b/.test(raw)) continue;
     if (!/\bmarker-end=/.test(raw)) continue;
     const attrs = parseAttrs(raw);
+    const precedingUnderlayTag = fragment.slice(0, tag.index).match(
+      /(<path\b[^>]*\bdata-graph-role="automatic-crossover-underlay"[^>]*\/>)\s*$/i,
+    )?.[1];
+    const precedingUnderlay = precedingUnderlayTag ? parseAttrs(precedingUnderlayTag) : null;
+    const routeStrokeWidth = numberAttr(attrs, 'stroke-width');
+    const underlayStrokeWidth = precedingUnderlay ? numberAttr(precedingUnderlay, 'stroke-width') : NaN;
+    const verifiedCrossoverHalo = attrs['data-composition-crossover'] === 'halo'
+      && precedingUnderlay?.d === attrs.d
+      && precedingUnderlay?.fill === 'none'
+      && precedingUnderlay?.stroke === 'var(--mask)'
+      && precedingUnderlay?.['pointer-events'] === 'none'
+      && Number.isFinite(routeStrokeWidth)
+      && Number.isFinite(underlayStrokeWidth)
+      && underlayStrokeWidth >= routeStrokeWidth + 3;
     const segments = tag[1].toLowerCase() === 'line'
       ? lineSegments(attrs)
       : pathSegments(attrs.d || '');
@@ -357,6 +379,7 @@ function collectArrows(fragment) {
         && Boolean(attrs['data-edge-from'] && attrs['data-edge-to'])
         && segments.length === 1 && borderSegments.length === 1
         && (tag[1].toLowerCase() === 'line' || /^\s*M\s+[-+\d.eE]+\s+[-+\d.eE]+\s+L\s+[-+\d.eE]+\s+[-+\d.eE]+\s*$/.test(attrs.d || '')),
+      crossoverHalo: verifiedCrossoverHalo,
       segments,
       borderSegments,
       routePoints: parseRoutePoints(attrs['data-composition-points']) || (
