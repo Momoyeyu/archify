@@ -240,6 +240,20 @@ test('one joint wait preserves real Reader/Chrome convergence at the CLI boundar
       preserved.boxes = raw.boxes.filter(([selector]) => selector !== '[data-legend]');
       return preserved;
     }
+    function assertRuntimeLegendReturn(actual, expected, label) {
+      if (Array.isArray(expected)) {
+        assert.ok(Array.isArray(actual), `${label}: array shape`);
+        assert.equal(actual.length, expected.length, `${label}: array length`);
+        expected.forEach((value, index) => assertRuntimeLegendReturn(actual[index], value, `${label}[${index}]`));
+        return;
+      }
+      const numeric = value => typeof value === 'number'
+        || (typeof value === 'string' && /^-?\d+(?:\.\d+)?$/.test(value));
+      if (numeric(actual) && numeric(expected)) {
+        assert.ok(Math.abs(Number(actual) - Number(expected)) <= 0.5,
+          `${label}: runtime legend geometry changed by more than 0.5px (${expected} -> ${actual})`);
+      } else assert.deepEqual(actual, expected, label);
+    }
     async function canonicalExport() {
       return evaluate(`(async () => {
         const create = URL.createObjectURL;
@@ -496,7 +510,19 @@ test('one joint wait preserves real Reader/Chrome convergence at the CLI boundar
       await viewport();
       const after = await joint('fallback-return');
       clearStage(after, 'fallback return');
-      assert.deepEqual(after, before);
+      // Linux Chrome remeasures the runtime legend text after a mobile return:
+      // CI 35750261802 retained the exact 1068px reader, authored SVG, payloads,
+      // stage gap and viewport, but legend bounds changed by at most 0.27px.
+      // Keep all authored/frame state exact and limit tolerance to that legend.
+      // joint() still requires exact eight-frame convergence within each state.
+      assert.deepEqual(preservedState(after), preservedState(before));
+      assertRuntimeLegendReturn(after.boxes.find(([selector]) => selector === '[data-legend]'),
+        before.boxes.find(([selector]) => selector === '[data-legend]'), 'fallback legend bounds');
+      assert.equal(after.semantic.length, before.semantic.length);
+      before.semantic.forEach((entry, index) => {
+        if (entry[0] === 'legend') assertRuntimeLegendReturn(after.semantic[index], entry, 'fallback runtime legend');
+        else assert.deepEqual(after.semantic[index], entry, 'fallback authored geometry');
+      });
     });
     for (const [file, original] of pristine) assert.equal(fs.readFileSync(file, 'utf8'), original, 'canonical artifact bytes remain untouched');
   } finally {
