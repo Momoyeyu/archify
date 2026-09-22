@@ -1532,6 +1532,7 @@ test('CI and tagged releases share the maintained Windows path contract on Node 
     'test/open-artifact.test.mjs',
     'test/repository-evidence.test.mjs',
     'test/renderer-atomic-write.test.mjs',
+    'test/atomic-output-recovery.test.mjs',
   ];
   for (const suite of fullSuites) {
     assert.ok(runner.includes(`'${suite}'`), `shared runner must execute ${suite}`);
