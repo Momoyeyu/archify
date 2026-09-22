@@ -2610,7 +2610,6 @@ const COMPOSITION_FIXES = {
   'composition/container-border-run': ['route across the frame perpendicularly through a clear opening'],
   'composition/label-route-clearance': ['adjust labelAt, labelDx, labelDy, labelSegment, message y, or the other relationship route'],
   'composition/label-canvas-containment': ['adjust labelAt, labelDx, labelDy, or labelSegment so the label rect stays inside the viewBox, or enlarge meta.viewBox'],
-  'composition/desktop-readability': ['reduce the viewBox width, shorten node copy, widen affected nodes, or split the diagram so node context remains at least 6px at a 1440px desktop viewport'],
   'composition/micro-segment': ['move the route/channel/via point so every visible segment is at least 8px'],
   'composition/short-interior-segment': ['move the route/channel/via point so every interior turn has at least 16px'],
 };
@@ -2626,7 +2625,7 @@ function checkerDiagnostics(checker) {
       message: `Final artifact failed ${code}.`,
       subject: relationship ? { relationship } : { check: 'composition', ...(nodeId ? { nodeId } : {}) },
       evidence,
-      supportedFixes: COMPOSITION_FIXES[code] || [],
+      supportedFixes: compositionFixes(issue),
     }));
   }
   for (const check of checker?.checks || []) {
@@ -2645,6 +2644,28 @@ function checkerDiagnostics(checker) {
     subject: { check: 'unknown' },
     evidence: {},
   })];
+}
+
+function compositionFixes(issue) {
+  if (issue.code === 'composition/viewport-height') return [String(issue.detail || '').replace(/^\[[^\]]+\]\s*/, '')];
+  if (issue.code !== 'composition/desktop-readability') return COMPOSITION_FIXES[issue.code] || [];
+  const sourceFontPx = Number(issue.sourceFontPx);
+  const actualBudgetPx = Number(issue.availableDiagramWidth);
+  const hardFloorPx = Number(issue.minimumProjectedFontPx);
+  const viewBoxWidth = Number(issue.viewBoxWidth);
+  const preserveIntent = 'Preserve the semantic text and any supplied coordinates, routes, sides, channels, and labels.';
+  const readerCap = issue.budgetBasis === 'recognized-declared-wide'
+    ? ` The declared Reader reports a ${issue.budgetLimit} limit and ${actualBudgetPx}px actual diagram budget; do not assume an uncapped viewport.`
+    : '';
+  if (![sourceFontPx, actualBudgetPx, hardFloorPx, viewBoxWidth].every(Number.isFinite)
+    || actualBudgetPx <= 0 || hardFloorPx <= 0 || viewBoxWidth <= 0) {
+    return [`${preserveIntent} Repair the measured source font, desktop budget, or complete viewBox width; position-only label controls do not change projected text size.`];
+  }
+  if (sourceFontPx < hardFloorPx) {
+    return [`${preserveIntent} The diagnosed ${sourceFontPx}px source text is below the ${hardFloorPx}px hard floor even at scale 1, so use a renderer-supported semantic text-size setting or renderer-level fix. Position-only label controls cannot repair its projection.${readerCap}`];
+  }
+  const maximumViewBoxWidth = Math.floor((sourceFontPx * actualBudgetPx) / hardFloorPx);
+  return [`${preserveIntent} Compactly reflow automatic spacing and empty corridors so the complete viewBox width is at most ${maximumViewBoxWidth}px (current ${viewBoxWidth}px; ${sourceFontPx}px source text at ${actualBudgetPx}px desktop budget). If supplied geometry fixes that width, use a renderer-supported semantic text-size setting or renderer-level fix instead. Position-only label controls cannot repair its projection.${readerCap}`];
 }
 
 function formatDiagnostics(error, diagnostics = []) {

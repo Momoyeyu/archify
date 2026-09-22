@@ -774,6 +774,9 @@ html[data-motion-capable="true"][data-preset="signal-flow"][data-ambient-motion=
 html:not([data-motion-capable="true"]) svg[data-animation="trace"] [data-animate] {
   animation: none !important;
 }
+html:not([data-motion-capable="true"]) svg[data-animation="trace"] [data-graph-role="automatic-crossover"]:has(> [data-animate="edge"]) > [data-graph-role="automatic-crossover-underlay"] {
+  animation: none !important;
+}
 html[data-motion="still"] .pulse-dot,
 html[data-motion="still"] .diagram-container::before,
 html[data-motion="still"] svg[data-animation="trace"] [data-animate],
@@ -786,7 +789,12 @@ html[data-share-playback="true"] .pulse-dot,
 html[data-share-playback="true"] .diagram-container::before,
 html[data-document-hidden="true"] .pulse-dot,
 html[data-document-hidden="true"] .diagram-container::before,
-html[data-document-hidden="true"] svg[data-animation="trace"] [data-animate] {
+html[data-document-hidden="true"] svg[data-animation="trace"] [data-animate],
+html[data-motion="still"] svg[data-animation="trace"] [data-graph-role="automatic-crossover"]:has(> [data-animate="edge"]) > [data-graph-role="automatic-crossover-underlay"],
+html[data-motion-owner] svg[data-animation="trace"] [data-graph-role="automatic-crossover"]:has(> [data-animate="edge"]) > [data-graph-role="automatic-crossover-underlay"],
+html[data-embed="true"] svg[data-animation="trace"] [data-graph-role="automatic-crossover"]:has(> [data-animate="edge"]) > [data-graph-role="automatic-crossover-underlay"],
+html[data-share-playback="true"] svg[data-animation="trace"] [data-graph-role="automatic-crossover"]:has(> [data-animate="edge"]) > [data-graph-role="automatic-crossover-underlay"],
+html[data-document-hidden="true"] svg[data-animation="trace"] [data-graph-role="automatic-crossover"]:has(> [data-animate="edge"]) > [data-graph-role="automatic-crossover-underlay"] {
   animation: none !important;
 }
 html[data-motion="still"] .diagram-container::before,
@@ -3018,12 +3026,16 @@ html[data-preset="editorial"] .card-dot { border-radius: 0; transform: rotate(45
   .story-carrier-overlay { display: none !important; }
   .diagram-container svg[data-focus-active] [data-node-id],
   .diagram-container svg[data-focus-active] [data-edge-from],
+  .diagram-container svg[data-focus-active] [data-graph-role="automatic-crossover-underlay"],
   .diagram-container svg[data-reach-active] [data-node-id],
   .diagram-container svg[data-reach-active] [data-edge-from],
+  .diagram-container svg[data-reach-active] [data-graph-role="automatic-crossover-underlay"],
   .diagram-container svg[data-story-beat] [data-story-step],
   .diagram-container svg[data-story-beat] [data-edge-from][data-story-beat-step],
+  .diagram-container svg[data-story-beat] [data-graph-role="automatic-crossover-underlay"],
   .diagram-container svg[data-route-active] [data-node-id],
-  .diagram-container svg[data-route-active] [data-edge-from] {
+  .diagram-container svg[data-route-active] [data-edge-from],
+  .diagram-container svg[data-route-active] [data-graph-role="automatic-crossover-underlay"] {
     opacity: 1 !important;
     filter: none !important;
     animation: none !important;
@@ -4063,7 +4075,8 @@ svg [data-node-id] {
   cursor: pointer;
   transition: opacity 0.18s ease, filter 0.18s ease;
 }
-svg [data-edge-from] { transition: opacity 0.18s ease, filter 0.18s ease; }
+svg [data-edge-from],
+svg [data-graph-role="automatic-crossover-underlay"] { transition: opacity 0.18s ease, filter 0.18s ease; }
 svg [data-node-id]:hover,
 svg [data-node-id]:focus-visible {
   filter: drop-shadow(0 0 7px var(--frontend-stroke));
@@ -4212,10 +4225,22 @@ svg[data-preset="blueprint"] .semantic-lens-flow {
   opacity: 0.78;
 }
 html[data-embed="true"] .semantic-lens-overlay { display: none; }
+/* Automatic crossover masks are visual companions of their one semantic
+   edge. Keep the mask free of data-edge-* identity so graph traversal and
+   export still observe exactly one edge, then mirror reader emphasis from
+   the paired foreground path in this presentation-only wrapper. */
+svg[data-legend-preview-active] [data-graph-role="automatic-crossover"] > [data-graph-role="automatic-crossover-underlay"],
+svg[data-lens-active] [data-graph-role="automatic-crossover"] > [data-graph-role="automatic-crossover-underlay"] { opacity: 0.11; }
+svg[data-legend-preview-active] [data-graph-role="automatic-crossover"]:has(> [data-legend-preview-match]) > [data-graph-role="automatic-crossover-underlay"],
+svg[data-lens-active] [data-graph-role="automatic-crossover"]:has(> [data-lens-match]) > [data-graph-role="automatic-crossover-underlay"] { opacity: 1; }
+svg[data-legend-preview-active] [data-graph-role="automatic-crossover"]:has(> [data-legend-preview-peer]) > [data-graph-role="automatic-crossover-underlay"],
+svg[data-lens-active] [data-graph-role="automatic-crossover"]:has(> [data-lens-peer]) > [data-graph-role="automatic-crossover-underlay"] { opacity: 0.62; }
 svg[data-focus-active] [data-node-id],
 svg[data-focus-active] [data-edge-from] { opacity: 0.13; }
+svg[data-focus-active] [data-graph-role="automatic-crossover"] > [data-graph-role="automatic-crossover-underlay"] { opacity: 0.13; }
 svg[data-focus-active] [data-lifecycle-rail] { opacity: 0; }
 svg[data-focus-active] [data-focus-match] { opacity: 1; }
+svg[data-focus-active] [data-graph-role="automatic-crossover"]:has(> [data-focus-match]) > [data-graph-role="automatic-crossover-underlay"] { opacity: 1; }
 svg[data-focus-active] [data-focus-selected] {
   filter: drop-shadow(0 0 10px var(--frontend-stroke));
 }
@@ -4226,7 +4251,9 @@ svg[data-focus-active] [data-focus-selected] {
    changes only viewer emphasis, not canonical geometry or export bytes. */
 svg[data-reach-active] [data-node-id],
 svg[data-reach-active] [data-edge-from] { opacity: 0.09; }
+svg[data-reach-active] [data-graph-role="automatic-crossover"] > [data-graph-role="automatic-crossover-underlay"] { opacity: 0.09; }
 svg[data-reach-active] [data-reach-match] { opacity: 1; }
+svg[data-reach-active] [data-graph-role="automatic-crossover"]:has(> [data-reach-match]) > [data-graph-role="automatic-crossover-underlay"] { opacity: 1; }
 svg[data-reach-active="upstream"] [data-reach-origin] {
   filter: drop-shadow(0 0 11px var(--database-stroke));
 }
@@ -4280,8 +4307,10 @@ svg[data-preset="blueprint"] .relationship-hit-target:focus-visible .relationshi
 }
 svg[data-relationship-direct-active] [data-node-id],
 svg[data-relationship-direct-active] [data-edge-from] { opacity: 0.16; }
+svg[data-relationship-direct-active] [data-graph-role="automatic-crossover"] > [data-graph-role="automatic-crossover-underlay"] { opacity: 0.16; }
 svg[data-relationship-direct-active] [data-relationship-preview],
 svg[data-relationship-direct-active] [data-relationship-preview-node] { opacity: 1; }
+svg[data-relationship-direct-active] [data-graph-role="automatic-crossover"]:has(> [data-relationship-preview]) > [data-graph-role="automatic-crossover-underlay"] { opacity: 1; }
 svg[data-focus-active]:not([data-relationship-pin-active]) .relationship-hit-rail,
 svg[data-story-active] .relationship-hit-rail,
 svg[data-route-picking] .relationship-hit-rail,
@@ -4297,9 +4326,11 @@ html[data-embed="true"] .relationship-hit-overlay { display: none; }
    neighborhood focus. It changes emphasis only; exported geometry and the
    relationship's original solid/dashed visual language stay untouched. */
 svg[data-relationship-preview-active] [data-focus-match] { opacity: 0.18; }
+svg[data-relationship-preview-active] [data-graph-role="automatic-crossover"]:has(> [data-focus-match]) > [data-graph-role="automatic-crossover-underlay"] { opacity: 0.18; }
 svg[data-relationship-preview-active] [data-lifecycle-rail] { opacity: 0; }
 svg[data-relationship-preview-active] [data-relationship-preview],
 svg[data-relationship-preview-active] [data-relationship-preview-node] { opacity: 1; }
+svg[data-relationship-preview-active] [data-graph-role="automatic-crossover"]:has(> [data-relationship-preview]) > [data-graph-role="automatic-crossover-underlay"] { opacity: 1; }
 svg[data-relationship-preview-active] [data-relationship-preview] {
   filter: drop-shadow(0 0 5px var(--arrow-emphasis));
 }
@@ -4395,8 +4426,10 @@ html[data-embed="true"] .relationship-pulse-overlay { display: none; }
    cloned edge geometry; the authored edge remains untouched underneath. */
 svg[data-intent-trace-active] [data-node-id],
 svg[data-intent-trace-active] [data-edge-from] { opacity: 0.2; }
+svg[data-intent-trace-active] [data-graph-role="automatic-crossover"] > [data-graph-role="automatic-crossover-underlay"] { opacity: 0.2; }
 svg[data-intent-trace-active] [data-lifecycle-rail] { opacity: 0; }
 svg[data-intent-trace-active] [data-intent-trace-match] { opacity: 1; }
+svg[data-intent-trace-active] [data-graph-role="automatic-crossover"]:has(> [data-intent-trace-match]) > [data-graph-role="automatic-crossover-underlay"] { opacity: 1; }
 svg[data-intent-trace-active] [data-intent-trace-selected] {
   filter: drop-shadow(0 0 10px var(--frontend-stroke));
 }
@@ -4459,7 +4492,9 @@ svg[data-route-picking] [data-route-start] {
 }
 svg[data-route-active] [data-node-id],
 svg[data-route-active] [data-edge-from] { opacity: 0.11; }
+svg[data-route-active] [data-graph-role="automatic-crossover"] > [data-graph-role="automatic-crossover-underlay"] { opacity: 0.11; }
 svg[data-route-active] [data-route-match] { opacity: 1; }
+svg[data-route-active] [data-graph-role="automatic-crossover"]:has(> [data-route-match]) > [data-graph-role="automatic-crossover-underlay"] { opacity: 1; }
 svg[data-route-active] [data-route-start] {
   filter: drop-shadow(0 0 11px var(--frontend-stroke));
 }
@@ -4472,6 +4507,9 @@ svg[data-route-active] [data-route-step]:not([data-route-start]):not([data-route
 svg[data-route-journey] [data-route-match][data-route-journey-state="past"] { opacity: 0.62; }
 svg[data-route-journey] [data-route-match][data-route-journey-state="future"] { opacity: 0.34; }
 svg[data-route-journey] [data-route-match][data-route-journey-state="current"] { opacity: 1; }
+svg[data-route-journey] [data-graph-role="automatic-crossover"]:has(> [data-route-match][data-route-journey-state="past"]) > [data-graph-role="automatic-crossover-underlay"] { opacity: 0.62; }
+svg[data-route-journey] [data-graph-role="automatic-crossover"]:has(> [data-route-match][data-route-journey-state="future"]) > [data-graph-role="automatic-crossover-underlay"] { opacity: 0.34; }
+svg[data-route-journey] [data-graph-role="automatic-crossover"]:has(> [data-route-match][data-route-journey-state="current"]) > [data-graph-role="automatic-crossover-underlay"] { opacity: 1; }
 svg[data-route-journey] [data-node-id][data-route-journey-current] {
   filter: drop-shadow(0 0 10px var(--backend-stroke));
 }
@@ -4599,9 +4637,16 @@ svg[data-story-beat] [data-edge-from][data-story-beat-step] {
   opacity: 0.16;
   transition: opacity 160ms ease;
 }
+svg[data-story-beat] [data-graph-role="automatic-crossover"]:has(> [data-edge-from][data-story-beat-step]) > [data-graph-role="automatic-crossover-underlay"] {
+  opacity: 0.16;
+  transition: opacity 160ms ease;
+}
 svg[data-story-beat] [data-edge-from][data-story-beat-step][data-story-beat-state="past"] { opacity: 0.58; }
 svg[data-story-beat] [data-edge-from][data-story-beat-step][data-story-beat-state="next"] { opacity: 0.34; }
 svg[data-story-beat] [data-edge-from][data-story-beat-step][data-story-beat-state="active"] { opacity: 1; }
+svg[data-story-beat] [data-graph-role="automatic-crossover"]:has(> [data-edge-from][data-story-beat-step][data-story-beat-state="past"]) > [data-graph-role="automatic-crossover-underlay"] { opacity: 0.58; }
+svg[data-story-beat] [data-graph-role="automatic-crossover"]:has(> [data-edge-from][data-story-beat-step][data-story-beat-state="next"]) > [data-graph-role="automatic-crossover-underlay"] { opacity: 0.34; }
+svg[data-story-beat] [data-graph-role="automatic-crossover"]:has(> [data-edge-from][data-story-beat-step][data-story-beat-state="active"]) > [data-graph-role="automatic-crossover-underlay"] { opacity: 1; }
 svg[data-story-beat] .story-trail-flow { opacity: 0; transition: opacity 160ms ease; }
 svg[data-story-beat] .story-trail-flow[data-story-beat-state="past"] { opacity: 0.34; }
 svg[data-story-beat] .story-trail-flow[data-story-beat-state="next"] { opacity: 0.2; }
@@ -4630,7 +4675,8 @@ svg[data-preset="editorial"][data-story-beat] [data-story-step][data-story-beat-
    chapter focus sets. Symbols in the rail carry the meaning without color;
    these SVG rules only make exact stable-ID membership easier to scan. */
 svg[data-chapter-preview] [data-node-id],
-svg[data-chapter-preview] [data-edge-from] {
+svg[data-chapter-preview] [data-edge-from],
+svg[data-chapter-preview] [data-graph-role="automatic-crossover-underlay"] {
   opacity: 0.1 !important;
   filter: none !important;
   transition: none !important;
@@ -4663,6 +4709,10 @@ html[data-ambient-motion="running"] svg[data-animation="trace"] [data-animate="e
   animation: archify-edge-flow 2.4s linear 1;
   animation-delay: calc(var(--step, 0) * 160ms);
 }
+html[data-ambient-motion="running"] svg[data-animation="trace"] [data-graph-role="automatic-crossover"]:has(> [data-animate="edge"]) > [data-graph-role="automatic-crossover-underlay"] {
+  animation: archify-edge-flow 2.4s linear 1;
+  animation-delay: calc(var(--step, 0) * 160ms);
+}
 html[data-ambient-motion="running"] svg[data-animation="trace"] [data-animate="node"] {
   transform-box: fill-box;
   transform-origin: center;
@@ -4674,6 +4724,7 @@ svg[data-preset="signal-flow"][data-animation="trace"] [data-animate="edge"] {
   filter: drop-shadow(0 0 3px var(--arrow-emphasis));
   animation-duration: 1.75s;
 }
+svg[data-preset="signal-flow"][data-animation="trace"] [data-graph-role="automatic-crossover"]:has(> [data-animate="edge"]) > [data-graph-role="automatic-crossover-underlay"] { animation-duration: 1.75s; }
 svg[data-preset="signal-flow"][data-animation="trace"] [data-animate="node"] {
   animation-duration: 3.1s;
 }
@@ -4682,6 +4733,7 @@ svg[data-preset="blueprint"][data-animation="trace"] [data-animate="edge"] {
   filter: none;
   animation-duration: 2.15s;
 }
+svg[data-preset="blueprint"][data-animation="trace"] [data-graph-role="automatic-crossover"]:has(> [data-animate="edge"]) > [data-graph-role="automatic-crossover-underlay"] { animation-duration: 2.15s; }
 svg[data-preset="blueprint"][data-animation="trace"] [data-animate="node"] {
   animation-name: archify-blueprint-node-pulse;
   animation-duration: 3.8s;
@@ -4690,6 +4742,7 @@ svg[data-preset="editorial"][data-animation="trace"] [data-animate="edge"] {
   filter: none;
   animation-duration: 2.2s;
 }
+svg[data-preset="editorial"][data-animation="trace"] [data-graph-role="automatic-crossover"]:has(> [data-animate="edge"]) > [data-graph-role="automatic-crossover-underlay"] { animation-duration: 2.2s; }
 svg[data-preset="editorial"][data-animation="trace"] [data-animate="node"] {
   animation-name: archify-editorial-node-pulse;
   animation-duration: 3.5s;
@@ -4699,6 +4752,11 @@ svg[data-preset="editorial"][data-animation="trace"] [data-animate="node"] {
    after one 3.2 second chapter instead of leaving ambient trace loops on. */
 html[data-embed="true"] svg[data-animation="trace"] [data-animate],
 html[data-share-playback="true"] svg[data-animation="trace"] [data-animate] {
+  animation: none !important;
+  stroke-dashoffset: 0;
+}
+html[data-embed="true"] svg[data-animation="trace"] [data-graph-role="automatic-crossover"]:has(> [data-animate="edge"]) > [data-graph-role="automatic-crossover-underlay"],
+html[data-share-playback="true"] svg[data-animation="trace"] [data-graph-role="automatic-crossover"]:has(> [data-animate="edge"]) > [data-graph-role="automatic-crossover-underlay"] {
   animation: none !important;
   stroke-dashoffset: 0;
 }
@@ -4791,6 +4849,10 @@ html[data-share-playback="true"] svg[data-animation="trace"] [data-animate] {
     animation: none !important;
     stroke-dashoffset: 0;
   }
+  svg[data-animation="trace"] [data-graph-role="automatic-crossover"]:has(> [data-animate="edge"]) > [data-graph-role="automatic-crossover-underlay"] {
+    animation: none !important;
+    stroke-dashoffset: 0;
+  }
   .guided-view-progress span {
     animation: none !important;
     transform: scaleX(1) !important;
@@ -4809,7 +4871,8 @@ html[data-share-playback="true"] svg[data-animation="trace"] [data-animate] {
   .share-chapter-progress span { animation: none !important; }
   .guided-view-chapter,
   svg[data-chapter-preview] [data-node-id],
-  svg[data-chapter-preview] [data-edge-from] { transition: none !important; }
+  svg[data-chapter-preview] [data-edge-from],
+  svg[data-chapter-preview] [data-graph-role="automatic-crossover-underlay"] { transition: none !important; }
   svg[data-story-playing="true"] .story-trail-flow {
     stroke-dasharray: none;
     stroke-dashoffset: 0;

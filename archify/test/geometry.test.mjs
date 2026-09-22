@@ -64,6 +64,39 @@ test('automaticPortRhythmBridge: near parallel ports use readable outside runs',
   }), []);
 });
 
+test('automaticPortRhythmBridge: opposed facing ports shrink only the rejected 24px stubs', () => {
+  const points = automaticPortRhythmBridge(
+    [430, 321],
+    [490, 335],
+    'right',
+    'left',
+  );
+
+  assert.deepEqual(points, [
+    [430, 321],
+    [452, 321],
+    [452, 351],
+    [468, 351],
+    [468, 335],
+    [490, 335],
+  ]);
+  assert.deepEqual(collectRouteRhythmIssues({
+    routedRelations: [{ relation: { id: 'opposed-facing' }, points }],
+  }), []);
+});
+
+test('automaticPortRhythmBridge: accepts no route when the collision callback rejects each candidate', () => {
+  const points = automaticPortRhythmBridge(
+    [430, 321],
+    [490, 335],
+    'right',
+    'left',
+    { accept: () => false },
+  );
+
+  assert.equal(points, null);
+});
+
 test('rectsOverlap: separated rects do not overlap', () => {
   assert.equal(rectsOverlap(rect(0, 0, 10, 10), rect(20, 0, 10, 10)), false);
 });

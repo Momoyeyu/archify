@@ -329,6 +329,18 @@ byte count, identifies `evidenceKind: "automated-browser"`, records READ plus
 Still runtime state, and always reports `visualReview: "pending"`; automated
 browser evidence cannot claim perceptual review.
 
+Horizontal overflow always fails. Vertical overflow normally fails as well. One
+bounded exception preserves readability for compiler-measured intrinsic-height
+diagrams: after the adaptive Reader reaches its projected text floor and exposes
+`data-reader-layout="adaptive"` with `data-reader-overflow="authored"`, normal
+page-level vertical scrolling may pass. The SVG must also expose
+`data-reader-fit="intrinsic-height"`, projected text must still pass, and the
+receipt records `verticalScrollAccepted: true` with
+`overflowDisposition: "readable-vertical-scroll"`. Missing declarations,
+explicit authored viewBoxes, horizontal overflow, unreadable text, clipping, and
+Viewer chrome collisions remain failures. Do not add an internal diagram
+scroller or hide overflow.
+
 `browser_evidence` in the handoff records only the outcome of this automated command:
 
 - `passed` maps from exit 0 and receipt `status: "pass"` only after every required measurement and capture completes and passes.
@@ -411,7 +423,7 @@ Never start it by default. Do not use it for CI, unattended agents, remote shari
 
 Automated validation and browser evidence cannot prove visual polish. After deterministic delivery, inspect the actual HTML in a capable browser or render the evidence screenshots with an image reader. Check both themes when changed, the default READ view, line crossings/corridors, label masks, node/card fit, focus/search/passport closure, and export cleanliness.
 
-For the default standalone desktop viewer, measure 1440×900, 1600×1000, and 1920×1080. When the artifact is intended for a large desktop display, also measure 2048×1320. A first-screen pass requires `document.documentElement.scrollWidth <= window.innerWidth` and `scrollHeight <= window.innerHeight` at every checked size. At the largest checked viewport, inspect the rendered composition for a conspicuous empty lower band: the main panel and necessary conclusion cards should use the available height as a balanced whole, not collapse into a shallow strip. If a desktop viewport overflows, repair the authored composition by removing only genuinely redundant content or compacting spacing before shrinking nodes, labels, or the main panel. Do not hide overflow, clip content, introduce an internal diagram scroller, or reduce node/label typography to make the measurement pass. Narrow/mobile containment may retain vertical page scrolling.
+For the default standalone desktop viewer, measure 1440×900, 1600×1000, 1920×1080, and 2048×1320. Require `document.documentElement.scrollWidth <= window.innerWidth` at every checked size. Prefer `scrollHeight <= window.innerHeight`; accept page-level vertical scrolling only through the Reader-declared readable exception defined above. At the largest checked viewport, inspect the rendered composition for a conspicuous empty lower band: the main panel and necessary conclusion cards should use the available height as a balanced whole, not collapse into a shallow strip. For unexpected overflow, repair the authored composition by removing only genuinely redundant content or compacting spacing before shrinking nodes, labels, or the main panel. Do not hide overflow, clip content, introduce an internal diagram scroller, or reduce node/label typography to make the measurement pass. Narrow/mobile containment may retain vertical page scrolling.
 
 A manual browser record is supplementary to the automated status. Reproducing the same coverage requires all four exact viewport measurements, both endpoint themes, and an artifact-bound record of the inspected SHA-256 and byte count. It never changes `browser_evidence`: when Chrome/Chromium is unavailable, that status remains `skipped` even when the manual browser record is complete and `visual_review: passed`; an automated `failed` result likewise remains `failed`. An unconstrained browser glance can support perceptual review only.
 

@@ -10,6 +10,8 @@ import { PassThrough } from 'node:stream';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
+  CHROME_STARTUP_TIMEOUT_MS,
+  verticalBudgetFixes,
   ChromeVisualBrowser,
   VISUAL_CHECK_VIEWPORTS,
   chromeVisualBrowserArgs,
@@ -44,7 +46,16 @@ function stagingDirectories(directory) {
   return fs.readdirSync(directory).filter((name) => name.startsWith('.archify-visual-check-'));
 }
 
-function fakeBrowser({ overflowAt, unreadableAt, chromeCollisionAt, stageCollisionAt, stageGapAt, screenshotFailure } = {}) {
+function fakeBrowser({
+  overflowAt,
+  tallAt,
+  readableScrollAt,
+  unreadableAt,
+  chromeCollisionAt,
+  stageCollisionAt,
+  stageGapAt,
+  screenshotFailure,
+} = {}) {
   const calls = [];
   return {
     calls,
@@ -58,6 +69,8 @@ function fakeBrowser({ overflowAt, unreadableAt, chromeCollisionAt, stageCollisi
         else fs.writeFileSync(screenshotPath, png, { flag: 'wx' });
       }
       const overflow = overflowAt?.({ width, height, theme }) || false;
+      const tall = tallAt?.({ width, height, theme }) || false;
+      const readableScroll = readableScrollAt?.({ width, height, theme }) || false;
       const unreadable = unreadableAt?.({ width, height, theme }) || false;
       const chromeCollision = chromeCollisionAt?.({ width, height, theme }) || false;
       const stageCollision = stageCollisionAt?.({ width, height, theme }) || false;
@@ -67,8 +80,17 @@ function fakeBrowser({ overflowAt, unreadableAt, chromeCollisionAt, stageCollisi
         innerWidth: width,
         innerHeight: height,
         scrollWidth: width + (overflow ? 1 : 0),
-        scrollHeight: height,
+        scrollHeight: height + (readableScroll ? 240 : 0) + (tall ? 300 : 0),
         resolvedTheme: theme,
+        ...(tall ? {
+          pageComposition: {
+            bodyPaddingPx: 12, headerPx: 40, guidedViewsPx: 60, diagramChromePx: 76,
+            svgPx: 800, cardsPx: 212, viewBoxHeight: 1000,
+          },
+        } : {}),
+        readerLayout: readableScroll ? 'adaptive' : null,
+        readerOverflow: readableScroll ? 'authored' : null,
+        readerFit: readableScroll ? 'intrinsic-height' : null,
         readerWidth: 960,
         diagramWidth: 930,
         viewBoxWidth: 1300,
@@ -2065,6 +2087,34 @@ test('visual-check restore rollback preserves a successor swapped at its public 
   assert.deepEqual(entryIdentity(outputs.contactSheet), successorIdentity);
 });
 
+test('visual-check keeps slow Chrome startup inside one bounded gate invocation', async () => {
+  assert.equal(CHROME_STARTUP_TIMEOUT_MS, 90000);
+  const input = artifact('chrome-startup-timeout.html');
+  const child = fakeChromeChild();
+
+  const result = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => new ChromeVisualBrowser('/fake/chrome', {
+      startupTimeoutMs: 5,
+      spawnImpl: () => child,
+    }),
+  });
+
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.receipt.diagnostics[0]?.code, 'viewer/chrome-startup-timeout');
+  assert.match(result.receipt.error, /Target\.getTargets: timed out after 5ms/);
+  assert.match(result.receipt.error, /Chrome process: still running/);
+  assert.match(
+    result.receipt.diagnostics[0]?.supportedFixes?.join('\n') || '',
+    /do not edit or simplify the artifact/,
+  );
+  assert.match(
+    result.receipt.diagnostics[0]?.supportedFixes?.join('\n') || '',
+    /retry visual-check once.*stop and report the environment failure/,
+  );
+});
+
 for (const scenario of [
   { name: 'backup unlink', fault: 'unlink' },
   { name: 'staging rmdir', fault: 'rmdir' },
@@ -2540,6 +2590,95 @@ test('visual-check returns 1 and preserves evidence when any viewport overflows'
   });
   assert.equal(diagnostic?.evidence?.scrollWidth, 1601);
   assert.equal(fs.existsSync(sidecarPaths(input).contactSheet), true);
+});
+
+test('vertical overflow fixes state the stacked page budget and the actionable target', () => {
+  const page = { bodyPaddingPx: 12, headerPx: 40, guidedViewsPx: 60, diagramChromePx: 76, svgPx: 800, cardsPx: 212, viewBoxHeight: 1000 };
+  const base = { overflowY: true, innerHeight: 900, scrollHeight: 1200, diagramWidth: 930, pageComposition: page };
+
+  const atMinimum = verticalBudgetFixes({ ...base, readerLayout: 'adaptive', readerOverflow: 'authored' });
+  assert.match(atMinimum[0], /300px too tall/);
+  assert.match(atMinimum[0], /12px body padding \+ 40px header \+ 60px guided views \+ 76px diagram chrome \+ 800px SVG \+ 212px cards = 1200px against 900px/);
+  assert.match(atMinimum[0], /reduce the viewBox height to at most 625 \(from 1000\)/, 'SVG height follows viewBox height at the fixed minimum width: 1000 * 500 / 800');
+  assert.equal(atMinimum.length, 1, 'cards (212px) cannot absorb a 300px excess, so no card alternative is offered');
+
+  const fullWidth = verticalBudgetFixes({ ...base, readerLayout: null, readerOverflow: null });
+  assert.match(fullWidth[0], /viewBox ratio is below 1\.55/);
+  assert.match(fullWidth[0], /remove meta\.viewBox|1\.55x wider than tall/);
+
+  const cardsAbsorb = verticalBudgetFixes({ ...base, scrollHeight: 1000, readerLayout: 'adaptive', readerOverflow: 'authored' });
+  assert.match(cardsAbsorb[1], /cards take at most 112px/);
+
+  assert.deepEqual(verticalBudgetFixes({ ...base, pageComposition: undefined }), [], 'old artifacts without composition metrics keep the generic fix');
+  assert.deepEqual(verticalBudgetFixes({ ...base, overflowY: false }), []);
+});
+
+test('visual-check reports the page composition when a viewport overflows vertically', async () => {
+  const input = artifact('tall-overflow.html');
+  const result = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser({ tallAt: ({ width }) => width === 1440 }),
+  });
+
+  assert.equal(result.exitCode, 1);
+  const diagnostic = result.receipt.diagnostics.find((entry) => entry.code === 'viewer/viewport-overflow');
+  assert.equal(diagnostic.evidence.pageComposition.svgPx, 800);
+  assert.match(diagnostic.evidence.pageCompositionMeasurement, /sum to scrollHeight/);
+  assert.match(diagnostic.supportedFixes[0], /300px too tall/);
+  assert.equal(diagnostic.supportedFixes.some((fix) => /contain the rendered layout within/.test(fix)), false, 'the numeric budget replaces the generic instruction');
+  const viewport = result.receipt.containment.viewports.find(({ width }) => width === 1440);
+  assert.equal(viewport.pageComposition.cardsPx, 212);
+});
+
+test('visual-check accepts only Reader-declared readable vertical page scrolling', async () => {
+  const input = artifact('readable-scroll.html');
+  const target = ({ width, theme }) => width === 1440 && theme === 'light';
+  const result = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser({ readableScrollAt: target }),
+  });
+
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.receipt.status, 'pass');
+  assert.equal(result.receipt.containment.status, 'pass');
+  assert.equal(result.receipt.containment.policy, 'fit-or-reader-declared-readable-vertical-scroll');
+  const viewport = result.receipt.containment.viewports.find(({ width }) => width === 1440);
+  assert.equal(viewport.overflowY, true);
+  assert.equal(viewport.verticalScrollAccepted, true);
+  assert.equal(viewport.overflowDisposition, 'readable-vertical-scroll');
+  assert.equal(viewport.readerLayout, 'adaptive');
+  assert.equal(viewport.readerOverflow, 'authored');
+  assert.equal(viewport.readerFit, 'intrinsic-height');
+  assert.equal(result.receipt.diagnostics.some(({ code }) => code === 'viewer/viewport-overflow'), false);
+});
+
+test('visual-check still rejects horizontal overflow and unreadable text in Reader scroll state', async () => {
+  const input = artifact('invalid-readable-scroll.html');
+  const target = ({ width, theme }) => width === 1440 && theme === 'light';
+  const horizontal = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser({ overflowAt: target, readableScrollAt: target }),
+  });
+  const horizontalViewport = horizontal.receipt.containment.viewports.find(({ width }) => width === 1440);
+  assert.equal(horizontal.exitCode, 1);
+  assert.equal(horizontalViewport.verticalScrollAccepted, false);
+  assert.equal(horizontalViewport.overflowDisposition, 'unexpected-overflow');
+  assert.ok(horizontal.receipt.diagnostics.some(({ code }) => code === 'viewer/viewport-overflow'));
+
+  const unreadable = await runVisualCheck({
+    artifactPath: input,
+    chromePath: '/fake/chrome',
+    browserFactory: async () => fakeBrowser({ readableScrollAt: target, unreadableAt: target }),
+  });
+  const unreadableViewport = unreadable.receipt.containment.viewports.find(({ width }) => width === 1440);
+  assert.equal(unreadable.exitCode, 1);
+  assert.equal(unreadableViewport.verticalScrollAccepted, false);
+  assert.equal(unreadableViewport.overflowDisposition, 'unexpected-overflow');
+  assert.ok(unreadable.receipt.diagnostics.some(({ code }) => code === 'viewer/viewport-overflow'));
+  assert.ok(unreadable.receipt.diagnostics.some(({ code }) => code === 'viewer/projected-text-readability'));
 });
 
 test('visual-check refuses changed delivery evidence before launching a browser', async () => {

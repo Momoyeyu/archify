@@ -13,11 +13,20 @@
       var frame = 0;
       var settleFrame = 0;
       var lastWidth = 0;
+      // Widest reader the overflow settle has accepted for this viewport (0 =
+      // uncapped). Card copy rewraps as the reader narrows, so recomputing
+      // from fixed heights alone would widen again and oscillate; only a
+      // resize lifts the cap.
+      var settledCap = 0;
       var WIDE_RATIO = 1.55;
       var MIN_DESKTOP_WIDTH = 1024;
       var MIN_READER_WIDTH = 960;
       var MAX_READER_WIDTH = 1920;
       var MIN_PROJECTED_NODE_TEXT_PX = 6;
+      var declaredMinimumText = svg ? parseFloat(svg.getAttribute('data-reader-min-text') || '') : null;
+      var requestedMinimumText = Number.isFinite(declaredMinimumText)
+        ? Math.max(MIN_PROJECTED_NODE_TEXT_PX, declaredMinimumText)
+        : MIN_PROJECTED_NODE_TEXT_PX;
       var SAFE_BOTTOM_GAP = 12;
 
       if (diagram && ratio >= WIDE_RATIO) {
@@ -39,9 +48,13 @@
       }
       function minimumReadableScale() {
         var sourceMinimum = null;
-        Array.from(svg.querySelectorAll(
+        var selectors = [
           'text[data-node-label], text[data-boundary-label], text[data-detail="context"]'
-        )).forEach(function (text) {
+        ];
+        if (measuredHeightFit && ratio >= WIDE_RATIO && Number.isFinite(declaredMinimumText)) {
+          selectors.push('g[data-detail="context"][data-edge-from][data-edge-to] > text');
+        }
+        Array.from(svg.querySelectorAll(selectors.join(', '))).forEach(function (text) {
           if (text.getAttribute('data-detail') === 'context' && !text.closest('[data-node-id]')) return;
           var sourceFontPx = parseFloat(text.getAttribute('font-size') || '');
           if (Number.isFinite(sourceFontPx)) {
@@ -49,7 +62,7 @@
           }
         });
         return sourceMinimum != null
-          ? Math.min(1, MIN_PROJECTED_NODE_TEXT_PX / sourceMinimum)
+          ? Math.min(1, requestedMinimumText / sourceMinimum)
           : 1;
       }
       function eligible() {
@@ -66,6 +79,7 @@
         html.removeAttribute('data-reader-layout');
         html.removeAttribute('data-reader-overflow');
         lastWidth = 0;
+        settledCap = 0;
       }
       function chromeMetrics() {
         var bodyStyle = window.getComputedStyle(body);
@@ -79,8 +93,8 @@
             number(diagramStyle.borderTopWidth) + number(diagramStyle.borderBottomWidth)
         };
       }
-      function applyWidth(width) {
-        var rounded = Math.round(width);
+      function applyWidth(width, minWidth) {
+        var rounded = Math.max(Math.ceil(minWidth || 0), Math.round(width));
         if (Math.abs(rounded - lastWidth) < 1) return false;
         lastWidth = rounded;
         html.style.setProperty('--archify-reader-width', rounded + 'px');
@@ -96,8 +110,9 @@
             document.documentElement.scrollHeight,
             document.body.scrollHeight
           ) - window.innerHeight;
-          if (overflow > 1 && lastWidth > minWidth) {
-            applyWidth(Math.max(minWidth, lastWidth - overflow * ratio - 4));
+          if (overflow > 1 && lastWidth > Math.ceil(minWidth)) {
+            applyWidth(Math.max(minWidth, lastWidth - overflow * ratio - 4), minWidth);
+            settledCap = lastWidth;
             html.setAttribute('data-reader-overflow', 'reduced');
           } else if (overflow > 1) {
             html.setAttribute('data-reader-overflow', 'authored');
@@ -117,21 +132,30 @@
         var readableWidth = viewBox && viewBox.width > 0
           ? viewBox.width * minimumReadableScale() + chrome.diagramX
           : MIN_READER_WIDTH;
-        var minWidth = Math.min(
-          measuredHeightFit && ratio < WIDE_RATIO ? readableWidth : MIN_READER_WIDTH,
-          viewportCap
-        );
         var maxWidth = Math.min(MAX_READER_WIDTH, viewportCap);
+        var readableMinimumWidth = measuredHeightFit && ratio < WIDE_RATIO
+          ? readableWidth
+          : measuredHeightFit && ratio >= WIDE_RATIO && Number.isFinite(declaredMinimumText)
+            ? Math.max(MIN_READER_WIDTH, readableWidth)
+            : MIN_READER_WIDTH;
+        var minWidth;
+        if (measuredHeightFit && ratio < WIDE_RATIO) {
+          minWidth = Math.min(readableMinimumWidth, viewportCap);
+        } else if (measuredHeightFit && ratio >= WIDE_RATIO && Number.isFinite(declaredMinimumText)) {
+          minWidth = Math.min(readableMinimumWidth, maxWidth);
+        } else {
+          minWidth = Math.min(readableMinimumWidth, viewportCap);
+        }
         var fixedHeight = chrome.bodyY + chrome.diagramY + SAFE_BOTTOM_GAP +
           outerHeight(header) + outerHeight(guided) + outerHeight(cards);
         var availableSvgHeight = Math.max(1, window.innerHeight - fixedHeight);
         var desiredWidth = availableSvgHeight * ratio + chrome.diagramX;
-        var width = Math.max(minWidth, Math.min(maxWidth, desiredWidth));
-        applyWidth(width);
+        var width = Math.max(minWidth, Math.min(maxWidth, desiredWidth, settledCap || desiredWidth));
+        applyWidth(width, minWidth);
         settleOverflow(minWidth);
         return {
           ratio: ratio,
-          width: Math.round(width),
+          width: lastWidth,
           availableSvgHeight: Math.round(availableSvgHeight),
           fixedHeight: Math.round(fixedHeight)
         };
@@ -157,16 +181,21 @@
           Math.round(diagramRect.height * 100) / 100
         ].join('|');
       }
+      function layoutPending() { return Boolean(frame || settleFrame); }
       function whenStable() {
         return Archify.waitForStableLayout({
           schedule: schedule,
-          pending: function () { return Boolean(frame || settleFrame); },
+          pending: layoutPending,
           snapshot: stableSnapshot,
           timeoutMessage: 'Adaptive reader layout did not reach stable dimensions.'
         });
       }
+      archifyLayoutOwners.reader = { schedule: schedule, pending: layoutPending, snapshot: stableSnapshot };
 
-      window.addEventListener('resize', schedule, { passive: true });
+      window.addEventListener('resize', function () {
+        settledCap = 0;
+        schedule();
+      }, { passive: true });
       window.addEventListener('load', schedule, { once: true });
       if (document.fonts && document.fonts.ready) document.fonts.ready.then(schedule).catch(function () {});
       if (typeof ResizeObserver === 'function') {

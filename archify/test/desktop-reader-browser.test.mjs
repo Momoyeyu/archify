@@ -35,6 +35,44 @@ test('all packaged HTML examples pass the real visual-check desktop gate', {
   }
 });
 
+test('visual-check collects nested ID-less semantic edge text for every renderer family', {
+  skip: chromePath ? false : 'Set ARCHIFY_CHROME to run the real browser regression.',
+}, async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-visual-edge-collector-'));
+  const cases = [
+    ['architecture', 'examples/web-app.architecture.json'],
+    ['workflow', 'examples/agent-tool-call.workflow.json'],
+    ['sequence', 'examples/cache-miss-request.sequence.json'],
+    ['dataflow', 'examples/event-stream.dataflow.json'],
+    ['lifecycle', 'examples/agent-run.lifecycle.json'],
+  ];
+  try {
+    for (const [index, [type, input]] of cases.entries()) {
+      const artifact = path.join(tmp, `${type}.html`);
+      execFileSync(process.execPath, [
+        path.join(skillRoot, 'bin', 'archify.mjs'), 'render', type,
+        path.join(skillRoot, input), artifact, '--quality', 'showcase',
+      ], { cwd: skillRoot, encoding: 'utf8' });
+      const edge = index % 2
+        ? `<g data-edge-from="collector-${type}" data-edge-to="reader-${type}"><g data-detail="context"><text x="1" y="1" font-size="5">nested semantic edge</text><text data-detail="fine" x="1" y="2" font-size="1">fine edge annotation</text></g></g>`
+        : `<g data-edge-from="collector-${type}" data-edge-to="reader-${type}" data-detail="context"><text x="1" y="1" font-size="5">same-group semantic edge</text><g data-detail="fine"><text x="1" y="2" font-size="1">fine nested annotation</text></g></g>`;
+      const injected = fs.readFileSync(artifact, 'utf8').replace('</svg>', `${edge}</svg>`);
+      fs.writeFileSync(artifact, injected);
+      const result = await runVisualCheck({ artifactPath: artifact, chromePath });
+      const desktop = result.receipt.readability.viewports.find(({ width, height }) => width === 1440 && height === 900);
+      assert.ok(desktop, `${type}: missing desktop observation`);
+      assert.equal(desktop.minimumProjectedNodeTextDetail, 'edge', `${type}: ${JSON.stringify(desktop)}`);
+      assert.match(desktop.minimumProjectedNodeText, /semantic edge/, `${type}: fine text must be excluded`);
+      assert.deepEqual(desktop.minimumProjectedNodeTextOwner, {
+        kind: 'edge', id: null, from: `collector-${type}`, to: `reader-${type}`,
+      }, `${type}: ${JSON.stringify(desktop)}`);
+      assert.equal(result.receipt.readability.status, 'fail', `${type}: injected 5px edge must be measured`);
+    }
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 const issue250TallGroup = {
   schema_version: 2,
   diagram_type: 'workflow',
@@ -94,6 +132,15 @@ test('production showcase is readable in the real 1440 by 900 adaptive reader', 
       'showcase',
     ], { cwd: skillRoot, encoding: 'utf8' });
 
+    const artifactSource = fs.readFileSync(artifact, 'utf8');
+    const svgRoot = artifactSource.match(/<svg\b[^>]*>/)?.[0];
+    assert.ok(svgRoot, 'production fixture must contain an SVG root');
+    // With 8px edge text across a 1376px SVG, the declared 7.5px floor
+    // requires a 1290px diagram plus 30px of Reader chrome.
+    assert.match(svgRoot, /viewBox="0 0 1376 728"/);
+    assert.match(svgRoot, /data-reader-fit="intrinsic-height"/);
+    assert.match(svgRoot, /data-reader-min-text="7\.5"/);
+
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       const result = await runVisualCheck({ artifactPath: artifact, chromePath });
       assert.equal(result.exitCode, 0, `attempt ${attempt}: ${JSON.stringify(result.receipt, null, 2)}`);
@@ -108,15 +155,150 @@ test('production showcase is readable in the real 1440 by 900 adaptive reader', 
       ));
       for (const observation of [desktop, darkDesktop]) {
         assert.ok(observation);
-        assert.equal(observation.readerWidth, 960);
-        assert.equal(observation.diagramWidth, 930);
+        assert.equal(observation.readerWidth, 1320);
+        assert.ok(observation.readerWidth <= 1376);
+        assert.equal(observation.diagramWidth, 1290);
+        assert.equal(observation.viewBoxWidth, 1376);
+        assert.ok(Number.isFinite(observation.minimumProjectedNodeTextPx));
         assert.ok(observation.minimumProjectedNodeTextPx >= MIN_PROJECTED_NODE_TEXT_PX);
-        assert.equal(observation.minimumProjectedNodeTextDetail, 'boundary');
-        assert.equal(observation.minimumProjectedNodeText, 'AWS eu-west-1 / disaster recovery');
+        assert.ok(observation.minimumProjectedNodeTextPx >= 7.5, JSON.stringify(observation));
+        assert.equal(typeof observation.minimumProjectedNodeText, 'string');
+        assert.ok(observation.minimumProjectedNodeText.trim().length > 0);
         assert.equal(observation.readabilityOk, true);
-        assert.equal(observation.scrollHeight, DESKTOP_READABILITY_VIEWPORT.height);
+        assert.equal(observation.overflowX, false, JSON.stringify(observation));
+        if (observation.overflowY) {
+          assert.equal(observation.verticalScrollAccepted, true, JSON.stringify(observation));
+          assert.equal(observation.readerLayout, 'adaptive', JSON.stringify(observation));
+          assert.equal(observation.readerOverflow, 'authored', JSON.stringify(observation));
+          assert.equal(observation.readerFit, 'intrinsic-height', JSON.stringify(observation));
+        } else {
+          assert.equal(observation.verticalScrollAccepted, false, JSON.stringify(observation));
+        }
       }
     }
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('route-expanded intrinsic architecture fits every required desktop viewport', {
+  skip: chromePath ? false : 'Set ARCHIFY_CHROME to run the real browser regression.',
+}, async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-route-expanded-reader-'));
+  const input = path.join(
+    skillRoot,
+    'test/fixtures/architecture-viewport/route-expanded-worldscope.architecture.json',
+  );
+  const artifact = path.join(tmp, 'route-expanded-worldscope.html');
+  try {
+    execFileSync(process.execPath, [
+      path.join(skillRoot, 'bin', 'archify.mjs'),
+      'deliver',
+      'architecture',
+      input,
+      artifact,
+      '--quality',
+      'showcase',
+      '--json',
+    ], { cwd: skillRoot, encoding: 'utf8' });
+
+    const html = fs.readFileSync(artifact, 'utf8');
+    const svgRoot = html.match(/<svg\b[^>]*>/)?.[0];
+    assert.ok(svgRoot, 'expected an SVG root');
+    assert.match(svgRoot, /viewBox="0 0 980 678"/);
+    assert.match(svgRoot, /data-reader-fit="intrinsic-height"/);
+    assert.match(svgRoot, /data-reader-min-text="7\.5"/);
+
+    const result = await runVisualCheck({ artifactPath: artifact, chromePath });
+    assert.equal(result.exitCode, 0, JSON.stringify(result.receipt, null, 2));
+    assert.equal(result.receipt.containment.status, 'pass');
+    assert.equal(result.receipt.readability.status, 'pass');
+    assert.equal(result.receipt.viewerChrome.status, 'pass');
+    for (const viewport of result.receipt.containment.viewports) {
+      assert.equal(viewport.overflowX, false, JSON.stringify(viewport, null, 2));
+      assert.equal(viewport.overflowY, false, JSON.stringify(viewport, null, 2));
+      assert.equal(viewport.scrollHeight, viewport.height, JSON.stringify(viewport, null, 2));
+      for (const [field, floor] of [
+        ['minimumProjectedNonEdgeTextPx', 7.5 - 0.01],
+        ['minimumProjectedEdgeTextPx', MIN_PROJECTED_NODE_TEXT_PX],
+        ['minimumProjectedNodeTextPx', MIN_PROJECTED_NODE_TEXT_PX],
+      ]) {
+        assert.ok(Number.isFinite(viewport[field]), field + ': ' + JSON.stringify(viewport, null, 2));
+        assert.ok(viewport[field] >= floor, field + ': ' + JSON.stringify(viewport, null, 2));
+      }
+    }
+    const desktop = result.receipt.containment.viewports.find(({ width, height }) => (
+      width === DESKTOP_READABILITY_VIEWPORT.width
+      && height === DESKTOP_READABILITY_VIEWPORT.height
+    ));
+    assert.ok(desktop);
+    assert.ok(desktop.diagramWidth < desktop.viewBoxWidth, JSON.stringify(desktop, null, 2));
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('extreme intrinsic architecture keeps readable page scroll below first-screen fit', {
+  skip: chromePath ? false : 'Set ARCHIFY_CHROME to run the real browser regression.',
+}, async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-readable-scroll-reader-'));
+  const input = path.join(
+    skillRoot,
+    'test/fixtures/architecture-viewport/readable-scroll-worldscope.architecture.json',
+  );
+  const artifact = path.join(tmp, 'readable-scroll-worldscope.html');
+  try {
+    execFileSync(process.execPath, [
+      path.join(skillRoot, 'bin', 'archify.mjs'),
+      'deliver',
+      'architecture',
+      input,
+      artifact,
+      '--quality',
+      'showcase',
+      '--json',
+    ], { cwd: skillRoot, encoding: 'utf8' });
+
+    const html = fs.readFileSync(artifact, 'utf8');
+    const svgRoot = html.match(/<svg\b[^>]*>/)?.[0];
+    assert.ok(svgRoot, 'expected an SVG root');
+    assert.match(svgRoot, /viewBox="0 0 980 1188"/);
+    assert.match(svgRoot, /data-reader-fit="intrinsic-height"/);
+    assert.match(svgRoot, /data-reader-min-text="7\.5"/);
+
+    const result = await runVisualCheck({ artifactPath: artifact, chromePath });
+    assert.equal(result.exitCode, 0, JSON.stringify(result.receipt, null, 2));
+    assert.equal(result.receipt.containment.status, 'pass');
+    assert.equal(result.receipt.containment.policy, 'fit-or-reader-declared-readable-vertical-scroll');
+    assert.equal(result.receipt.readability.status, 'pass');
+    assert.equal(result.receipt.viewerChrome.status, 'pass');
+    assert.equal(result.receipt.diagnostics.length, 0, JSON.stringify(result.receipt, null, 2));
+
+    let scrollViewportCount = 0;
+    for (const viewport of result.receipt.containment.viewports) {
+      assert.equal(viewport.overflowX, false, JSON.stringify(viewport, null, 2));
+      for (const [field, floor] of [
+        ['minimumProjectedNonEdgeTextPx', 7.5 - 0.01],
+        ['minimumProjectedEdgeTextPx', MIN_PROJECTED_NODE_TEXT_PX],
+        ['minimumProjectedNodeTextPx', MIN_PROJECTED_NODE_TEXT_PX],
+      ]) {
+        assert.ok(Number.isFinite(viewport[field]), field + ': ' + JSON.stringify(viewport, null, 2));
+        assert.ok(viewport[field] >= floor, field + ': ' + JSON.stringify(viewport, null, 2));
+      }
+      if (viewport.overflowY) {
+        scrollViewportCount += 1;
+        assert.equal(viewport.verticalScrollAccepted, true, JSON.stringify(viewport, null, 2));
+        assert.equal(viewport.overflowDisposition, 'readable-vertical-scroll');
+        assert.equal(viewport.readerLayout, 'adaptive');
+        assert.equal(viewport.readerOverflow, 'authored');
+        assert.equal(viewport.readerFit, 'intrinsic-height');
+      } else {
+        assert.equal(viewport.overflowY, false, JSON.stringify(viewport, null, 2));
+        assert.equal(viewport.verticalScrollAccepted, false);
+        assert.equal(viewport.overflowDisposition, 'contained');
+      }
+    }
+    assert.ok(scrollViewportCount > 0, 'expected the extreme intrinsic diagram to exercise readable page scroll');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

@@ -93,8 +93,8 @@ test('Reach variant decorates only a finite canonical clone with static authored
 
 test('Reach styling preserves context, direction, and Blueprint restraint without motion', () => {
   const html = render('dataflow', CASES.dataflow);
-  assert.match(html, /svg\[data-share-reach\] \[data-node-id\], svg\[data-share-reach\] \[data-edge-from\] \{ opacity: 0\.14; \}/);
-  assert.match(html, /svg\[data-share-reach\] \[data-share-reach-match\] \{ opacity: 1; \}/);
+  assert.match(html, /svg\[data-share-reach\] \[data-node-id\], svg\[data-share-reach\] \[data-edge-from\], svg\[data-share-reach\] \[data-graph-role=\\?"automatic-crossover-underlay\\?"\] \{ opacity: 0\.14; \}/);
+  assert.match(html, /svg\[data-share-reach\] \[data-share-reach-match\], svg\[data-share-reach\] \[data-graph-role=\\?"automatic-crossover\\?"\]:has\(> \[data-share-reach-match\]\) > \[data-graph-role=\\?"automatic-crossover-underlay\\?"\] \{ opacity: 1; \}/);
   assert.match(html, /data-share-reach=\\?"upstream\\?"[\s\S]*?--database-stroke/);
   assert.match(html, /data-share-reach=\\?"downstream\\?"[\s\S]*?--backend-stroke/);
   assert.match(html, /data-preset=\\?"blueprint\\?"\]\[data-share-reach\][\s\S]*?filter: none/);

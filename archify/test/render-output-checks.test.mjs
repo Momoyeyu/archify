@@ -30,9 +30,11 @@ test('render output check: finite_svg preserves slashes in unquoted HTML attribu
   }
 });
 
-function checkHtml(name, svgBody, profile = 'standard', viewBox = '0 0 240 160') {
+// 240x154 keeps the default fixture at the 1.55 wide ratio, so the fixed-width
+// viewport-height rule stays out of tests that target other composition rules.
+function checkHtml(name, svgBody, profile = 'standard', viewBox = '0 0 240 154', head = '', svgAttributes = '') {
   const htmlPath = path.join(tmp, `${name}.html`);
-  fs.writeFileSync(htmlPath, `<!doctype html><html><body><svg viewBox="${viewBox}" data-quality-profile="${profile}">${svgBody}</svg></body></html>`);
+  fs.writeFileSync(htmlPath, `<!doctype html><html><head>${head}</head><body><svg viewBox="${viewBox}" data-quality-profile="${profile}"${svgAttributes}>${svgBody}</svg></body></html>`);
   try {
     const stdout = execFileSync('node', [checker, htmlPath], { encoding: 'utf8' });
     return { code: 0, result: JSON.parse(stdout) };
@@ -57,6 +59,36 @@ test('render output check: showcase rejects node copy that becomes illegible at 
   assert.equal(issue?.severity, 'error');
   assert.equal(issue?.viewportWidth, 1440);
   assert.ok(issue?.projectedFontPx < issue?.minimumProjectedFontPx);
+});
+
+test('render output check: predicts the certain 1440x900 overflow of a fixed-width portrait canvas', () => {
+  const node = `
+    <g data-node-id="a">
+      <rect x="20" y="20" width="200" height="60" rx="6" class="c-mask"/>
+      <text data-node-label x="120" y="55" class="t-primary" font-size="12">Node</text>
+    </g>
+  `;
+  // 1080x780 dataflow: measured in Chrome at 972px SVG / 1159px page before cards.
+  const portrait = checkHtml('viewport-height-portrait', node, 'showcase', '0 0 1080 780', '', '');
+  const issue = portrait.result.composition.issues.find((item) => item.code === 'composition/viewport-height');
+  assert.equal(issue?.severity, 'warning', 'new rule surfaces as evidence first');
+  assert.equal(portrait.code, 0);
+  assert.equal(issue.svgHeightPx, 972);
+  assert.equal(issue.fixedChromePx, 126, 'no guided-views strip in this fixture');
+  assert.equal(issue.pageHeightPx, 1098);
+  assert.match(issue.detail, /meta\.viewBox height is at most 696 at this width/);
+  assert.match(issue.detail, /width is at least 1209 at this height/);
+  assert.equal(portrait.result.composition.summary.warnings, 1);
+
+  const withViews = checkHtml('viewport-height-views', node, 'showcase', '0 0 1080 780', '<div class="guided-views"></div>');
+  assert.equal(withViews.result.composition.issues.find((item) => item.code === 'composition/viewport-height')?.pageHeightPx, 1159);
+
+  const declaredFit = checkHtml('viewport-height-fit', node, 'showcase', '0 0 1080 780', '', ' data-reader-fit="intrinsic-height"');
+  assert.equal(declaredFit.result.composition.issues.some((item) => item.code === 'composition/viewport-height'), false, 'a Reader-declared fit can scroll readably');
+
+  const wide = checkHtml('viewport-height-wide', node, 'showcase', '0 0 1600 900');
+  assert.equal(wide.result.composition.issues.some((item) => item.code === 'composition/viewport-height'), false, 'a wide canvas is narrowed by the Reader instead');
+  assert.equal(wide.result.composition.metrics.viewportHeightIssues, 0);
 });
 
 test('render output check: compares exact projected size before rounding diagnostics', () => {
@@ -112,6 +144,107 @@ test('render output check: includes semantic boundary labels in desktop readabil
   assert.equal(issue?.text, 'Disaster recovery boundary');
   assert.equal(issue?.detail, 'boundary');
   assert.ok(issue?.projectedFontPx < issue?.minimumProjectedFontPx);
+});
+
+test('render output check: recognized declared-wide Reader admits the hard floor but records an unmet 7.5 target', () => {
+  const { code, result } = checkHtml('recognized-declared-wide-edge', `
+    <g data-edge-from="listener" data-edge-to="handler" data-detail="context">
+      <text x="120" y="160" class="t-muted" font-size="8">method path body</text>
+      <text data-detail="fine" x="120" y="172" class="t-dim" font-size="1">fine annotation</text>
+    </g>
+  `, 'showcase', '0 0 1438 800', '<meta name="archify-reader-contract" content="declared-wide-v1">', ' data-reader-fit="intrinsic-height" data-reader-min-text="7.5"');
+
+  assert.equal(code, 0, JSON.stringify(result, null, 2));
+  assert.equal(result.composition.desktopReadability.budgetBasis, 'recognized-declared-wide');
+  assert.equal(result.composition.desktopReadability.availableDiagramWidth, 1346);
+  assert.equal(result.composition.desktopReadability.minimumOwner.kind, 'edge');
+  assert.equal(result.composition.desktopReadability.minimumOwner.id, null);
+  assert.equal(result.composition.desktopReadability.semanticTextCount, 1);
+  assert.equal(result.composition.desktopReadability.hardFloorMet, true);
+  assert.equal(result.composition.desktopReadability.requestedTargetPx, 7.5);
+  assert.equal(result.composition.desktopReadability.requestedTargetMet, false);
+  assert.ok(result.composition.desktopReadability.minimumProjectedTextPx < 7.5);
+});
+
+test('render output check: ordinary metadata preserves legacy readability and bare semantic markers', () => {
+  const { code, result } = checkHtml('ordinary-meta-legacy-primary', `
+    <g data-node-id="compact-node">
+      <text data-node-label x="160" y="126" class="t-primary" font-size="8">Compact node</text>
+    </g>
+  `, 'showcase', '0 0 1300 700', '<meta name="viewport" content="width=device-width">');
+  assert.notEqual(code, 0);
+  assert.equal(result.composition.desktopReadability.budgetBasis, 'legacy-930');
+  const issue = result.composition.issues.find((item) => item.code === 'composition/desktop-readability');
+  assert.equal(issue?.detail, 'primary');
+  assert.equal(issue?.owner.kind, 'node');
+});
+
+test('render output check: marker recognition is exact and old fit/min-only HTML keeps the 930px floor', () => {
+  const body = `
+    <g data-edge-from="listener" data-edge-to="handler" data-detail="context">
+      <text x="120" y="160" class="t-muted" font-size="8">method path body</text>
+    </g>
+  `;
+  const svgAttributes = ' data-reader-fit="intrinsic-height" data-reader-min-text="7.5"';
+  for (const [name, head, attributes] of [
+    ['old-fit-min-only', '', svgAttributes],
+    ['unknown-reader-contract', '<meta name="archify-reader-contract" content="declared-wide-v2">', svgAttributes],
+    ['duplicate-reader-contract', '<meta name="archify-reader-contract" content="declared-wide-v1"><meta name="archify-reader-contract" content="declared-wide-v1">', svgAttributes],
+    ['invalid-reader-minimum', '<meta name="archify-reader-contract" content="declared-wide-v1">', ' data-reader-fit="intrinsic-height" data-reader-min-text="NaN"'],
+    ['explicit-viewbox-geometry', '<meta name="archify-reader-contract" content="declared-wide-v1">', ' data-reader-min-text="7.5"'],
+  ]) {
+    const { code, result } = checkHtml(name, body, 'showcase', '0 0 1438 800', head, attributes);
+    assert.notEqual(code, 0, name);
+    assert.equal(result.composition.desktopReadability.budgetBasis, 'legacy-930', name);
+    assert.equal(result.composition.issues.find((item) => item.code === 'composition/desktop-readability')?.detail, 'edge', name);
+  }
+});
+
+test('render output check: an edge below 6 remains warning in standard and error in showcase', () => {
+  const body = `
+    <g data-edge-from="listener" data-edge-to="handler" data-detail="context">
+      <text x="120" y="160" class="t-muted" font-size="5">short semantic edge label</text>
+    </g>
+  `;
+  const head = '<meta name="archify-reader-contract" content="declared-wide-v1">';
+  const svgAttributes = ' data-reader-fit="intrinsic-height" data-reader-min-text="7.5"';
+  const standard = checkHtml('declared-wide-standard-edge', body, 'standard', '0 0 1438 800', head, svgAttributes);
+  const showcase = checkHtml('declared-wide-showcase-edge', body, 'showcase', '0 0 1438 800', head, svgAttributes);
+  assert.equal(standard.code, 0);
+  assert.equal(standard.result.composition.issues.find((item) => item.code === 'composition/desktop-readability')?.severity, 'warning');
+  assert.notEqual(showcase.code, 0);
+  assert.equal(showcase.result.composition.issues.find((item) => item.code === 'composition/desktop-readability')?.severity, 'error');
+});
+
+test('render output check: finite non-positive semantic text remains below the 6px floor', () => {
+  const contract = '<meta name="archify-reader-contract" content="declared-wide-v1">';
+  const attributes = ' data-reader-fit="intrinsic-height" data-reader-min-text="7.5"';
+  for (const [name, body] of [
+    ['zero-only', '<g data-edge-from="a" data-edge-to="b" data-detail="context"><text x="1" y="1" font-size="0">zero</text></g>'],
+    ['negative-only', '<g data-edge-from="a" data-edge-to="b" data-detail="context"><text x="1" y="1" font-size="-1">negative</text></g>'],
+    ['zero-with-normal', '<g data-edge-from="a" data-edge-to="b" data-detail="context"><text x="1" y="1" font-size="8">ordinary</text><text x="1" y="2" font-size="0">zero</text></g>'],
+  ]) {
+    const showcase = checkHtml(`${name}-showcase`, body, 'showcase', '0 0 1438 800', contract, attributes);
+    const standard = checkHtml(`${name}-standard`, body, 'standard', '0 0 1438 800', contract, attributes);
+    assert.notEqual(showcase.code, 0, name);
+    assert.equal(showcase.result.composition.desktopReadability.budgetBasis, 'legacy-930', name);
+    assert.equal(showcase.result.composition.issues.find((item) => item.code === 'composition/desktop-readability')?.severity, 'error', name);
+    assert.equal(standard.code, 0, name);
+    assert.equal(standard.result.composition.issues.find((item) => item.code === 'composition/desktop-readability')?.severity, 'warning', name);
+  }
+});
+
+test('render output check: fine detail on a context edge is excluded before ownership classification', () => {
+  const { code, result } = checkHtml('fine-context-edge', `
+    <g data-edge-from="a" data-edge-to="b" data-detail="context">
+      <text x="1" y="1" font-size="8">ordinary relationship label</text>
+      <g data-detail="fine"><text x="1" y="2" font-size="1">fine nested note</text></g>
+    </g>
+  `, 'showcase', '0 0 1438 800', '<meta name="archify-reader-contract" content="declared-wide-v1">', ' data-reader-fit="intrinsic-height" data-reader-min-text="7.5"');
+  assert.equal(code, 0, JSON.stringify(result, null, 2));
+  assert.equal(result.composition.desktopReadability.minimumOwner.kind, 'edge');
+  assert.equal(result.composition.desktopReadability.semanticTextCount, 1);
+  assert.ok(result.composition.desktopReadability.minimumProjectedTextPx >= 6);
 });
 
 test('render output check: accepts orthogonal arrows away from legend', () => {
@@ -203,6 +336,56 @@ test('render output check: showcase rejects a proper X with semantic identities'
   assert.deepEqual(result.composition.summary, { errors: 1, warnings: 0 });
 });
 
+test('render output check: verified automatic crossover halos resolve a proper X', () => {
+  const { code, result } = checkHtml('showcase-verified-crossover-halo', `
+    <path data-graph-role="automatic-crossover-underlay" d="M 20 60 L 200 60" fill="none" stroke="var(--mask)" stroke-width="5.5" pointer-events="none"/>
+    <path data-edge-id="left" data-edge-from="a" data-edge-to="b" data-composition-crossover="halo" d="M 20 60 L 200 60" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+    <path data-graph-role="automatic-crossover-underlay" d="M 100 20 L 100 120" fill="none" stroke="var(--mask)" stroke-width="5.5" pointer-events="none"/>
+    <path data-edge-id="right" data-edge-from="c" data-edge-to="d" data-composition-crossover="halo" d="M 100 20 L 100 120" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+  `, 'showcase');
+  assert.equal(code, 0, JSON.stringify(result.composition.issues));
+  assert.equal(result.composition.metrics.properCrossings, 0);
+  assert.equal(result.composition.metrics.resolvedCrossovers, 1);
+  assert.deepEqual(result.composition.summary, { errors: 0, warnings: 0 });
+});
+
+test('render output check: crossover halos fail closed when sibling adjacency is interrupted', () => {
+  const underlay = '<path data-graph-role="automatic-crossover-underlay" d="M 20 60 L 200 60" fill="none" stroke="var(--mask)" stroke-width="5.5" pointer-events="none"/>';
+  const route = '<path data-edge-id="left" data-edge-from="a" data-edge-to="b" data-composition-crossover="halo" d="M 20 60 L 200 60" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>';
+  const rightUnderlay = '<path data-graph-role="automatic-crossover-underlay" d="M 100 20 L 100 120" fill="none" stroke="var(--mask)" stroke-width="5.5" pointer-events="none"/>';
+  const rightRoute = '<path data-edge-id="right" data-edge-from="c" data-edge-to="d" data-composition-crossover="halo" d="M 100 20 L 100 120" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>';
+  for (const [name, separator] of [
+    ['comment', '<!-- an intervening comment -->'],
+    ['element', '<path d="M 1 1 L 2 2"/>'],
+    ['group', '<g></g>'],
+  ]) {
+    const { code, result } = checkHtml(`showcase-crossover-nonadjacent-${name}`, `
+      ${underlay}
+      ${separator}
+      ${route}
+      ${rightUnderlay}
+      ${rightRoute}
+    `, 'showcase');
+    assert.notEqual(code, 0, name);
+    assert.equal(result.composition.metrics.properCrossings, 1, name);
+    assert.equal(result.composition.metrics.resolvedCrossovers, 0, name);
+  }
+});
+
+test('render output check: a crossover marker without a matching underlay fails closed', () => {
+  const { code, result } = checkHtml('showcase-unverified-crossover-halo', `
+    <path data-graph-role="automatic-crossover-underlay" d="M 20 61 L 200 61" fill="none" stroke="var(--mask)" stroke-width="5.5" pointer-events="none"/>
+    <path data-edge-id="left" data-edge-from="a" data-edge-to="b" data-composition-crossover="halo" d="M 20 60 L 200 60" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+    <path data-graph-role="automatic-crossover-underlay" d="M 100 20 L 100 120" fill="none" stroke="var(--mask)" stroke-width="5.5" pointer-events="none"/>
+    <path data-edge-id="right" data-edge-from="c" data-edge-to="d" data-composition-crossover="halo" d="M 100 20 L 100 120" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+  `, 'showcase');
+  assert.notEqual(code, 0);
+  assert.equal(result.composition.metrics.properCrossings, 1);
+  assert.equal(result.composition.metrics.resolvedCrossovers, 0);
+  const crossing = result.composition.issues.find((item) => item.code === 'composition/proper-crossing');
+  assert.equal(crossing?.severity, 'error');
+});
+
 test('render output check: shared endpoints and endpoint touches pass showcase', () => {
   const { code, result } = checkHtml('showcase-exemptions', `
     <path data-edge-from="a" data-edge-to="b" d="M 20 60 L 200 60" class="a-default" marker-end="url(#arrowhead)"/>
@@ -269,7 +452,7 @@ test('render output check: a relationship label cannot leave the canvas', () => 
     const issue = result.composition.issues.find((item) => item.code === 'composition/label-canvas-containment');
     assert.equal(issue.label, 'approved replay');
     assert.deepEqual(issue.labelRect, { x: 200, y: 48, width: 60, height: 14 });
-    assert.deepEqual(issue.viewBox, [240, 160]);
+    assert.deepEqual(issue.viewBox, [240, 154]);
     assert.deepEqual(issue.overflowPx, { right: 20 });
     assert.match(issue.detail, /extends past the right edge by 20px/);
     // The rule owns no named check: it fails the receipt through composition,

@@ -108,6 +108,7 @@ in the generated viewer.
 - In architecture, data-flow, and lifecycle diagrams, explicit `route: "straight"` requests one direct segment, which may be diagonal when endpoint sides are not pinned. The artifact checker preserves this intent; explicit sides, opaque-node clearance, and other quality gates still apply. `via` takes precedence and retains existing rules, including data-flow's requirement for orthogonal via segments.
 - Automatic Port Spread is a default renderer behavior for architecture, workflow, data-flow, and lifecycle diagrams. Shared automatic endpoints spread deterministically and symmetrically with a 16px corner gutter. It does not apply to sequence messages, single relationships, or explicit `via`, `channelX`, `channelY`, `labelAt`, or non-`auto` routes.
 - Showcase route rhythm: every nonzero segment must be at least 8px; every interior segment must be at least 16px. When spread ports are nearly parallel, the router uses a 24px endpoint stub and a 16px outside bridge instead of manufacturing a tiny dogleg.
+- Showcase route compactness: an explicit Architecture route fails with `composition/excessive-route-detour` when its orthogonal length is at least 2.5 times an obstacle-aware legal route, adds at least 200px, and sends a control point at least 96px beyond the content envelope. The evidence records both lengths, ratio, excess, bounds, and excursion. Remove an unnecessary `via` or move the diagnosed corridor inward instead of enlarging the canvas. Related relationships that overlap on the same outer corridor by at least 32px are treated as an intentional bus and remain valid.
 - Shared endpoint corridors are allowed only when they remain semantically unambiguous. Unrelated collinear overlap of 8px or more fails showcase.
 - Container borders are intentional pass-through geometry, but a long edge running along a structural border is not.
 - An edge crossing an unrelated opaque node is always a hard failure, independent of quality profile.
@@ -154,6 +155,15 @@ apply the other geometry rules above.
 
 ### Spacing and labels
 
+In showcase Architecture, an unpinned connection label keeps its default position
+when clear. If it collides, the renderer tries a bounded set of nearby positions
+along the existing route, avoiding nodes, boundary titles, other labels and
+other routes within the resolved canvas. Explicit `labelAt`, `labelDx`, `labelDy`
+or `labelSegment` (including zero) disables this fallback. Routes and topology
+stay unchanged; if no nearby position is clear, validation reports the original
+collision. Inspect resolved labels with `--layout-json` before adding controls.
+Standard placement retains its existing behavior.
+
 Spacing recommendations mean clear gap between boxes, not center distance. A 200px center distance between 165px-wide nodes leaves only 35px of clear gap.
 
 For a relationship label, require:
@@ -182,12 +192,37 @@ Before adding manual routes, check whether unnecessary agent-added controls
 disable automatic port spread; preserve user-required route intent. Use the
 measured clearance rules above rather than guessing coordinates.
 
+### Repair evidence
+
+For architecture, `validate architecture <input.json> --layout-json` exposes the
+resolved component boxes, boundary frames, connection points, and label positions.
+A measurable rejected layout also returns these fields, with `ok: false`,
+`contract: "archify-architecture-layout-v1"`, diagnostics, and exit 1. This is
+repair evidence, not artifact acceptance; it writes no HTML. Malformed input or
+an implementation failure retains the ordinary failure receipt without layout.
+
+Use the measured failing side for `layout/boundary-out-of-bounds`. Left/top
+negative coordinates need an inward move; increasing viewBox width/height only
+addresses right/bottom overflow. Boundaries may wrap members across rows. Keep
+real membership intact and recheck connected routes after moving members.
+
+Automatic architecture canvases include route points as well as nodes, frames,
+and labels. An authored viewBox remains authoritative. In showcase,
+`layout/route-out-of-bounds` identifies clipped route points; negative coordinates
+need an inward route, while right/bottom overflow can also use a larger authored
+canvas. Recheck desktop readability after enlarging a canvas.
+
+When several crossing/corridor diagnoses involve the same nodes, consider their
+placement together before adding route controls. Apply one coherent repair and
+validate it; independent label nudges cannot fix a shared layout bottleneck.
+Compare diagnostics by code, subject, and stage instead of total count alone.
+
 ### Repair order
 
 1. Fix missing/invalid `meta.quality_profile` and schema errors.
 2. Fix node overlap or out-of-range placement.
 3. Fix edge-through-node and endpoint-direction errors.
-4. Fix crossings, ambiguous corridors, border runs, and route rhythm.
+4. Fix crossings, ambiguous corridors, border runs, excessive detours, and route rhythm.
 5. Fix label-to-node, label-to-label, then label-to-route clearance.
 6. Fix labels that leave the canvas: move the label with `labelAt`/`labelDx`/`labelDy`/`labelSegment`, or widen `meta.viewBox`. Suggested `labelDx`/`labelDy` values replace the authored field; they are not added to it.
 
@@ -197,7 +232,7 @@ Run `validate` after every edit. Consume `diagnostics[]` by stable `code`, exact
 
 ### Architecture
 
-Use one left-to-right spine with short vertical branches. Prefer 6–12 primary components and group only real ownership, trust, process, or deployment boundaries. Boundaries do not replace relationships.
+Use one obvious primary reading path, which may step across meaningful rows when the source-driven topology needs room. Include every component required to explain the requested responsibilities and boundaries; omit only genuinely irrelevant detail. Group only real ownership, trust, process, or deployment boundaries. Boundaries do not replace relationships.
 
 Grid placement is preferred when the schema supports it. Free positions are appropriate for a bounded exception, not for prose-level coordinate planning. Keep external actors outside the system boundary when that is factually true.
 
