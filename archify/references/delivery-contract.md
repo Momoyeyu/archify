@@ -359,8 +359,11 @@ a capable environment.
 Add `--open` only when the user wants an immediate local preview. It runs after
 the verified pair commit has completed, its recovery journal has been removed,
 and the delivery lock has been released successfully. It uses one argument-array
-OS opener with a five-second bound and records `open.status`. Keep it off for CI, unattended agents, and non-interactive
-environments. Failure or unsupported opening does not invalidate delivery; its
+OS opener with a five-second bound on macOS and Linux, and a fifteen-second bound
+for PowerShell startup on Windows. The receipt records `open.status`; failed or
+unavailable launch attempts also include normalized `open.failure` details.
+Keep it off for CI, unattended agents, and non-interactive environments.
+Failure or unsupported opening does not invalidate delivery; its
 status proves only whether the local opener invocation succeeded.
 
 ## Last-Good Live Preview
