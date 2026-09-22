@@ -17,7 +17,8 @@
   <a href="#start"><strong>开始使用</strong></a> &nbsp;·&nbsp;
   <a href="https://tt-a1i.github.io/archify/guide.html"><strong>场景指南</strong></a> &nbsp;·&nbsp;
   <a href="#社区交流"><strong>社区交流</strong></a> &nbsp;·&nbsp;
-  <a href="./README.md"><strong>English</strong></a>
+  <a href="./README.md"><strong>English</strong></a> &nbsp;·&nbsp;
+  <a href="./README_JA.md"><strong>日本語</strong></a>
 </p>
 
 <p align="center">
