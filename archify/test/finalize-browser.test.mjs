@@ -32,7 +32,7 @@ test('finalize proves all four gates in real Chrome with bounded mixed-case side
     const browser = JSON.parse(fs.readFileSync(receipt.evidence.browserCheckReceipt));
     assert.equal(browser.command, 'browser-check');
     assert.equal(browser.containment.viewports.length, 4);
-    assert.equal(browser.themeStates.viewports.length, 4);
+    assert.equal(browser.themeStates.viewports.length, 6);
     assert.equal(browser.captures.status, 'not-requested');
     assert.deepEqual(browser.captures.screenshots, []);
     assert.equal(browser.deliveryReceiptId, JSON.parse(fs.readFileSync(evidence.receipt)).stages.deliver.receipt.receiptId);

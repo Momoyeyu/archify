@@ -8,11 +8,16 @@ fact has supporting source evidence.
 ## Explore on demand
 
 1. **Freeze identity.** From the target repository, record `git rev-parse
-   HEAD`, `git remote get-url origin`, and `git status --short`. Pin the URL and
+   HEAD`, `git remote get-url origin`, and `git status --short`. Remove HTTP(S)
+   userinfo (including usernames, passwords, and tokens) before recording the
+   origin or placing it in the candidate. Pin the credential-free URL and
    forty-character revision in `meta.repository`; use `link_mode: "local-only"`
-   for a local fixture whose HTTPS URL is only a credential-free identity. If
-   the worktree is dirty, record the changed paths and treat them as part of
-   the inspected source only when the task explicitly includes them.
+   for a local fixture whose HTTPS URL is only a repository identity. If the
+   worktree is dirty, record the changed paths. Repository evidence is verified
+   against committed bytes at the pinned revision, not working-tree edits:
+   inspect a clean checkout at that revision for any cited changed path. Do not
+   present uncommitted bytes as evidence for `HEAD`; `local-only` does not record
+   a verifiable snapshot of those bytes.
 
 2. **Map the slice.** Use project instructions, manifests, entry points,
    registrations, and deployment configuration to locate candidate runtime

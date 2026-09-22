@@ -12,7 +12,7 @@ import {
   defaultFinalizeSummaryPath,
   runFinalize,
 } from '../bin/finalize.mjs';
-import { CAPTURE_VIEWPORTS, THEMES, VISUAL_CHECK_VIEWPORTS } from '../bin/visual-check.mjs';
+import { CAPTURE_VIEWPORTS, VISUAL_CHECK_VIEWPORTS } from '../bin/visual-check.mjs';
 
 function workspace(t) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-finalize-'));
@@ -107,9 +107,10 @@ function passingBrowserCheck({ output, artifact, deliveryReceiptId, outDir }) {
     },
     themeStates: {
       status: 'pass',
-      viewports: CAPTURE_VIEWPORTS.flatMap(({ width, height }) => THEMES.map((theme) => ({
-        width, height, requestedTheme: theme, resolvedTheme: theme, ok: true,
-      }))),
+      viewports: [
+        ...VISUAL_CHECK_VIEWPORTS.map((viewport) => ({ ...viewport, requestedTheme: 'light', resolvedTheme: 'light', ok: true })),
+        ...CAPTURE_VIEWPORTS.map((viewport) => ({ ...viewport, requestedTheme: 'dark', resolvedTheme: 'dark', ok: true })),
+      ],
     },
     readability: {
       status: 'pass',
@@ -740,6 +741,18 @@ test('finalize requires complete passing browser evidence coverage', async t => 
     {
       name: 'incomplete theme coverage',
       mutate: (receipt) => { receipt.themeStates.viewports.pop(); },
+    },
+    {
+      name: 'missing intermediate light-theme coverage',
+      mutate: (receipt) => {
+        receipt.themeStates.viewports = receipt.themeStates.viewports.filter(({ width }) => width !== 1600);
+      },
+    },
+    {
+      name: 'mismatched intermediate light theme despite passing parent status',
+      mutate: (receipt) => {
+        receipt.themeStates.viewports.find(({ width }) => width === 1920).resolvedTheme = 'dark';
+      },
     },
   ];
 

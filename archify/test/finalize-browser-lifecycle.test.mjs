@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { runFinalize } from '../bin/finalize.mjs';
-import { CAPTURE_VIEWPORTS, THEMES, VISUAL_CHECK_VIEWPORTS } from '../bin/visual-check.mjs';
+import { CAPTURE_VIEWPORTS, VISUAL_CHECK_VIEWPORTS } from '../bin/visual-check.mjs';
 
 function workspace(t) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-finalize-browser-'));
@@ -96,9 +96,10 @@ function browserReceipt(output, delivered, outDir) {
     },
     themeStates: {
       status: 'pass',
-      viewports: CAPTURE_VIEWPORTS.flatMap(({ width, height }) => THEMES.map((theme) => ({
-        width, height, requestedTheme: theme, resolvedTheme: theme, ok: true,
-      }))),
+      viewports: [
+        ...VISUAL_CHECK_VIEWPORTS.map((viewport) => ({ ...viewport, requestedTheme: 'light', resolvedTheme: 'light', ok: true })),
+        ...CAPTURE_VIEWPORTS.map((viewport) => ({ ...viewport, requestedTheme: 'dark', resolvedTheme: 'dark', ok: true })),
+      ],
     },
     readability: {
       status: 'pass',
