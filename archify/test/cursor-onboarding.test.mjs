@@ -15,6 +15,7 @@ test('Cursor onboarding stays explicit, bilingual, and backed by the same Skill'
   const english = fs.readFileSync(path.join(repoRoot, 'README.md'), 'utf8');
   const englishMirror = fs.readFileSync(path.join(repoRoot, 'README_EN.md'), 'utf8');
   const chinese = fs.readFileSync(path.join(repoRoot, 'README_ZH.md'), 'utf8');
+  const japanese = fs.readFileSync(path.join(repoRoot, 'README_JA.md'), 'utf8');
   const start = fs.readFileSync(path.join(repoRoot, 'docs', 'start.html'), 'utf8');
   const landing = fs.readFileSync(path.join(repoRoot, 'docs', 'index.html'), 'utf8');
 
@@ -22,9 +23,10 @@ test('Cursor onboarding stays explicit, bilingual, and backed by the same Skill'
   for (const agent of ['Cursor', 'Claude Code', 'Codex CLI', 'OpenCode']) {
     assert.ok(english.includes(agent), `English README must name ${agent}`);
     assert.ok(chinese.includes(agent), `Chinese README must name ${agent}`);
+    assert.ok(japanese.includes(agent), `Japanese README must name ${agent}`);
   }
-  for (const surface of [english, chinese, landing]) assert.ok(surface.includes(cursorCommand));
-  for (const surface of [english, chinese, start, landing]) {
+  for (const surface of [english, chinese, japanese, landing]) assert.ok(surface.includes(cursorCommand));
+  for (const surface of [english, chinese, japanese, start, landing]) {
     assert.doesNotMatch(surface, /skills use[^\n<]*--agent cursor/);
     assert.doesNotMatch(surface, /~\/\.cursor\/skills\/archify/);
     assert.doesNotMatch(surface, /all Cursor models|every Cursor model/i);
