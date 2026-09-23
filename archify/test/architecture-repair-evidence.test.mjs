@@ -31,6 +31,23 @@ function validate(input, cwd, flags = []) {
   return { result, receipt: JSON.parse(result.stdout) };
 }
 
+test('layout route coordinates can be reused for an orthogonal repair at fractional ports', t => {
+  const { cwd, input, diagram } = setup(t, [[80, 100], [340, 100]]);
+  delete diagram.boundaries;
+  diagram.components.forEach(c => { c.size = [121, 60]; });
+  diagram.connections = [{ from: 'n0', to: 'n1', fromSide: 'top', toSide: 'top' }];
+  fs.writeFileSync(input, JSON.stringify(diagram));
+  const measured = validate(input, cwd, ['--layout-json']);
+  assert.equal(measured.result.status, 0, measured.result.stdout);
+  const points = measured.receipt.connections[0].points;
+  diagram.connections[0].via = [[points[0][0], 60], [points.at(-1)[0], 60]];
+  fs.writeFileSync(input, JSON.stringify(diagram));
+  const repaired = validate(input, cwd, ['--layout-json']);
+  assert.equal(repaired.result.status, 0, repaired.result.stdout);
+  assert.equal(points[0][0], 140.5);
+  assert.equal(points.at(-1)[0], 400.5);
+});
+
 test('delivered Architecture review names a node blocking the direct main corridor', t => {
   const { cwd, input, diagram } = setup(t, [[50, 100], [250, 100], [450, 100]], [680, 320]);
   diagram.connections = [{ from: 'n0', to: 'n2', fromSide: 'right', toSide: 'left' }];
