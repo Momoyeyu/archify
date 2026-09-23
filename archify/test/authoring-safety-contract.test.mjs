@@ -43,7 +43,7 @@ test('visual-check stays a pending sidecar receipt instead of a polish claim', (
     path.join(skillRoot, 'references', 'delivery-contract.md'),
     'utf8',
   );
-  assert.match(skill, /Run `visual-check` on the finalized artifact/);
+  assert.match(skill, /Run `node bin\/archify\.mjs visual-check <output\.html> --summary --require-provenance`/);
   assert.match(skill, /machine-readable browser evidence[\s\S]*perceptual review/i);
   assert.match(skill, /references\/delivery-contract\.md/);
   assert.match(skill, /without (?:rerendering or )?modifying/i);

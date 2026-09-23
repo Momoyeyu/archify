@@ -10,7 +10,8 @@ fact has supporting source evidence.
 1. **Freeze identity.** From the target repository, record `git rev-parse
    HEAD`, `git remote get-url origin`, and `git status --short`. Remove HTTP(S)
    userinfo (including usernames, passwords, and tokens) before recording the
-   origin or placing it in the candidate. Pin the credential-free URL and
+   origin or placing it in the candidate. Preserve its transport, port, path and
+   `.git` suffix; do not rewrite an internal SSH origin as HTTPS. Pin the credential-free URL and
    forty-character revision in `meta.repository`; use `link_mode: "local-only"`
    for a local fixture whose HTTPS URL is only a repository identity. If the
    worktree is dirty, record the changed paths. Repository evidence is verified
