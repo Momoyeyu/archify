@@ -12,6 +12,8 @@ metadata:
 
 Create an interactive HTML diagram from typed JSON. Static output is the default; enable motion only when requested.
 
+Run commands from your working directory, keeping candidate JSON and output artifacts there. Replace `bin/archify.mjs` in the commands below with the installed package's absolute path, or its path relative to your working directory; input and output paths resolve from that working directory.
+
 For a real codebase, read [Repository authoring](references/repository-authoring.md) for exploration and example selection. A system description uses the steps below; an existing JSON uses the handoff path.
 
 ## Existing candidate handoff

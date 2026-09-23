@@ -1321,6 +1321,44 @@ test('architecture: measured auto canvases opt into height-aware reader fitting'
   assert.doesNotMatch(authoredSvg, /data-reader-min-text=/);
 });
 
+// Sequence and dataflow share the lifecycle/architecture contract: the default
+// canvas is below the wide ratio, so omitting meta.viewBox must declare the
+// intrinsic-height fit or every default canvas certainly overflows 1440x900.
+for (const [mode, doc, authoredViewBox] of [
+  ['sequence', {
+    schema_version: 1, diagram_type: 'sequence',
+    meta: { title: 'Ping', output: 'seq.html' },
+    participants: [{ id: 'a', type: 'external', label: 'Client' }, { id: 'b', type: 'backend', label: 'Server' }],
+    messages: [{ from: 'a', to: 'b', y: 160, label: 'ping' }],
+  }, [1080, 560]],
+  ['dataflow', {
+    schema_version: 1, diagram_type: 'dataflow',
+    meta: { title: 'Pipe', output: 'df.html' },
+    stages: [{ label: 'In' }, { label: 'Out' }],
+    nodes: [
+      { id: 'a', type: 'frontend', label: 'Client', stage: 0, row: 0 },
+      { id: 'b', type: 'database', label: 'Store', stage: 1, row: 0 },
+    ],
+    flows: [{ from: 'a', to: 'b', label: 'write' }],
+  }, [1080, 520]],
+]) {
+  test(`${mode}: default canvas declares intrinsic-height fit, authored viewBox does not`, () => {
+    const automatic = render(mode, doc);
+    assert.equal(automatic.code, 0, automatic.stderr);
+    const automaticSvg = fs.readFileSync(automatic.outPath, 'utf8').match(/<svg\b[^>]*>/)?.[0];
+    assert.ok(automaticSvg, `expected an SVG root for the default ${mode} canvas`);
+    assert.match(automaticSvg, /data-reader-fit="intrinsic-height"/);
+
+    const authored = structuredClone(doc);
+    authored.meta.viewBox = authoredViewBox;
+    const pinned = render(mode, authored);
+    assert.equal(pinned.code, 0, pinned.stderr);
+    const authoredSvg = fs.readFileSync(pinned.outPath, 'utf8').match(/<svg\b[^>]*>/)?.[0];
+    assert.ok(authoredSvg, `expected an SVG root for the authored ${mode} canvas`);
+    assert.doesNotMatch(authoredSvg, /data-reader-fit=/);
+  });
+}
+
 // Boundary-title fonts are resolved against the same width the canvas actually
 // renders into. When a connection label alone widens the auto canvas past the
 // desktop reader width, the title font must rise with it — otherwise validate

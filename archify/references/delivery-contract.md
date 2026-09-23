@@ -367,9 +367,11 @@ The receipt binds the artifact SHA-256 and byte count, identifies
 `visualReview: "not-requested"`.
 
 Horizontal overflow always fails. Vertical overflow normally fails as well. One
-bounded exception preserves readability for compiler-measured intrinsic-height
-diagrams: after the adaptive Reader reaches its projected text floor and exposes
-`data-reader-layout="adaptive"` with `data-reader-overflow="authored"`, normal
+bounded exception preserves readability for renderer-owned canvases that declare
+intrinsic-height (omitted `meta.viewBox`, whether compiler-measured or the
+type's default canvas): after the adaptive Reader reaches its projected text
+floor and exposes `data-reader-layout="adaptive"` with
+`data-reader-overflow="authored"`, normal
 page-level vertical scrolling may pass. The SVG must also expose
 `data-reader-fit="intrinsic-height"`, projected text must still pass, and the
 receipt records `verticalScrollAccepted: true` with
