@@ -751,8 +751,24 @@ function validateArchitecture() {
   // Connection labels must not land on top of components.
   const labelRects = connectionLabels;
   for (const rect of labelRects) {
-    for (const c of components.values()) {
-      if (rectsOverlap(rect, c, -2)) {
+    const blockedComponents = [...components.values()].filter(c => rectsOverlap(rect, c, -2));
+    const labelPinned = ['labelAt', 'labelDx', 'labelDy', 'labelSegment'].some(key => rect.relation[key] !== undefined);
+    const points = pathFor(rect.relation).points;
+    const shortHorizontalGap = points.length === 2 && Math.abs(points[0][1] - points[1][1]) < 0.0001
+      ? Math.abs(points[1][0] - points[0][0]) : null;
+    const requiredGap = Math.ceil(rect.width + 16);
+    if (arch.meta?.quality_profile === 'showcase' && !labelPinned && blockedComponents.length
+        && shortHorizontalGap != null && shortHorizontalGap < requiredGap) {
+      const message = `Label "${rect.label}" has only ${Math.round(shortHorizontalGap)}px between "${rect.relation.from}" and "${rect.relation.to}"; it needs at least ${requiredGap}px to stay beside its route — increase that clear gap or place the connected nodes on another readable row, preserving the label.`;
+      problems.push(message);
+      diagnostics.push({
+        code: 'composition/label-gap', severity: 'error', message,
+        subject: { diagramType: 'architecture', collection: 'connections', id: rect.relation.id, from: rect.relation.from, to: rect.relation.to },
+        evidence: { clearGapPx: shortHorizontalGap, minimumGapPx: requiredGap, labelWidthPx: rect.width, obstacles: blockedComponents.map(c => c.id) },
+        supportedFixes: [`increase the clear gap between the connected nodes to at least ${requiredGap}px`, 'reposition the connected nodes together while preserving the full relationship label'],
+      });
+    } else {
+      for (const c of blockedComponents) {
         problems.push(`Label "${rect.label}" overlaps component "${c.id}" — adjust labelDx/labelDy/labelSegment or set labelAt.\n${suggestLabelObstacleFix(rect, rect.lx, rect.ly, c, 'component', viewBox, components.values())}`);
       }
     }

@@ -462,6 +462,17 @@ a capable environment.
 
 `browser-check` applies the same private-snapshot, identity, ownership, and no-clobber rules to its single JSON receipt. Its namespace is separate from `visual-check`, so a browser-only rerun cannot remove capture evidence.
 
+## A new candidate at an existing output path
+
+Browser evidence belongs to exact artifact bytes. After editing a candidate whose previous HTML already has browser evidence, choose a fresh evidence directory before running the next `finalize`; this preserves the old receipts and captures without an avoidable ownership-conflict retry:
+
+```bash
+node bin/archify.mjs finalize architecture candidate.json diagram.html --quality showcase --repo-root <root> --out-dir diagram.review-2 --json
+node bin/archify.mjs visual-check diagram.html --out-dir diagram.review-2 --json --require-provenance
+```
+
+Keep the requested HTML path stable. Use a new revision directory for each changed candidate, and retain the same directory for retries of unchanged bytes. For a diagram without repository evidence, omit `--repo-root`. Let the commands create their output directory. A prior validation failure that produced no HTML or browser evidence needs no new directory. Never remove unknown evidence to make a retry pass.
+
 ## Optional opening
 
 Add `--open` only when the user wants an immediate local preview. It runs after
