@@ -48,6 +48,42 @@ test('architecture: automatic side changes keep incoming arrowheads distinct', (
   }
 });
 
+test('architecture: wide incoming arrows reserve a whole side before routing', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-wide-ports-'));
+  try {
+    for (const { widths, height } of [
+      { widths: [4, 4], height: 68 },
+      { widths: [4, 4], height: 72 },
+      { widths: [4, 1, 4], height: 80 },
+    ]) {
+      const components = widths.map((_, index) => ({
+        id: `source-${index}`, type: 'backend', label: `Source ${index}`,
+        pos: [40, 40 + index * 140], size: [120, 68],
+      }));
+      components.push({ id: 'hub', type: 'backend', label: 'Hub', pos: [600, 140], size: [180, height] });
+      const connections = widths.map((width, index) => ({
+        id: `edge-${index}`, from: `source-${index}`, to: 'hub', toSide: 'left', width,
+      }));
+      for (const ordered of [connections, [...connections].reverse()]) {
+        const input = path.join(tmp, 'wide.json');
+        fs.writeFileSync(input, JSON.stringify({ schema_version: 1, diagram_type: 'architecture',
+          meta: { title: 'Wide incoming arrows', output: 'wide.html', quality_profile: 'showcase' },
+          components, connections: ordered,
+        }));
+        const result = layout(input);
+        assert.equal(result.ok, true, JSON.stringify(result.diagnostics));
+        const tips = new Map(result.connections.map((conn) => [conn.from, conn.points.at(-1)]));
+        for (let index = 1; index < connections.length; index += 1) {
+          const distance = Math.abs(tips.get(`source-${index}`)[1] - tips.get(`source-${index - 1}`)[1]);
+          assert.ok(distance >= 3.5 * (widths[index] + widths[index - 1]), `colliding arrows: ${distance}px`);
+        }
+      }
+    }
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 // These candidates are unmodified first drafts from the repair study: authors
 // declared no route controls, yet the router accepted routes that the
 // showcase composition gate then rejected (a frame border used as a corridor,

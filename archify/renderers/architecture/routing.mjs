@@ -579,7 +579,14 @@ export function createRouter(components, connections = [], {
 
   const pathCache = new Map();
   const selectedSides = new Map();
-  const automaticPorts = automaticPortSpread(connections, components);
+  const stroke = (relation) => relation.width || (relation.variant === 'emphasis' ? 1.8 : 1.5);
+  const markerSpacing = (left, right) => 3.5 * (stroke(left) + stroke(right));
+  const portSpacing = (left, right) => Math.max(14, markerSpacing(left, right) + 3.5);
+  const automaticPorts = automaticPortSpread(connections, components,
+    // Preserve the established initial placement for ordinary markers; only
+    // widen groups whose arrowheads cannot fit the legacy 14px slots.
+    distinctAutomaticPorts ? { spacingFor: (left, right) =>
+      markerSpacing(left, right) > 14 ? portSpacing(left, right) : 14 } : {});
   const incidentEndpoints = new Map();
   for (const conn of connections) {
     if (!components.has(conn.from) || !components.has(conn.to)) continue;
@@ -635,8 +642,7 @@ export function createRouter(components, connections = [], {
       const point = routed
         ? (field === 'from' ? routed.points[0] : routed.points.at(-1))
         : automaticPorts.get(other)?.[field] || anchor(rect, side);
-      const stroke = (relation) => relation.width || (relation.variant === 'emphasis' ? 1.8 : 1.5);
-      occupied.push({ value: point[axis], spacing: Math.max(14, 3.5 * (stroke(conn) + stroke(other)) + 3.5) });
+      occupied.push({ value: point[axis], spacing: portSpacing(conn, other) });
     }
     if (!occupied.length) return { point: preferred, spread: Boolean(initial) };
     const candidates = [preferred[axis], ...occupied.flatMap(({ value, spacing }) => [value - spacing, value + spacing])]

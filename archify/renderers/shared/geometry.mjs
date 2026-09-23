@@ -1473,7 +1473,7 @@ export function automaticPortRhythmBridge(
 // Keep conservative auto-routed fan-out/fan-in relationships visually
 // distinct without changing authored route controls. The returned map only
 // contains endpoints that belong to a shared automatic midpoint anchor.
-export function automaticPortSpread(relations, boxes, { gutter = 16, maxSpacing = 14, sideFor } = {}) {
+export function automaticPortSpread(relations, boxes, { gutter = 16, maxSpacing = 14, sideFor, spacingFor } = {}) {
   const groups = new Map();
   const spread = new Map();
 
@@ -1519,8 +1519,22 @@ export function automaticPortSpread(relations, boxes, { gutter = 16, maxSpacing 
     const spacing = Math.min(maxSpacing, usable / (items.length - 1));
     if (!(spacing > 0)) continue;
 
+    // Width-aware callers reserve the whole group together. Moving a single
+    // port around the legacy 14px slots can wrongly report a full side while
+    // its still-unrouted neighbours could have fitted farther apart.
+    let offsets;
+    if (spacingFor) {
+      const gaps = items.slice(1).map((item, index) => Math.max(maxSpacing,
+        spacingFor(items[index].relation, item.relation)));
+      const span = gaps.reduce((sum, gap) => sum + gap, 0);
+      if (span <= usable && gaps.some((gap) => gap > maxSpacing)) {
+        let offset = -span / 2;
+        offsets = [offset, ...gaps.map((gap) => (offset += gap))];
+      }
+    }
+
     for (const [index, item] of items.entries()) {
-      const offset = (index - (items.length - 1) / 2) * spacing;
+      const offset = offsets?.[index] ?? (index - (items.length - 1) / 2) * spacing;
       const point = anchor(item.rect, item.side);
       if (verticalSide) point[1] += offset;
       else point[0] += offset;
