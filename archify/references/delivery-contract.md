@@ -366,20 +366,20 @@ The receipt binds the artifact SHA-256 and byte count, identifies
 `evidenceKind: "automated-browser"`, and reports
 `visualReview: "not-requested"`.
 
-Horizontal overflow always fails. Vertical overflow normally fails as well. One
-bounded exception preserves readability for renderer-owned canvases that declare
-intrinsic-height (omitted `meta.viewBox`, whether compiler-measured or the
-type's default canvas): after the adaptive
-Reader reaches its projected text floor and exposes
-`data-reader-layout="adaptive"` with
-`data-reader-overflow="authored"`, normal
-page-level vertical scrolling may pass. The SVG must also expose
-`data-reader-fit="intrinsic-height"`, projected text must still pass, and the
-receipt records `verticalScrollAccepted: true` with
-`overflowDisposition: "readable-vertical-scroll"`. Missing declarations,
-explicit authored viewBoxes, horizontal overflow, unreadable text, clipping, and
-Viewer chrome collisions remain failures. Do not add an internal diagram
-scroller or hide overflow.
+Horizontal overflow always fails. Normal document-level vertical scrolling is
+accepted only with a renderer-declared contract and measured readable text.
+Automatic canvases declare `data-reader-fit="intrinsic-height"`; their adaptive
+Reader must reach its readable width and expose `data-reader-overflow="authored"`.
+Architecture with an explicit `meta.viewBox` instead declares
+`data-diagram-type="architecture"` and `data-reader-fit="authored-height"`:
+its SVG coordinates, aspect ratio and existing Reader width behavior stay
+unchanged. Its full SVG must remain inside the diagram panel without internal
+scrolling or clipping, and the document must permit vertical scrolling.
+The receipt records `verticalScrollAccepted: true` and
+`overflowDisposition: "readable-vertical-scroll"`. Missing or unknown declarations,
+explicit viewBoxes in other modes, unreadable text, horizontal overflow,
+clipping and Viewer chrome collisions remain failures. Do not add an internal
+diagram scroller or hide overflow.
 
 `browser_evidence` in the handoff records only the outcome of this automated
 command:

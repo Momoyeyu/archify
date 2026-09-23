@@ -935,9 +935,11 @@ function renderSvg() {
   // An automatic architecture canvas is compiler-measured geometry. Let the
   // Reader spend the real desktop height budget on it, including when an
   // outer route makes the canvas taller than the ordinary wide-diagram
-  // threshold. Authored viewBoxes remain authoritative and keep the
-  // established Viewer contract.
-  const readerFit = arch.meta?.viewBox ? '' : ' data-reader-fit="intrinsic-height"';
+  // threshold. Authored viewBoxes keep their geometry and existing Reader width policy;
+  // their declared height may use readable document scrolling without reflow.
+  const readerFit = arch.meta?.viewBox
+    ? ' data-diagram-type="architecture" data-reader-fit="authored-height"'
+    : ' data-reader-fit="intrinsic-height"';
   // A complete repository architecture is allowed to use normal page scroll;
   // keep its common-desktop text at a comfortable reading size instead of
   // shrinking a semantically rich graph to the universal emergency floor.

@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import { createHash } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import {
   FINALIZE_STAGES,
@@ -426,6 +428,137 @@ test('finalize fails closed when a stage exits zero without a valid passing rece
     assert.equal(finalized.receipt.failedStage, 'deliver');
     assert.equal(finalized.summary.diagnostics[0].code, 'finalize/invalid-stage-receipt');
   }
+});
+
+test('showcase delivery warnings name the checker issue without advancing to later gates', async t => {
+  const directory = workspace(t);
+  const input = path.join(directory, 'diagram.json');
+  const output = path.join(directory, 'diagram.html');
+  const source = '{"meta":{"quality_profile":"showcase"}}';
+  fs.writeFileSync(input, source);
+  const calls = [];
+  const issue = {
+    severity: 'warning', code: 'composition/viewport-height',
+    viewBoxHeight: 700, overflowPx: 193,
+    detail: '[composition/viewport-height] Preserve every node and compact vertical spacing to fit the Reader.',
+  };
+  const finalized = await runFinalize({
+    cliPath: '/fake/archify.mjs', type: 'architecture', input, output,
+    runCommand: ({ stage }) => {
+      calls.push(stage);
+      const delivery = passingDelivery({ input, output, source });
+      delivery.validation.warnings = 1;
+      delivery.validation.compositionIssues = [issue];
+      return result(delivery);
+    },
+  });
+
+  assert.equal(finalized.exitCode, 1);
+  assert.deepEqual(calls, ['deliver']);
+  assert.equal(finalized.receipt.failedStage, 'deliver');
+  assert.equal(finalized.summary.gates.deliver, 'fail');
+  assert.equal(finalized.summary.gates.check, 'not-run');
+  assert.equal(finalized.summary.diagnostics[0].code, issue.code);
+  assert.equal(finalized.summary.diagnostics[0].evidence.overflowPx, 193);
+  assert.match(finalized.summary.diagnostics[0].supportedFixes[0], /compact vertical spacing/);
+  assert.equal(finalized.summary.diagnostics[0].evidence.reportedSeverity, 'warning');
+  assert.equal(JSON.parse(fs.readFileSync(finalized.summary.evidence.receipt)).diagnostics[0].code, issue.code);
+});
+
+test('showcase warning diagnostic never masks a mismatched delivery artifact', async t => {
+  const directory = workspace(t);
+  const input = path.join(directory, 'diagram.json');
+  const output = path.join(directory, 'diagram.html');
+  const source = '{}';
+  fs.writeFileSync(input, source);
+  const finalized = await runFinalize({
+    cliPath: '/fake/archify.mjs', type: 'architecture', input, output,
+    runCommand: () => {
+      const delivery = passingDelivery({ input, output, source });
+      delivery.validation.warnings = 1;
+      delivery.validation.compositionIssues = [{
+        severity: 'warning', code: 'composition/viewport-height', detail: 'Reduce height.',
+      }];
+      delivery.artifact = artifactIdentity('another artifact');
+      return result(delivery);
+    },
+  });
+  assert.equal(finalized.exitCode, 1);
+  assert.equal(finalized.summary.diagnostics[0].code, 'finalize/artifact-binding-mismatch');
+});
+
+test('showcase warning count without matching issue details still fails with a quality diagnostic', async t => {
+  const directory = workspace(t);
+  const input = path.join(directory, 'diagram.json');
+  const output = path.join(directory, 'diagram.html');
+  const source = '{}';
+  fs.writeFileSync(input, source);
+  const calls = [];
+  const finalized = await runFinalize({
+    cliPath: '/fake/archify.mjs', type: 'workflow', input, output,
+    runCommand: ({ stage }) => {
+      calls.push(stage);
+      const delivery = passingDelivery({ input, output, source, type: 'workflow' });
+      delivery.validation.warnings = 1;
+      delivery.validation.compositionIssues = [{ severity: 'warning', code: 'composition/viewport-height' }];
+      return result(delivery);
+    },
+  });
+  assert.equal(finalized.exitCode, 1);
+  assert.deepEqual(calls, ['deliver']);
+  assert.equal(finalized.summary.diagnostics[0].code, 'finalize/showcase-warnings');
+  assert.equal(finalized.summary.diagnostics[0].evidence.warnings, 1);
+});
+
+test('public deliver and finalize CLI propagate a real workflow viewport warning', t => {
+  const directory = workspace(t);
+  const input = path.join(directory, 'warning.workflow.json');
+  const output = path.join(directory, 'warning.html');
+  const cli = fileURLToPath(new URL('../bin/archify.mjs', import.meta.url));
+  fs.writeFileSync(input, `${JSON.stringify({
+    schema_version: 1,
+    diagram_type: 'workflow',
+    meta: {
+      title: 'Viewport warning fixture', output: 'warning.html',
+      quality_profile: 'showcase', viewBox: [1080, 780], legend: { mode: 'hidden' },
+    },
+    lanes: [{ id: 'work', label: 'Work' }],
+    nodes: [
+      { id: 'start', lane: 'work', col: 0, type: 'frontend', label: 'Start' },
+      { id: 'finish', lane: 'work', col: 2, type: 'backend', label: 'Finish' },
+    ],
+    edges: [{ id: 'flow', from: 'start', to: 'finish' }],
+  }, null, 2)}\n`);
+  const run = (command) => spawnSync(process.execPath, [
+    cli, command, 'workflow', input, ...(command === 'validate' ? [] : [output]),
+    '--quality', 'showcase', '--json',
+  ], { encoding: 'utf8', timeout: 30000 });
+
+  const validated = run('validate');
+  assert.equal(validated.status, 0, validated.stderr || validated.stdout);
+  const validation = JSON.parse(validated.stdout);
+  assert.equal(validation.checks.length, 9);
+  assert.equal(validation.checks.every((check) => check.ok), true);
+  assert.deepEqual(validation.composition.summary, { errors: 0, warnings: 1 });
+
+  const delivered = run('deliver');
+  assert.equal(delivered.status, 0, delivered.stderr || delivered.stdout);
+  const delivery = JSON.parse(delivered.stdout);
+  assert.equal(delivery.validation.checksPassed, 9);
+  assert.equal(delivery.validation.errors, 0);
+  assert.equal(delivery.validation.warnings, 1);
+  assert.equal(delivery.validation.compositionIssues.length, 1);
+  assert.equal(delivery.validation.compositionIssues[0].code, 'composition/viewport-height');
+
+  const finalized = run('finalize');
+  assert.equal(finalized.status, 1, finalized.stderr || finalized.stdout);
+  const summary = JSON.parse(finalized.stdout);
+  assert.equal(summary.failedStage, 'deliver');
+  assert.equal(summary.gates.check, 'not-run');
+  assert.equal(summary.diagnostics[0].code, 'composition/viewport-height');
+  assert.equal(summary.diagnostics[0].evidence.overflowPx, validation.composition.issues[0].overflowPx);
+  assert.match(summary.diagnostics[0].supportedFixes[0], /meta\.viewBox height/);
+  assert.equal(JSON.parse(fs.readFileSync(summary.evidence.receipt)).diagnostics[0].code, 'composition/viewport-height');
 });
 
 test('finalize rejects an interleaved delivery whose check proves another artifact and receipt', async t => {

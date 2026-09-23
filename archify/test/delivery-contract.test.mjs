@@ -55,7 +55,9 @@ test('required browser evidence stays deterministic and capture-free', () => {
   assert.match(browserSection, /1440×900, 1600×1000, 1920×1080, and\s+2048×1320/);
   assert.match(browserSection, /creates one\s+`<output-stem>\.browser-check\.json` receipt and no screenshots or contact sheet/i);
   assert.match(browserSection, /visualReview: "not-requested"/);
-  assert.match(browserSection, /Reader reaches its projected text floor/i);
+  assert.match(browserSection, /Reader must reach its readable width/i);
+  assert.match(browserSection, /Architecture with an explicit `meta.viewBox`[\s\S]*data-reader-fit="authored-height"/);
+  assert.match(browserSection, /explicit viewBoxes in other modes[\s\S]*remain failures/);
 });
 
 test('delivery, browser evidence, capture evidence, and perceptual review remain distinct', () => {

@@ -1317,7 +1317,8 @@ test('architecture: measured auto canvases opt into height-aware reader fitting'
   assert.equal(pinned.code, 0, pinned.stderr);
   const authoredSvg = fs.readFileSync(pinned.outPath, 'utf8').match(/<svg\b[^>]*>/)?.[0];
   assert.ok(authoredSvg, 'expected an SVG root for the authored canvas');
-  assert.doesNotMatch(authoredSvg, /data-reader-fit=/);
+  assert.match(authoredSvg, /data-reader-fit="authored-height"/);
+  assert.match(authoredSvg, /data-diagram-type="architecture"/);
   assert.doesNotMatch(authoredSvg, /data-reader-min-text=/);
 });
 

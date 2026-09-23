@@ -159,7 +159,7 @@ function validBrowserEvidence(receipt) {
         && entry.resolvedTheme === expected.theme);
 }
 
-function validDeliveryValidation(receipt, quality) {
+function validDeliveryValidation(receipt, quality, { allowShowcaseWarnings = false } = {}) {
   const validation = receipt?.validation;
   return isReceiptObject(validation)
     && Number.isInteger(validation.checkCount)
@@ -168,10 +168,10 @@ function validDeliveryValidation(receipt, quality) {
     && validation.compositionStatus === 'pass'
     && validation.errors === 0
     && validation.compositionProfile === quality
-    && (quality !== 'showcase' || validation.warnings === 0);
+    && (quality !== 'showcase' || allowShowcaseWarnings || validation.warnings === 0);
 }
 
-function validStageReceipt(stage, receipt, quality) {
+function validStageReceipt(stage, receipt, quality, options) {
   if (!isReceiptObject(receipt) || receipt.ok !== true) return false;
   if (receipt.status && receipt.status !== 'pass') return false;
   if (stage === 'validate') return receipt.command === 'validate' && Array.isArray(receipt.checks);
@@ -182,7 +182,7 @@ function validStageReceipt(stage, receipt, quality) {
       && isReceiptObject(receipt.specification)
       && validIdentity(receipt.specification)
       && validIdentity(receipt.artifact)
-      && validDeliveryValidation(receipt, quality);
+      && validDeliveryValidation(receipt, quality, options);
   }
   if (stage === 'check') {
     return validIdentity(receipt.artifact)
@@ -219,6 +219,35 @@ function identityMismatchDiagnostic({ stage, expected, actual, expectedReceiptId
     },
     supportedFixes: ['finish other delivery attempts for this output, then rerun finalize from the frozen candidate'],
   };
+}
+
+function showcaseWarningDiagnostics(receipt) {
+  const issues = receipt.validation.compositionIssues;
+  const warnings = receipt.validation.warnings;
+  if (!Array.isArray(issues) || issues.length !== warnings
+      || !issues.every((issue) => isReceiptObject(issue)
+        && issue.severity === 'warning'
+        && typeof issue.code === 'string'
+        && issue.code.startsWith('composition/')
+        && typeof issue.detail === 'string' && issue.detail.trim())) {
+    return [{
+      code: 'finalize/showcase-warnings', severity: 'error',
+      message: `Showcase delivery reported ${warnings} composition warning(s), but did not provide matching issue details.`,
+      subject: { stage: 'deliver', check: 'composition' },
+      evidence: { warnings, reportedIssues: Array.isArray(issues) ? issues.length : null },
+      supportedFixes: ['run validate on the frozen candidate to inspect the composition warnings, repair them, then rerun finalize'],
+    }];
+  }
+  return issues.map((issue) => {
+    const { code, severity, detail, ...evidence } = issue;
+    return {
+      code, severity: 'error',
+      message: `Showcase delivery reported ${code}; zero warnings are required.`,
+      subject: { stage: 'deliver', check: 'composition', ...(issue.nodeId ? { nodeId: issue.nodeId } : {}) },
+      evidence: { reportedSeverity: severity, ...evidence },
+      supportedFixes: [detail.replace(/^\[[^\]]+\]\s*/, '')],
+    };
+  });
 }
 
 function stageBindingDiagnostic({ stage, receipt, expectedArtifact, expectedReceiptId, output, specification, type, deliveryValidation }) {
@@ -689,6 +718,14 @@ export async function runFinalize({
           deliveryValidation: deliveryReceipt?.validation,
         });
         if (bindingDiagnostic) stageDiagnostics = [bindingDiagnostic];
+      } else if (stage === 'deliver' && code === 0 && quality === 'showcase'
+          && Number.isSafeInteger(stageReceipt?.validation?.warnings)
+          && stageReceipt.validation.warnings > 0
+          && validStageReceipt(stage, stageReceipt, quality, { allowShowcaseWarnings: true })) {
+        const bindingDiagnostic = stageBindingDiagnostic({
+          stage, receipt: stageReceipt, output: resolvedOutput, specification, type,
+        });
+        stageDiagnostics = bindingDiagnostic ? [bindingDiagnostic] : showcaseWarningDiagnostics(stageReceipt);
       }
       if (stageDiagnostics) {
         status = 'fail';

@@ -4861,6 +4861,9 @@ async function commandDeliver(args) {
         ...(engineeringProfile ? { engineeringProfile } : {}),
         errors: result.composition.summary.errors,
         warnings: result.composition.summary.warnings,
+        ...(result.composition.summary.warnings ? {
+          compositionIssues: result.composition.issues.filter((issue) => issue.severity === 'warning'),
+        } : {}),
       },
       ...(sourceEvidence ? {
         evidence: {
