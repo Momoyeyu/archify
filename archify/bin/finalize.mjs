@@ -552,6 +552,15 @@ export function compactFinalizeReceipt(receipt) {
       } : {}),
     };
   }
+  const leadingSpace = receipt.stages?.check?.receipt?.composition?.leadingSpace;
+  if (receipt.ok && leadingSpace?.reviewSuggested === true) {
+    compact.layoutReviewRecommendation = {
+      action: 'inspect-leading-space',
+      evidence: leadingSpace,
+      reason: 'Measured content, including routes and labels, leaves a large empty area above the diagram. This is a composition suggestion, not a failed gate.',
+      repair: 'Check whether that leading space is intentional. If not, reposition the connected scene nearer the canvas origin while retaining room for its actual boundaries, labels and return routes. Preserve all meaning and user-fixed geometry, then rerun finalize. No screenshot is required.',
+    };
+  }
   if (!receipt.ok && receipt.status === 'fail' && receipt.failedStage === 'validate') {
     compact.nextAction = {
       action: 'edit-in-place',

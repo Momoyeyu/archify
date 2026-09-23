@@ -163,6 +163,10 @@ if (svgMatches.length === 1) {
     routedRelations: routedRelationships.filter((entry) => entry.relation.independentPorts),
   });
   const relationshipLabels = collectRelationshipLabelMasks(beforeLegend, arrows);
+  const leadingSpace = collectArchitectureLeadingSpace({
+    svgAttrs, fragment: beforeLegend, nodeRects, frames: compositionFrames,
+    arrows, labels: relationshipLabels,
+  });
   const labelClearanceThreshold = qualityProfile === 'showcase' ? 4 : 2;
   const labelRouteMeasurements = collectLabelRouteClearance({
     labels: relationshipLabels,
@@ -248,6 +252,7 @@ if (svgMatches.length === 1) {
         }] : [];
       }),
     },
+    leadingSpace,
     desktopReadability: desktopReadability.evidence,
     issues: [
       ...containerBorderRuns.map((hit) => ({
@@ -675,6 +680,59 @@ function collectCompositionFrames(fragment) {
     }
   }
   return frames;
+}
+
+// Evidence for author review only. Automatic Architecture is identifiable by
+// its intrinsic Reader contract; authored canvases must retain their geometry.
+function collectArchitectureLeadingSpace({ svgAttrs, fragment, nodeRects, frames, arrows, labels }) {
+  const evidence = { measured: false, reviewSuggested: false };
+  if (svgAttrs['data-reader-fit'] !== 'intrinsic-height'
+      || svgAttrs['data-reader-primary-text'] !== '14'
+      || svgAttrs.transform
+      || [...fragment.matchAll(/<g\b[^>]*\btransform\s*=[^>]*>/gi)]
+        .some((match) => !/\bdata-semantic-sigil=/.test(match[0]))
+      || /<(?:path|line|rect|text)\b[^>]*\btransform\s*=/i.test(fragment)) return evidence;
+  const [originX, originY, width, height] = viewBoxRect(svgAttrs);
+  if (![originX, originY, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return evidence;
+  const nodeCount = [...fragment.matchAll(/<g\b[^>]*\bdata-node-id=/gi)].length;
+  if (!nodeRects.length || nodeRects.length !== nodeCount) return evidence;
+  const semanticArrows = arrows.filter((arrow) => arrow.from && arrow.to);
+  if (semanticArrows.some((arrow) => !arrow.routePoints.length)) return evidence;
+
+  const occupied = nodeRects.map((node) => node.box[1]);
+  for (const frame of frames) {
+    const top = frame.shape === 'line'
+      ? Math.min(frame.start[1], frame.end[1]) : frame.y;
+    if (!Number.isFinite(top)) return evidence;
+    occupied.push(top);
+  }
+  // Boundary titles can protrude above their structural frame.
+  for (const match of fragment.matchAll(/<g\b[^>]*\bdata-graph-role="structural-frame-label"[^>]*>[\s\S]*?<rect\b[^>]*\bdata-graph-role="structural-frame-label-mask"[^>]*>/gi)) {
+    const rect = parseAttrs(match[0].match(/<rect\b[^>]*>/i)?.[0] || '');
+    const y = numberAttr(rect, 'y');
+    if (!Number.isFinite(y)) return evidence;
+    occupied.push(y);
+  }
+  for (const arrow of semanticArrows) {
+    for (const point of arrow.routePoints) occupied.push(point[1]);
+  }
+  for (const label of labels) occupied.push(label.rect.y);
+  if (!occupied.every(Number.isFinite)) return evidence;
+  const occupiedTop = Math.min(...occupied);
+  const gap = Math.max(0, occupiedTop - originY);
+  const heights = nodeRects.map((node) => node.box[3]).sort((a, b) => a - b);
+  const typicalNodeHeight = heights[Math.floor(heights.length / 2)];
+  const ratio = gap / height;
+  return {
+    measured: true,
+    emptyTopPx: Math.round(gap * 10) / 10,
+    emptyTopRatio: Math.round(ratio * 1000) / 1000,
+    occupiedTop: Math.round(occupiedTop * 10) / 10,
+    viewBoxTop: originY,
+    canvasHeight: height,
+    typicalNodeHeight,
+    reviewSuggested: gap > 2 * typicalNodeHeight && ratio > 0.2,
+  };
 }
 
 function frameName(frame) {

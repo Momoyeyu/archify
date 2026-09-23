@@ -281,6 +281,27 @@ test('compact success retains route-quality review signals without claiming perc
   assert.equal('visualReviewRecommendation' in uncomplicated, false);
 });
 
+test('compact leading-space advice preserves successful gates and optional visual review', () => {
+  const leadingSpace = { occupiedTop: 181, emptyTopPx: 181, canvasHeight: 576,
+    emptyTopRatio: 181 / 576, reviewSuggested: true };
+  const receipt = { ok: true, status: 'pass', diagnostics: [], stages: {
+    check: { status: 'pass', receipt: { composition: { leadingSpace } } },
+  } };
+  const compact = compactFinalizeReceipt(receipt);
+  assert.equal(compact.status, 'pass');
+  assert.equal(compact.gates.check, 'pass');
+  assert.deepEqual(compact.diagnostics, []);
+  assert.equal(compact.visualReview, 'not-requested');
+  assert.equal(compact.layoutReviewRecommendation.action, 'inspect-leading-space');
+  assert.deepEqual(compact.layoutReviewRecommendation.evidence, leadingSpace);
+  assert.match(compact.layoutReviewRecommendation.repair, /user-fixed geometry/);
+  assert.match(compact.layoutReviewRecommendation.repair, /No screenshot is required/);
+  leadingSpace.reviewSuggested = false;
+  assert.equal('layoutReviewRecommendation' in compactFinalizeReceipt(receipt), false);
+  leadingSpace.reviewSuggested = true;
+  assert.equal('layoutReviewRecommendation' in compactFinalizeReceipt({ ...receipt, ok: false, status: 'fail' }), false);
+});
+
 test('compact success bounds review context and preserves relationship identity', () => {
   const crossings = Array.from({ length: 10 }, (_, index) => ({ left: { id: `edge-${index}` }, right: { id: 'hub' }, point: [index, 50] }));
   const detours = [{ relationship: { id: 'return', from: 'worker', to: 'api' }, bends: 4, stretch: 1.5,

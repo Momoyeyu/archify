@@ -263,6 +263,14 @@ truncated and its shown subjects and evidence cannot identify a coherent local
 repair, or when complete audit evidence was explicitly requested. The compact
 receipt reports `visualReview: "not-requested"`; the automated gate does not create images or require a perceptual reviewer. A compact `visualReviewRecommendation` retains positive crossover and route-detour metrics from the strict check so the author can apply the review escalation below without reading the full receipt. A recommendation does not change the machine exit code or claim that review happened. Its `affectedRoutes` identifies crossing pairs and detours (up to eight of each, with a truncation flag); the full strict-check `composition.routeReview` retains all affected relationships. Use these IDs to trace the routes in the captured default viewport. Detours may include `directCorridorBlockers`, identifying nodes between aligned endpoints. These are geometric review clues, not new validation failures or inferred main-path semantics. For a blocked main path or several tangled routes, follow [Architecture layout repair](architecture-layout-repair.md) and reflow the connected scene before tuning individual sides or labels. Preserve every semantic fact; retain unrelated positions only when their surrounding composition is already accepted.
 
+For a measured automatic Architecture with a large unused leading area, the
+compact receipt may include `layoutReviewRecommendation`. Its
+`composition.leadingSpace` evidence accounts for nodes, boundary titles,
+routes and labels. Check whether that space is intentional; if not, reposition
+the connected scene while preserving meaning and user-fixed geometry, then
+finalize again. This suggestion changes no gate or exit status and requires
+no screenshot. A fixed canvas or uncertain measurement receives no suggestion.
+
 A passing finalizer receipt is sufficient evidence for all four gates. Merely
 naming the gates or requiring each one to pass does not require replaying their
 standalone commands. Replay an individual command only when the request
