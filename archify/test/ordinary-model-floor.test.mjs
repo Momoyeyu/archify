@@ -930,7 +930,7 @@ test('packaged skill puts a bounded ordinary-model path before progressive featu
     'Do not read its full sidecar or rerun individual commands afterward',
     'A non-zero exit is never success',
     'Do not read `bin/` implementation',
-    'not prose coordinate exploration or whole-candidate replacement',
+    'reposition those nodes and their neighbors together',
     'After the edit, rerun the complete `finalize` command from step 4 once',
   ]) {
     assert.match(

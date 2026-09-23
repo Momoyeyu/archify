@@ -41,12 +41,14 @@ export function createRouter(components, connections = [], {
   microSegmentPx = 8,
   labelRectFor = null,
   distinctAutomaticPorts = false,
+  preferReadableRoutes = false,
 } = {}) {
   const frameBorders = frames.flatMap((frame) => frameBorderSegments(frame));
   const LABEL_CLEARANCE = 4;
   // Labels of already-routed relationships, reserved while planning the rest.
   let reservedLabels = [];
   let honourReservedLabels = true;
+  let allowGridSearch = true;
 
   function routeClearsReservedLabels(conn, points) {
     if (!honourReservedLabels) return true;
@@ -98,6 +100,8 @@ export function createRouter(components, connections = [], {
     maximumGridSearchCount: 64,
     gridBudgetExhaustedCount: 0,
     crossoverRoutedCount: 0,
+    readabilityCandidateCount: 0,
+    readabilityImprovedCount: 0,
     gridAttempts: [],
   };
 
@@ -488,6 +492,9 @@ export function createRouter(components, connections = [], {
         // Flow gate already knows violates the inferred endpoint directions.
         // This keeps ordinary multi-bend avoidance renderer-owned instead of
         // forcing the author to hand-place via points.
+        // Alternative endpoint pairs are cheap probes, not another grid-search
+        // budget. A legal short bridge often beats the first grid detour.
+        if (!allowGridSearch) return sideSafe[0] || sideAware[0] || horizontalFirst;
         if (planningMetrics.gridSearchCount >= planningMetrics.maximumGridSearchCount) {
           planningMetrics.gridBudgetExhaustedCount += 1;
           planningMetrics.conflictFallbackCount += 1;
@@ -746,6 +753,24 @@ export function createRouter(components, connections = [], {
       && !routeOverlapsResolved(conn, routed.points, resolvedRoutes);
   }
 
+  function crossingCount(conn, points, resolvedRoutes) {
+    return resolvedRoutes.reduce((total, entry) => total + Number(
+      !(relationshipsShareEndpoint(conn, entry.conn)
+        && (!distinctAutomaticPorts || hasAuthoredRouteGeometry(entry.conn) || entry.conn.labelAt || conn.labelAt))
+      && points.slice(1).some((end, index) => entry.points.slice(1).some((otherEnd, otherIndex) =>
+        properSegmentIntersection(points[index], end, entry.points[otherIndex], otherEnd))),
+    ), 0);
+  }
+
+  function readabilityCost(conn, routed, resolvedRoutes) {
+    const points = routed.points;
+    const length = points.slice(1).reduce((total, point, index) => total
+      + Math.abs(point[0] - points[index][0]) + Math.abs(point[1] - points[index][1]), 0);
+    // A crossover is a reading cost even with a halo. Keep it finite: avoiding
+    // one crossing must not justify an arbitrarily long perimeter excursion.
+    return length + Math.max(0, points.length - 2) * 48 + crossingCount(conn, points, resolvedRoutes) * 160;
+  }
+
   function computePath(conn, resolvedRoutes) {
     if (hasAuthoredRouteGeometry(conn)) {
       const sides = inferredConnectionSides(conn);
@@ -758,13 +783,17 @@ export function createRouter(components, connections = [], {
 
     let firstFallback = null;
     const clearRoute = () => {
+      let firstClear = null;
       for (const sides of candidateSidePairs(conn)) {
         const geometry = connectionGeometry(conn, sides);
         const routed = routedForGeometry(conn, resolvedRoutes, geometry);
         if (!firstFallback) firstFallback = { routed, sides };
-        if (routeIsClear(conn, routed, geometry, resolvedRoutes)) return { routed, sides };
+        if (routeIsClear(conn, routed, geometry, resolvedRoutes)) {
+          firstClear = { routed, sides };
+          break;
+        }
       }
-      return null;
+      return firstClear;
     };
     const routeLength = ({ routed }) => routed.points.slice(1)
       .reduce((total, point, index) => total + Math.abs(point[0] - routed.points[index][0]) + Math.abs(point[1] - routed.points[index][1]), 0);
@@ -821,6 +850,61 @@ export function createRouter(components, connections = [], {
         labels: reservedLabels.map((entry) => entry.rect),
       });
       if (rect) reservedLabels.push({ conn, rect });
+    }
+    // Improve against the complete set of routes, not only earlier edges.
+    // A greedy side change during the initial pass can steal a later edge's
+    // corridor. This bounded sweep only changes one route at a time, keeping
+    // every other route and label as an obstacle/reference.
+    if (preferReadableRoutes) {
+      const scenePoints = resolvedRoutes.flatMap((entry) => entry.points);
+      for (const rect of [...components.values(), ...frames, ...reservedLabels.map((entry) => entry.rect)]) {
+        scenePoints.push([rect.x, rect.y], [rect.x + rect.width, rect.y + rect.height]);
+      }
+      const bounds = {
+        left: Math.min(...scenePoints.map(([x]) => x)), right: Math.max(...scenePoints.map(([x]) => x)),
+        top: Math.min(...scenePoints.map(([, y]) => y)), bottom: Math.max(...scenePoints.map(([, y]) => y)),
+      };
+      const withinScene = ([x, y]) => x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom;
+      allowGridSearch = false;
+      try {
+        for (const entry of resolvedRoutes) {
+          const { conn } = entry;
+          if (hasAuthoredRouteGeometry(conn) || conn.labelAt) continue;
+          const others = resolvedRoutes.filter((other) => other !== entry);
+          // Preserve uncomplicated routes and their established inferred sides.
+          // Spend the comparison budget where the complete scene has a reading
+          // cost: a crossover or more than two bends.
+          if (entry.points.length <= 4 && crossingCount(conn, entry.points, others) === 0) continue;
+          let best = null;
+          let bestCost = readabilityCost(conn, { points: entry.points }, others);
+          for (const sides of candidateSidePairs(conn)) {
+            const geometry = connectionGeometry(conn, sides);
+            const routed = routedForGeometry(conn, others, geometry);
+            planningMetrics.readabilityCandidateCount += 1;
+            if (!routed.points.every(withinScene) || !routeIsClear(conn, routed, geometry, others)) continue;
+            const cost = readabilityCost(conn, routed, others);
+            if (cost < bestCost) {
+              const rect = labelRectFor?.(conn, routed.points, {
+                routes: [...others.map((other) => other.points), routed.points],
+                labels: reservedLabels.filter((label) => label.conn !== conn).map((label) => label.rect),
+              });
+              // A shorter route must not expand the canvas and shrink every
+              // label at the default viewport. Include its reserved label too.
+              if (rect && (!withinScene([rect.x, rect.y]) || !withinScene([rect.x + rect.width, rect.y + rect.height]))) continue;
+              best = { routed, sides, rect };
+              bestCost = cost;
+            }
+          }
+          if (!best) continue;
+          cachePath(conn, best.routed, best.sides);
+          entry.points = best.routed.points;
+          planningMetrics.readabilityImprovedCount += 1;
+          reservedLabels = reservedLabels.filter((label) => label.conn !== conn);
+          if (best.rect) reservedLabels.push({ conn, rect: best.rect });
+        }
+      } finally {
+        allowGridSearch = true;
+      }
     }
     planningMetrics.routeCount = resolvedRoutes.length;
     planningMetrics.explicitRouteCount = explicit.length;

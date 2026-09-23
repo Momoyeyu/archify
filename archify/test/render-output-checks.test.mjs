@@ -629,6 +629,13 @@ test('render output check: independent shared-endpoint crossings still recommend
   assert.equal(result.composition.metrics.routesOverSuggestedStretch, 0);
   const summary = compactFinalizeReceipt({ ok: true, stages: { check: { receipt: result } } });
   assert.deepEqual(summary.visualReviewRecommendation.signals, { resolvedCrossovers: 1 });
+  const affected = summary.visualReviewRecommendation.affectedRoutes;
+  assert.equal(affected.crossings.length, 1);
+  assert.equal(affected.crossings[0].left.id, 'first');
+  assert.equal(affected.crossings[0].right.id, 'second');
+  assert.deepEqual(affected.crossings[0].point, [120, 80]);
+  assert.deepEqual(affected.detours, []);
+  assert.equal(affected.truncated, false);
   assert.equal(summary.visualReview, 'not-requested');
   // A legacy/authored shared junction must keep its existing interpretation.
   for (const preserved of [

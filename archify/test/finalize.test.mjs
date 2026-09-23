@@ -279,6 +279,19 @@ test('compact success retains route-quality review signals without claiming perc
   assert.equal('visualReviewRecommendation' in uncomplicated, false);
 });
 
+test('compact success bounds review context and preserves relationship identity', () => {
+  const crossings = Array.from({ length: 10 }, (_, index) => ({ left: { id: `edge-${index}` }, right: { id: 'hub' }, point: [index, 50] }));
+  const detours = [{ relationship: { id: 'return', from: 'worker', to: 'api' }, bends: 4, stretch: 1.5 }];
+  const compact = compactFinalizeReceipt({ ok: true, stages: { check: { receipt: { composition: {
+    metrics: { resolvedCrossovers: 10, routesOverSuggestedBends: 1 }, routeReview: { crossings, detours },
+  } } } } });
+  assert.deepEqual(compact.visualReviewRecommendation.affectedRoutes, {
+    crossings: crossings.slice(0, 8), detours, truncated: true,
+  });
+  assert.equal(crossings.length, 10, 'compaction does not truncate the full evidence');
+  assert.equal(compact.visualReview, 'not-requested');
+});
+
 test('compact failure receipts retain diverse actionable subjects without embedding full stage evidence', () => {
   const diagnostics = Array.from({ length: 20 }, (_, index) => ({
     code: 'composition/proper-crossing',

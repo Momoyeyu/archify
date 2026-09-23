@@ -754,6 +754,23 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
           "segmentPx": 16,
           "microSegmentPx": 8
         },
+        "routeReview": {
+          "crossings": [],
+          "detours": [
+            {
+              "relationship": {
+                "id": "approval-check",
+                "from": "router",
+                "to": "approval",
+                "label": "needs approval?",
+                "collectionIndex": 0,
+                "artifactIndex": 1
+              },
+              "bends": 3,
+              "stretch": 1.184
+            }
+          ]
+        },
         "desktopReadability": {
           "budgetBasis": "legacy-930",
           "readerContract": "declared-wide-v1",
@@ -875,6 +892,10 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
           "stretch": 1.35,
           "segmentPx": 16,
           "microSegmentPx": 8
+        },
+        "routeReview": {
+          "crossings": [],
+          "detours": []
         },
         "desktopReadability": {
           "budgetBasis": "recognized-declared-wide",
@@ -1003,6 +1024,10 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
           "segmentPx": 16,
           "microSegmentPx": 8
         },
+        "routeReview": {
+          "crossings": [],
+          "detours": []
+        },
         "desktopReadability": {
           "budgetBasis": "legacy-930",
           "readerContract": "declared-wide-v1",
@@ -1124,6 +1149,10 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
           "stretch": 1.35,
           "segmentPx": 16,
           "microSegmentPx": 8
+        },
+        "routeReview": {
+          "crossings": [],
+          "detours": []
         },
         "desktopReadability": {
           "budgetBasis": "legacy-930",
@@ -1265,6 +1294,44 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
           "segmentPx": 16,
           "microSegmentPx": 8
         },
+        "routeReview": {
+          "crossings": [],
+          "detours": [
+            {
+              "relationship": {
+                "from": "page",
+                "to": "triage",
+                "label": "",
+                "collectionIndex": 1,
+                "artifactIndex": 2
+              },
+              "bends": 2,
+              "stretch": 1.8
+            },
+            {
+              "relationship": {
+                "from": "contain",
+                "to": "recover",
+                "label": "",
+                "collectionIndex": 3,
+                "artifactIndex": 4
+              },
+              "bends": 2,
+              "stretch": 1.914
+            },
+            {
+              "relationship": {
+                "from": "declare",
+                "to": "update",
+                "label": "",
+                "collectionIndex": 7,
+                "artifactIndex": 8
+              },
+              "bends": 3,
+              "stretch": 3.465
+            }
+          ]
+        },
         "desktopReadability": {
           "budgetBasis": "legacy-930",
           "readerContract": "declared-wide-v1",
@@ -1405,6 +1472,23 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
           "segmentPx": 16,
           "microSegmentPx": 8
         },
+        "routeReview": {
+          "crossings": [],
+          "detours": [
+            {
+              "relationship": {
+                "id": "consent-enrichment",
+                "from": "edge",
+                "to": "consent",
+                "label": "identity + consent",
+                "collectionIndex": 2,
+                "artifactIndex": 3
+              },
+              "bends": 3,
+              "stretch": 1.369
+            }
+          ]
+        },
         "desktopReadability": {
           "budgetBasis": "legacy-930",
           "readerContract": "declared-wide-v1",
@@ -1526,6 +1610,10 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
           "stretch": 1.35,
           "segmentPx": 16,
           "microSegmentPx": 8
+        },
+        "routeReview": {
+          "crossings": [],
+          "detours": []
         },
         "desktopReadability": {
           "budgetBasis": "legacy-930",
@@ -1667,6 +1755,22 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
           "segmentPx": 16,
           "microSegmentPx": 8
         },
+        "routeReview": {
+          "crossings": [],
+          "detours": [
+            {
+              "relationship": {
+                "from": "validate",
+                "to": "dlq",
+                "label": "invalid event",
+                "collectionIndex": 8,
+                "artifactIndex": 9
+              },
+              "bends": 4,
+              "stretch": 2.663
+            }
+          ]
+        },
         "desktopReadability": {
           "budgetBasis": "legacy-930",
           "readerContract": "declared-wide-v1",
@@ -1807,6 +1911,35 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
           "segmentPx": 16,
           "microSegmentPx": 8
         },
+        "routeReview": {
+          "crossings": [],
+          "detours": [
+            {
+              "relationship": {
+                "id": "failed-retry",
+                "from": "failed",
+                "to": "executing",
+                "label": "",
+                "collectionIndex": 3,
+                "artifactIndex": 5
+              },
+              "bends": 3,
+              "stretch": 3.267
+            },
+            {
+              "relationship": {
+                "id": "approval-cancelled",
+                "from": "approval",
+                "to": "cancelled",
+                "label": "",
+                "collectionIndex": 5,
+                "artifactIndex": 7
+              },
+              "bends": 3,
+              "stretch": 2.368
+            }
+          ]
+        },
         "desktopReadability": {
           "budgetBasis": "legacy-930",
           "readerContract": "declared-wide-v1",
@@ -1928,6 +2061,10 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
           "stretch": 1.35,
           "segmentPx": 16,
           "microSegmentPx": 8
+        },
+        "routeReview": {
+          "crossings": [],
+          "detours": []
         },
         "desktopReadability": {
           "budgetBasis": "legacy-930",
@@ -2068,6 +2205,23 @@ receipt 99 checks / 11 artifacts / deterministic hashes</pre>
           "stretch": 1.35,
           "segmentPx": 16,
           "microSegmentPx": 8
+        },
+        "routeReview": {
+          "crossings": [],
+          "detours": [
+            {
+              "relationship": {
+                "id": "jwt-verification",
+                "from": "auth",
+                "to": "api",
+                "label": "verify JWT",
+                "collectionIndex": 1,
+                "artifactIndex": 2
+              },
+              "bends": 3,
+              "stretch": 1
+            }
+          ]
         },
         "desktopReadability": {
           "budgetBasis": "recognized-declared-wide",

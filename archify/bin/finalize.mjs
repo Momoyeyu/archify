@@ -508,10 +508,19 @@ export function compactFinalizeReceipt(receipt) {
   ].filter((key) => Number.isFinite(metrics?.[key]) && metrics[key] > 0)
     .map((key) => [key, metrics[key]]));
   if (receipt.ok && Object.keys(reviewSignals).length) {
+    const routeReview = receipt.stages?.check?.receipt?.composition?.routeReview;
     compact.visualReviewRecommendation = {
       action: 'inspect-route-readability',
       signals: reviewSignals,
       reason: 'Automated gates passed, but crossings or detours still need perceptual review before claiming visual quality.',
+      ...(routeReview ? {
+        affectedRoutes: {
+          crossings: routeReview.crossings.slice(0, 8),
+          detours: routeReview.detours.slice(0, 8),
+          truncated: routeReview.crossings.length > 8 || routeReview.detours.length > 8,
+        },
+        repair: 'Trace these relationships at the desktop viewport. If several routes tangle around the same nodes, reposition that connected neighborhood together, preserving all semantics and unrelated geometry; rerun finalize once. Use a local side or label control only for an isolated remaining defect.',
+      } : {}),
     };
   }
   if (!receipt.ok && receipt.status === 'fail' && receipt.failedStage === 'validate') {

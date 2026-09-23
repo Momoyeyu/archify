@@ -313,6 +313,7 @@ function layoutBoundaryTitles(rawBoundaries, minimumFontSize) {
 const rawBoundaries = asArray(arch.boundaries).map(boundaryRect).filter(Boolean);
 const { pathFor, connectionSides, connectionEndpointSide } = createRouter(components, arch.connections, {
   distinctAutomaticPorts: true,
+  preferReadableRoutes: true,
   frames: rawBoundaries.map((boundary) => ({
     ...boundary,
     radius: boundary.kind === 'security-group' ? 8 : 12,

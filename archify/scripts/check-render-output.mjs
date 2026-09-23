@@ -226,6 +226,24 @@ if (svgMatches.length === 1) {
       ...roundedRouteMetrics(routeMetrics),
     },
     suggestedLimits: { bendsPerRelationship: 2, stretch: 1.35, segmentPx: 16, microSegmentPx: 8 },
+    // Perceptual review needs the affected relationships, not just a total.
+    // These are review evidence, not new pass/fail thresholds: a short, clear
+    // crossover can be preferable to a long crossing-free detour.
+    routeReview: {
+      crossings: resolvedCrossovers.map((hit) => ({
+        left: relationshipRecord(hit.left),
+        right: relationshipRecord(hit.right),
+        point: hit.point,
+      })),
+      detours: routedRelationships.flatMap((entry) => {
+        const metrics = routeBudgetMetrics({ routedRelations: [entry] });
+        return metrics.routesOverSuggestedBends || metrics.routesOverSuggestedStretch ? [{
+          relationship: relationshipRecord(entry.relation),
+          bends: metrics.maxBends,
+          stretch: metrics.maxStretch == null ? null : Math.round(metrics.maxStretch * 1000) / 1000,
+        }] : [];
+      }),
+    },
     desktopReadability: desktopReadability.evidence,
     issues: [
       ...containerBorderRuns.map((hit) => ({

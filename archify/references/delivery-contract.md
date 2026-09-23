@@ -261,7 +261,7 @@ Complete stage receipts and timings remain available for auditing in
 `<path>-summary.json`. Read the full receipt only when the compact summary is
 truncated and its shown subjects and evidence cannot identify a coherent local
 repair, or when complete audit evidence was explicitly requested. The compact
-receipt reports `visualReview: "not-requested"`; the automated gate does not create images or require a perceptual reviewer. A compact `visualReviewRecommendation` retains positive crossover and route-detour metrics from the strict check so the author can apply the review escalation below without reading the full receipt. A recommendation does not change the machine exit code or claim that review happened.
+receipt reports `visualReview: "not-requested"`; the automated gate does not create images or require a perceptual reviewer. A compact `visualReviewRecommendation` retains positive crossover and route-detour metrics from the strict check so the author can apply the review escalation below without reading the full receipt. A recommendation does not change the machine exit code or claim that review happened. Its `affectedRoutes` identifies crossing pairs and detours (up to eight of each, with a truncation flag); the full strict-check `composition.routeReview` retains all affected relationships. Use these IDs to trace the routes in the captured default viewport. When multiple defects share a hub, repair that connected neighborhood together before tuning individual sides or labels; preserve every semantic fact and unrelated geometry.
 
 A passing finalizer receipt is sufficient evidence for all four gates. Merely
 naming the gates or requiring each one to pass does not require replaying their
