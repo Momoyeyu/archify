@@ -1,5 +1,15 @@
 # Delivery contract
 
+## Failed finalize and candidate repair
+
+`finalize` stops at the first non-passing gate. Use compact stdout or `evidence.summaryReceipt`; read its full sidecar only when the summary lacks evidence needed for a coherent repair. A receipt with four artifact checks is basic validation, not showcase acceptance: require all nine checks, zero composition errors, and zero warnings. Fix `meta.quality_profile` and schema errors before geometry.
+
+For a validation failure, edit the existing JSON in the connected neighborhood named by diagnostics before rerunning a command. Preserve requested semantics, meaningful labels, source evidence, and fixed or agreed topology. Several routes sharing nodes call for one placement repair; read [Architecture layout repair](architecture-layout-repair.md) for that case. Reflow a blocked main path rather than nudging unrelated labels. Keep unrelated geometry when its composition already reads clearly. Use `--layout-json` before editing only when compact evidence lacks needed measurements. Workflow v2 uses its stable compiler receipt, not solver internals, as authoring evidence.
+
+After the edit, rerun the complete `finalize` command with `--quality showcase` and, for repository-backed work, `--repo-root <repo-root>`. If the output path already has browser evidence from another candidate, use a fresh `--out-dir <output-stem>.review-<revision>` for both the new `finalize` and any `visual-check`. Omit an earlier `--candidate-sha256` after editing because it binds the previous candidate. Compare diagnostics by code, subject, stage, and evidence, never by declining error count alone. If an issue survives two focused repairs, inspect measured geometry or the relevant contract; after one evidence-based retry, report the concrete gap.
+
+Use standalone `validate` only for focused diagnosis, passing `--repo-root` for repository-backed work. Its passing receipt marks `candidateFrozen: true`; run `nextAction.arguments`, replacing only `<output.html>`, without editing, revalidating, or rereading the candidate. Retry later environmental or evidence failures against those frozen bytes. A measured reason to edit creates a new candidate and calls for the complete `finalize` without the old hash.
+
 ## Validate and deliver
 
 `render` and direct renderer entry points print classified authoring failures

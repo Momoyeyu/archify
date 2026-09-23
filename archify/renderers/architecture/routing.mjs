@@ -13,6 +13,7 @@ import {
   properSegmentIntersection,
   routeHonorsEndpointSides,
   normalizeRoutePoints,
+  rectsOverlap,
   roundedPath,
   collectBorderRuns,
   collectRouteRhythmIssues,
@@ -102,6 +103,8 @@ export function createRouter(components, connections = [], {
     crossoverRoutedCount: 0,
     readabilityCandidateCount: 0,
     readabilityImprovedCount: 0,
+    reciprocalCandidateCount: 0,
+    reciprocalImprovedCount: 0,
     gridAttempts: [],
   };
 
@@ -632,6 +635,11 @@ export function createRouter(components, connections = [], {
     );
   }
 
+  function hasAuthoredLabelPlacement(conn) {
+    return ['labelAt', 'labelDx', 'labelDy', 'labelSegment']
+      .some((field) => conn?.[field] !== undefined);
+  }
+
   // A route can change sides after the initial port spread. Reserve slots on
   // the final side as well: falling back to its midpoint can put an arrow
   // between two existing slots, or directly on another incoming arrow.
@@ -865,11 +873,150 @@ export function createRouter(components, connections = [], {
         top: Math.min(...scenePoints.map(([, y]) => y)), bottom: Math.max(...scenePoints.map(([, y]) => y)),
       };
       const withinScene = ([x, y]) => x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom;
+      const jointlyImproved = new Set();
+      function improveReciprocalPairs() {
+        // A one-route sweep cannot repair reciprocal facing edges whose initial
+        // spread groups differ. Try both direct lanes together after final side
+        // geometry is known, leaving every other route and authored port in place.
+        const paired = new Set();
+        for (const first of resolvedRoutes) {
+          const conn = first.conn;
+          if (paired.has(conn) || hasAuthoredRouteGeometry(conn) || hasAuthoredLabelPlacement(conn)
+              || (conn.fromSide && conn.fromSide !== 'auto')
+              || (conn.toSide && conn.toSide !== 'auto')) continue;
+          const second = resolvedRoutes.find((entry) => entry !== first
+            && entry.conn.from === conn.to && entry.conn.to === conn.from
+            && !hasAuthoredRouteGeometry(entry.conn) && !hasAuthoredLabelPlacement(entry.conn)
+            && (!entry.conn.fromSide || entry.conn.fromSide === 'auto')
+            && (!entry.conn.toSide || entry.conn.toSide === 'auto'));
+          if (!second) continue;
+          paired.add(conn);
+          paired.add(second.conn);
+          const firstSides = inferredConnectionSides(conn);
+          const secondSides = inferredConnectionSides(second.conn);
+          const horizontal = firstSides.fromSide === 'right' && firstSides.toSide === 'left'
+            && secondSides.fromSide === 'left' && secondSides.toSide === 'right';
+          const horizontalReverse = firstSides.fromSide === 'left' && firstSides.toSide === 'right'
+            && secondSides.fromSide === 'right' && secondSides.toSide === 'left';
+          const vertical = firstSides.fromSide === 'bottom' && firstSides.toSide === 'top'
+            && secondSides.fromSide === 'top' && secondSides.toSide === 'bottom';
+          const verticalReverse = firstSides.fromSide === 'top' && firstSides.toSide === 'bottom'
+            && secondSides.fromSide === 'bottom' && secondSides.toSide === 'top';
+          if (!horizontal && !horizontalReverse && !vertical && !verticalReverse) continue;
+          if (first.points.length <= 2 && second.points.length <= 2) continue;
+          const axis = horizontal || horizontalReverse ? 1 : 0;
+          const others = resolvedRoutes.filter((entry) => entry !== first && entry !== second);
+          const firstGeometry = connectionGeometry(conn, firstSides);
+          const secondGeometry = connectionGeometry(second.conn, secondSides);
+          if (firstGeometry.crowded || secondGeometry.crowded) continue;
+          const previousLabels = reservedLabels;
+          let improved = false;
+          reservedLabels = reservedLabels.filter((entry) => entry.conn !== conn && entry.conn !== second.conn);
+          try {
+            const lanes = (geometry) => [...new Set([geometry.start[axis], geometry.end[axis]])];
+            const direct = (geometry, lane) => {
+              const start = [...geometry.start];
+              const end = [...geometry.end];
+              start[axis] = lane;
+              end[axis] = lane;
+              return { points: [start, end], d: roundedPath([start, end], 8) };
+            };
+            const endpointSlotsClear = (candidateRoutes) => {
+              const entries = [...others, ...candidateRoutes];
+              for (const candidate of candidateRoutes) {
+                const sides = candidate.conn === conn ? firstSides : secondSides;
+                for (const [componentId, side, point] of [
+                  [candidate.conn.from, sides.fromSide, candidate.points[0]],
+                  [candidate.conn.to, sides.toSide, candidate.points.at(-1)],
+                ]) {
+                  const coordinate = side === 'left' || side === 'right' ? 1 : 0;
+                  for (const other of entries) {
+                    if (other.conn === candidate.conn) continue;
+                    const otherSides = other.conn === conn ? firstSides
+                      : other.conn === second.conn ? secondSides : selectedSides.get(other.conn);
+                    for (const [otherId, otherSide, otherPoint] of [
+                      [other.conn.from, otherSides.fromSide, other.points[0]],
+                      [other.conn.to, otherSides.toSide, other.points.at(-1)],
+                    ]) {
+                      if (componentId === otherId && side === otherSide
+                          && Math.abs(point[coordinate] - otherPoint[coordinate])
+                            < portSpacing(candidate.conn, other.conn) - 0.0001) return false;
+                    }
+                  }
+                }
+              }
+              return true;
+            };
+            const labelClears = (rect, owner, entries, labels) => {
+              if (!rect) return !owner.label;
+              if (!withinScene([rect.x, rect.y])
+                  || !withinScene([rect.x + rect.width, rect.y + rect.height])
+                  || labels.some((other) => rectsOverlap(rect, other.rect, 2))) return false;
+              return entries.every((entry) => entry.conn === owner || entry.points.slice(1).every((end, index) =>
+                !segmentIntersectsRect({ start: entry.points[index], end }, rect, LABEL_CLEARANCE)));
+            };
+            let best = null;
+            let bestCost = readabilityCost(conn, first, [...others, second])
+              + readabilityCost(second.conn, second, [...others, first]);
+            for (const firstLane of lanes(firstGeometry)) {
+              for (const secondLane of lanes(secondGeometry)) {
+                planningMetrics.reciprocalCandidateCount += 1;
+                const firstRoute = { conn, ...direct(firstGeometry, firstLane) };
+                const secondRoute = { conn: second.conn, ...direct(secondGeometry, secondLane) };
+                const candidates = [firstRoute, secondRoute];
+                if (!candidates.every((entry) => entry.points.every(withinScene))) continue;
+                if (!endpointSlotsClear(candidates)) continue;
+                if (!candidates.every((entry, index) => {
+                  const geometry = entry.conn === conn ? firstGeometry : secondGeometry;
+                  if (!portHasCornerClearance(geometry.from, geometry.fromSide, entry.points[0])
+                      || !portHasCornerClearance(geometry.to, geometry.toSide, entry.points.at(-1))) return false;
+                  return routeIsClear(entry.conn, entry, geometry, [...others, candidates[1 - index]]);
+                })) continue;
+                const firstRect = labelRectFor?.(conn, firstRoute.points, {
+                  routes: [...others.map((entry) => entry.points), ...candidates.map((entry) => entry.points)],
+                  labels: reservedLabels.map((entry) => entry.rect),
+                });
+                if (!labelClears(firstRect, conn, [...others, secondRoute], reservedLabels)) continue;
+                const secondRect = labelRectFor?.(second.conn, secondRoute.points, {
+                  routes: [...others.map((entry) => entry.points), ...candidates.map((entry) => entry.points)],
+                  labels: [...reservedLabels.map((entry) => entry.rect), ...(firstRect ? [firstRect] : [])],
+                });
+                if (!labelClears(secondRect, second.conn, [...others, firstRoute], [
+                  ...reservedLabels, ...(firstRect ? [{ conn, rect: firstRect }] : []),
+                ])) continue;
+                const cost = readabilityCost(conn, firstRoute, [...others, secondRoute])
+                  + readabilityCost(second.conn, secondRoute, [...others, firstRoute]);
+                if (cost < bestCost) {
+                  best = { firstRoute, secondRoute, firstRect, secondRect };
+                  bestCost = cost;
+                }
+              }
+            }
+            if (!best) continue;
+            cachePath(conn, best.firstRoute, firstSides);
+            cachePath(second.conn, best.secondRoute, secondSides);
+            first.points = best.firstRoute.points;
+            second.points = best.secondRoute.points;
+            planningMetrics.reciprocalImprovedCount += 1;
+            jointlyImproved.add(conn);
+            jointlyImproved.add(second.conn);
+            improved = true;
+            reservedLabels = [
+              ...reservedLabels,
+              ...(best.firstRect ? [{ conn, rect: best.firstRect }] : []),
+              ...(best.secondRect ? [{ conn: second.conn, rect: best.secondRect }] : []),
+            ];
+          } finally {
+            if (!improved) reservedLabels = previousLabels;
+          }
+        }
+      }
       allowGridSearch = false;
       try {
+        improveReciprocalPairs();
         for (const entry of resolvedRoutes) {
           const { conn } = entry;
-          if (hasAuthoredRouteGeometry(conn) || conn.labelAt) continue;
+          if (jointlyImproved.has(conn) || hasAuthoredRouteGeometry(conn) || conn.labelAt) continue;
           const others = resolvedRoutes.filter((other) => other !== entry);
           // Preserve uncomplicated routes and their established inferred sides.
           // Spend the comparison budget where the complete scene has a reading

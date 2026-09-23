@@ -61,7 +61,9 @@ test('required browser evidence stays deterministic and capture-free', () => {
 });
 
 test('delivery, browser evidence, capture evidence, and perceptual review remain distinct', () => {
-  for (const [name, source] of [['SKILL.md', skill], ['delivery contract', delivery]]) {
+  assert.match(skill, /artifact checks, browser evidence, captures, and actual perceptual review as distinct results/);
+  assert.match(skill, /Delivery contract\]\(references\/delivery-contract\.md\)/);
+  for (const [name, source] of [['delivery contract', delivery]]) {
     assert.match(source, /deliver[\s\S]*deterministic/i, name);
     assert.match(source, /browser-check[\s\S]*browser evidence/i, name);
     assert.match(source, /visual-check[\s\S]*capture|screenshots/i, name);
@@ -74,14 +76,14 @@ test('delivery, browser evidence, capture evidence, and perceptual review remain
 test('strict provenance succeeds before either browser command', () => {
   const ordering = delivery.match(/Run strict `check` after `deliver` exits zero\.[\s\S]*?collecting new browser evidence\./)?.[0] ?? '';
   assert.match(ordering, /Run `browser-check` or optional\s+`visual-check` only after that strict check exits zero/i);
-  assert.match(skill, /required order stays `deliver` → strict provenance `check` → `browser-check`/);
-  assert.match(skill, /Run `visual-check` only against a strict-provenance artifact/);
+  assert.match(skill, /Recovery follows `deliver` → strict provenance `check` → `browser-check`/);
+  assert.match(skill, /captures require strict provenance/);
 });
 
 test('perceptual review is optional for fresh architectures and available for visual diagnosis', () => {
   assert.match(perceptualReviewSection, /visual_review: not_requested/);
   assert.match(perceptualReviewSection, /Ordinary generation does not require screenshots/);
-  assert.match(skill, /Perceptual review is optional in ordinary generation/);
+  assert.match(skill, /Perceptual review is optional for ordinary generation/);
   assert.match(perceptualReviewSection, /user explicitly requests an aesthetic or visual review/i);
   assert.match(perceptualReviewSection, /template, renderer, or Viewer change/i);
   assert.match(perceptualReviewSection, /novel layout or browser diagnostic leaves low confidence/i);
@@ -89,7 +91,8 @@ test('perceptual review is optional for fresh architectures and available for vi
   assert.match(perceptualReviewSection, /run `visual-check`[\s\S]*contact sheet/i);
   assert.match(perceptualReviewSection, /never exceed two focused correction rounds/i);
   assert.match(perceptualReviewSection, /Never report\s+`visual_review: passed` without inspecting/i);
-  assert.match(skill, /If perceptual review is unavailable, report that quality remains unverified/i);
+  assert.match(skill, /Inspect captures before claiming visual quality; otherwise report automated checks only/);
+  assert.match(perceptualReviewSection, /visual_review: skipped \(image reader unavailable\)[\s\S]*requested or triggered review could not run/i);
   assert.match(perceptualReviewSection, /visualReviewRecommendation/);
   assert.match(delivery, /Open the HTML contact sheet in a browser or inspect the viewport PNGs/i);
 });

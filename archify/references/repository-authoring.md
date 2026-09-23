@@ -12,8 +12,10 @@ fact has supporting source evidence.
    userinfo (including usernames, passwords, and tokens) before recording the
    origin or placing it in the candidate. Preserve its transport, port, path and
    `.git` suffix; do not rewrite an internal SSH origin as HTTPS. Pin the credential-free URL and
-   forty-character revision in `meta.repository`; use `link_mode: "local-only"`
-   for a local fixture whose HTTPS URL is only a repository identity. If the
+   forty-character revision in `meta.repository`. Use `link_mode: "local-only"`
+   for an SSH origin, unsupported forge, intentionally local-only source links,
+   or a local fixture whose HTTPS URL is only a repository identity; retain the
+   URL and revision. Web links require a supported GitHub or Gitee HTTPS origin. If the
    worktree is dirty, record the changed paths. Repository evidence is verified
    against committed bytes at the pinned revision, not working-tree edits:
    inspect a clean checkout at that revision for any cited changed path. Do not
@@ -28,10 +30,14 @@ fact has supporting source evidence.
    side effect. Read a small connected slice instead of scanning the repository
    for a convenient label.
 
-3. **Trace ownership.** For each step, name the controller that owns the
-   decision, the runtime that performs it, and the filesystem or durable store
-   that supplies or receives bytes. Keep control ownership separate from file
-   I/O in your source understanding. Choose which distinctions need separate
+3. **Trace ownership.** Derive runtime and I/O relationships from the observed
+   actor, operation, and target at their call sites; deployment and trust
+   relationships use the corresponding configuration or enforcement evidence. Distinguish the controller requesting
+   an operation from the runtime that executes it and the store receiving bytes.
+   For a file or database edge, the source must identify its actual reader or
+   writer; a responsibility statement such as “maintains tasks” does not prove
+   direct I/O. Keep these facts with the source locations while reading, without
+   a separate planning artifact. Choose which distinctions need separate
    nodes using [Composition and meaning](authoring-defaults.md#composition-and-meaning);
    discovering an implementation role does not automatically add it to the overview.
    A configured provider, an injected adapter, a local stub, and a durable
@@ -41,7 +47,10 @@ fact has supporting source evidence.
    inclusive line ranges for each component and meaningful relationship. Follow
    actual branches, retries, fallbacks, and error handling. A function that is
    exported or configured but never called by the normal path is an optional
-   capability, not a required runtime edge.
+   capability, not a required runtime edge. For a claim about authoritative
+   state change or control ownership, trace to the actual write or execution
+   site and the conditions that permit it; an upstream caller alone does not
+   establish those conditions.
 
 5. **Name uncertainty.** Write unresolved questions beside the claim they
    affect: for example, “`writeFile` is called here; durability is unknown.”
