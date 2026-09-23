@@ -408,6 +408,7 @@ const legendY = () => viewBox[1] - 16;
 // canvas/label feedback loop. Keep standard and every authored label control.
 if (arch.meta?.quality_profile === 'showcase') {
   connectionLabels = placeAutomaticLabels({
+    keepFallbackNearRoute: true,
     labels: connectionLabels,
     routes: asArray(arch.connections).flatMap((conn, relationIndex) => (
       components.has(conn.from) && components.has(conn.to)

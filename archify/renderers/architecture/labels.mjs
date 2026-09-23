@@ -3,7 +3,7 @@ import { normalizeRoutePoints, rectsOverlap, segmentRectClearance } from '../sha
 // A bounded fallback for an unpinned label whose usual position collides.
 // It never routes an edge, moves a node, expands the canvas, or rewrites input.
 export function placeAutomaticLabels({
-  labels, routes, components, titles, viewBox, placementBottom = viewBox[1], fallbackRing = true,
+  labels, routes, components, titles, viewBox, placementBottom = viewBox[1], fallbackRing = true, keepFallbackNearRoute = false,
 }) {
   const placed = [...labels];
   const obstacles = [...components, ...titles];
@@ -76,7 +76,8 @@ export function placeAutomaticLabels({
     // relationship occupied by another route. Search a small deterministic
     // ring around the current anchor and the relationship's segment centres.
     // A collision-free island above a node is not a readable edge label.
-    // Keep the mask within two label heights of its own route; if no nearby
+    // Architecture opts into keeping the mask within two label heights of
+    // its own route; shared callers retain their existing policy. If no nearby
     // slot fits, retain the collision so validation can request more space.
     const ownSegments = segments.filter(segment => segment.relationIndex === label.relationIndex);
     const baseAnchors = [
@@ -98,9 +99,9 @@ export function placeAutomaticLabels({
     ];
     const fallback = baseAnchors.flatMap(([baseX, baseY]) => (
       ringOffsets.map(([dx, dy]) => rectAt(label, baseX + dx, baseY + dy))
-    )).find(rect => clear(rect, index) && ownSegments.some(segment => (
+    )).find(rect => clear(rect, index) && (!keepFallbackNearRoute || ownSegments.some(segment => (
       segmentRectClearance(segment, rect) <= label.height * 2
-    )));
+    ))));
     if (fallback) placed[index] = fallback;
   }
   return placed;
