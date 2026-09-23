@@ -20,6 +20,34 @@ function layout(input) {
   return JSON.parse(result.stdout);
 }
 
+test('architecture: automatic side changes keep incoming arrowheads distinct', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-final-ports-'));
+  try {
+    const input = path.join(tmp, 'ports.json');
+    fs.writeFileSync(input, JSON.stringify({
+      schema_version: 1,
+      diagram_type: 'architecture',
+      meta: { title: 'Shared destination', output: 'ports.html', quality_profile: 'showcase' },
+      components: [
+        ['a', 40, 40], ['b', 290, 40], ['c', 800, 40],
+        ['block', 0, 400], ['hub', 40, 485], ['store', 290, 485],
+      ].map(([id, x, y]) => ({ id, type: 'backend', label: id, pos: [x, y], size: [180, 68] })),
+      connections: ['a', 'b', 'c'].map((from) => ({ id: from, from, to: 'hub' })),
+    }));
+    const result = layout(input);
+    assert.equal(result.ok, true, JSON.stringify(result.diagnostics));
+    const endpoints = result.connections.map((conn) => conn.points.at(-1));
+    for (let left = 0; left < endpoints.length; left += 1) {
+      for (let right = left + 1; right < endpoints.length; right += 1) {
+        const distance = Math.hypot(endpoints[left][0] - endpoints[right][0], endpoints[left][1] - endpoints[right][1]);
+        assert.ok(distance >= 14, `arrowheads share a port: ${JSON.stringify(endpoints)}`);
+      }
+    }
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 // These candidates are unmodified first drafts from the repair study: authors
 // declared no route controls, yet the router accepted routes that the
 // showcase composition gate then rejected (a frame border used as a corridor,

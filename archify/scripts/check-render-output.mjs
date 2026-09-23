@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { collectAmbiguousCorridors, collectBorderRuns, collectLabelCanvasOverflow, collectLabelRouteClearance, collectRouteRhythmIssues, describeLabelCanvasOverflow, formatRect, minimumLabelRouteClearance, routeBudgetMetrics } from '../renderers/shared/geometry.mjs';
+import { collectAmbiguousCorridors, collectArrowheadCollisions, collectBorderRuns, collectLabelCanvasOverflow, collectLabelRouteClearance, collectRouteRhythmIssues, describeLabelCanvasOverflow, formatRect, minimumLabelRouteClearance, routeBudgetMetrics } from '../renderers/shared/geometry.mjs';
 import {
   DESKTOP_READABILITY_VIEWPORT,
   DESKTOP_READER_DIAGRAM_WIDTH,
@@ -153,7 +153,13 @@ if (svgMatches.length === 1) {
     .map((arrow) => ({ relation: arrow, relationIndex: arrow.index, points: arrow.routePoints }));
   const routeMetrics = routeBudgetMetrics({ routedRelations: routedRelationships });
   const routeRhythmIssues = collectRouteRhythmIssues({ routedRelations: routedRelationships });
-  const ambiguousCorridors = collectAmbiguousCorridors({ routedRelations: routedRelationships });
+  const ambiguousCorridors = collectAmbiguousCorridors({
+    routedRelations: routedRelationships,
+    includeSharedEndpoints: (left, right) => left.independentPorts && right.independentPorts,
+  });
+  const arrowheadCollisions = collectArrowheadCollisions({
+    routedRelations: routedRelationships.filter((entry) => entry.relation.independentPorts),
+  });
   const relationshipLabels = collectRelationshipLabelMasks(beforeLegend, arrows);
   const labelClearanceThreshold = qualityProfile === 'showcase' ? 4 : 2;
   const labelRouteMeasurements = collectLabelRouteClearance({
@@ -183,7 +189,7 @@ if (svgMatches.length === 1) {
   const viewportHeightIsError = false;
   const compositionErrors = (qualityGatesEnforced ? containerBorderRuns.length : 0)
     + (crossingIsError ? relationshipCrossings.length : 0)
-    + (corridorIsError ? ambiguousCorridors.length : 0)
+    + (corridorIsError ? ambiguousCorridors.length + arrowheadCollisions.length : 0)
     + (labelClearanceIsError ? labelRouteClearance.length : 0)
     + (labelContainmentIsError ? labelCanvasOverflow.length : 0)
     + (rhythmIsError ? routeRhythmIssues.length : 0)
@@ -191,7 +197,7 @@ if (svgMatches.length === 1) {
     + (viewportHeightIsError && viewportHeightIssue ? 1 : 0);
   const compositionWarnings = (qualityGatesEnforced ? 0 : containerBorderRuns.length)
     + (crossingIsError ? 0 : relationshipCrossings.length)
-    + (corridorIsError ? 0 : ambiguousCorridors.length)
+    + (corridorIsError ? 0 : ambiguousCorridors.length + arrowheadCollisions.length)
     + (labelClearanceIsError ? 0 : labelRouteClearance.length)
     + (labelContainmentIsError ? 0 : labelCanvasOverflow.length)
     + (rhythmIsError ? 0 : routeRhythmIssues.length)
@@ -209,6 +215,7 @@ if (svgMatches.length === 1) {
       properCrossings: relationshipCrossings.length,
       resolvedCrossovers: resolvedCrossovers.length,
       ambiguousCorridors: ambiguousCorridors.length,
+      arrowheadCollisions: arrowheadCollisions.length,
       containerBorderRuns: containerBorderRuns.length,
       labelRouteClearanceIssues: labelRouteClearance.length,
       labelCanvasOverflowIssues: labelCanvasOverflow.length,
@@ -278,6 +285,15 @@ if (svgMatches.length === 1) {
         from: hit.overlapStart.map((value) => Math.round(value * 10) / 10),
         to: hit.overlapEnd.map((value) => Math.round(value * 10) / 10),
       })),
+      ...arrowheadCollisions.map((hit) => ({
+        severity: corridorIsError ? 'error' : 'warning',
+        code: 'composition/arrowhead-collision',
+        relationship: relationshipRecord(hit.left.relation),
+        otherRelationship: relationshipRecord(hit.right.relation),
+        distancePx: hit.distance,
+        minimumPx: hit.minimum,
+        endpoints: [hit.left.tip, hit.right.tip],
+      })),
       ...routeRhythmIssues.map((hit) => ({
         severity: rhythmIsError ? 'error' : 'warning',
         code: hit.code,
@@ -336,10 +352,12 @@ if (svgMatches.length === 1) {
   );
   addCheck(
     'relationship_corridors',
-    !corridorIsError || ambiguousCorridors.length === 0,
-    ambiguousCorridors.map((hit) => (
+    !corridorIsError || ambiguousCorridors.length + arrowheadCollisions.length === 0,
+    [...ambiguousCorridors.map((hit) => (
       `[composition/ambiguous-corridor] ${qualityProfile} ${relationshipName(hit.left.relation)} shares a ${Math.round(hit.overlapLength * 10) / 10}px corridor with ${relationshipName(hit.right.relation)} at [${formatPoint(hit.overlapStart)}] -> [${formatPoint(hit.overlapEnd)}]`
-    )),
+    )), ...arrowheadCollisions.map((hit) => (
+      `[composition/arrowhead-collision] ${qualityProfile} ${relationshipName(hit.left.relation)} and ${relationshipName(hit.right.relation)} have incoming arrowheads ${hit.distance}px apart (minimum ${hit.minimum}px) — enlarge or reposition the destination, or choose separate toSide ports.`
+    ))],
   );
   addCheck(
     'container_border_runs',
@@ -426,6 +444,8 @@ function collectArrows(fragment) {
         && segments.length === 1 && borderSegments.length === 1
         && (tag[1].toLowerCase() === 'line' || /^\s*M\s+[-+\d.eE]+\s+[-+\d.eE]+\s+L\s+[-+\d.eE]+\s+[-+\d.eE]+\s*$/.test(attrs.d || '')),
       crossoverHalo: verifiedCrossoverHalo,
+      independentPorts: verifiedCrossoverHalo && attrs['data-composition-independent'] === 'true',
+      width: routeStrokeWidth,
       segments,
       borderSegments,
       routePoints: parseRoutePoints(attrs['data-composition-points']) || (

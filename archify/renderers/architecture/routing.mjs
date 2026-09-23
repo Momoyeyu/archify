@@ -35,11 +35,12 @@ import { shortestOrthogonalGridRoute } from '../shared/route-quality.mjs';
  *   rects resolved so far; later automatic routes keep clear of it so a dense
  *   fan-out does not leave the label nowhere to go
  */
-export function createRouter(components, connections, {
+export function createRouter(components, connections = [], {
   frames = [],
   interiorSegmentPx = 16,
   microSegmentPx = 8,
   labelRectFor = null,
+  distinctAutomaticPorts = false,
 } = {}) {
   const frameBorders = frames.flatMap((frame) => frameBorderSegments(frame));
   const LABEL_CLEARANCE = 4;
@@ -209,8 +210,11 @@ export function createRouter(components, connections, {
   }
 
   function routeOverlapsResolved(conn, points, resolvedRoutes) {
-    const unrelated = unrelatedResolvedRoutes(conn, resolvedRoutes);
-    for (const entry of unrelated) {
+    // A common destination does not make two independently labelled routes a
+    // bus. Keep their corridors distinct too; explicit routes bypass planning.
+    for (const entry of resolvedRoutes) {
+      if (relationshipsShareEndpoint(conn, entry.conn)
+          && (!distinctAutomaticPorts || hasAuthoredRouteGeometry(entry.conn) || entry.conn.labelAt || conn.labelAt)) continue;
       for (let left = 0; left < points.length - 1; left += 1) {
         for (let right = 0; right < entry.points.length - 1; right += 1) {
           if (collinearOverlapLength(
@@ -495,7 +499,12 @@ export function createRouter(components, connections, {
         // ambiguous shared corridors without forcing the model to hand-route
         // a sprawling perimeter detour. Cheap candidates above still prefer a
         // genuinely crossing-free path whenever one is available.
-        const avoidedSegments = [];
+        const avoidedSegments = resolvedRoutes
+          .filter((entry) => distinctAutomaticPorts && relationshipsShareEndpoint(conn, entry.conn)
+            && !hasAuthoredRouteGeometry(entry.conn) && !entry.conn.labelAt && !conn.labelAt)
+          .flatMap((entry) => entry.points.slice(1).map((end, index) => ({
+            start: entry.points[index], end,
+          })));
         const gridMetrics = {};
         planningMetrics.gridSearchCount += 1;
         planningMetrics.avoidedSegmentCount += avoidedSegments.length;
@@ -511,6 +520,7 @@ export function createRouter(components, connections, {
           endpointStubPx: 24,
           maximumGridNodes: 4096,
           avoidedSegments,
+          allowAvoidedCrossings: true,
           minimumAvoidedOverlapPx: 8,
           routeSeparationPx: 8,
           minimumSegmentPx: interiorSegmentPx,
@@ -570,6 +580,15 @@ export function createRouter(components, connections, {
   const pathCache = new Map();
   const selectedSides = new Map();
   const automaticPorts = automaticPortSpread(connections, components);
+  const incidentEndpoints = new Map();
+  for (const conn of connections) {
+    if (!components.has(conn.from) || !components.has(conn.to)) continue;
+    for (const [field, sideField] of [['from', 'fromSide'], ['to', 'toSide']]) {
+      const entries = incidentEndpoints.get(conn[field]) || [];
+      entries.push({ conn, field, sideField });
+      incidentEndpoints.set(conn[field], entries);
+    }
+  }
   function inferredConnectionSides(conn) {
     const from = components.get(conn.from);
     const to = components.get(conn.to);
@@ -599,27 +618,64 @@ export function createRouter(components, connections, {
     );
   }
 
+  // A route can change sides after the initial port spread. Reserve slots on
+  // the final side as well: falling back to its midpoint can put an arrow
+  // between two existing slots, or directly on another incoming arrow.
+  function automaticEndpoint(conn, endpoint, rect, side, inferredSide) {
+    const initial = side === inferredSide ? automaticPorts.get(conn)?.[endpoint] : null;
+    const preferred = initial || anchor(rect, side);
+    if (hasAuthoredRouteGeometry(conn) || conn.labelAt) return { point: preferred, spread: Boolean(initial) };
+    const axis = side === 'left' || side === 'right' ? 1 : 0;
+    const occupied = [];
+    for (const { conn: other, field, sideField } of incidentEndpoints.get(rect.id) || []) {
+      if (other === conn || hasAuthoredRouteGeometry(other) || other.labelAt) continue;
+      const routed = pathCache.get(other);
+      const sides = selectedSides.get(other) || inferredConnectionSides(other);
+      if (sides[sideField] !== side) continue;
+      const point = routed
+        ? (field === 'from' ? routed.points[0] : routed.points.at(-1))
+        : automaticPorts.get(other)?.[field] || anchor(rect, side);
+      const stroke = (relation) => relation.width || (relation.variant === 'emphasis' ? 1.8 : 1.5);
+      occupied.push({ value: point[axis], spacing: Math.max(14, 3.5 * (stroke(conn) + stroke(other)) + 3.5) });
+    }
+    if (!occupied.length) return { point: preferred, spread: Boolean(initial) };
+    const candidates = [preferred[axis], ...occupied.flatMap(({ value, spacing }) => [value - spacing, value + spacing])]
+      .sort((a, b) => Math.abs(a - preferred[axis]) - Math.abs(b - preferred[axis]) || a - b);
+    for (const value of candidates) {
+      const point = [...preferred];
+      point[axis] = value;
+      if (portHasCornerClearance(rect, side, point)
+          && occupied.every((other) => Math.abs(value - other.value) >= other.spacing - 0.0001)) {
+        return { point, spread: true };
+      }
+    }
+    return { point: preferred, spread: true, crowded: true };
+  }
+
   function connectionGeometry(conn, sides = inferredConnectionSides(conn)) {
     const from = components.get(conn.from);
     const to = components.get(conn.to);
     const inferred = inferredConnectionSides(conn);
-    const usesInferredSides = sides.fromSide === inferred.fromSide
-      && sides.toSide === inferred.toSide;
-    const ports = usesInferredSides ? automaticPorts.get(conn) : null;
     const { fromSide, toSide } = sides;
-    const baseStart = ports?.from || anchor(from, fromSide);
-    const baseEnd = ports?.to || anchor(to, toSide);
+    const legacyPorts = fromSide === inferred.fromSide && toSide === inferred.toSide ? automaticPorts.get(conn) : null;
+    const source = distinctAutomaticPorts
+      ? automaticEndpoint(conn, 'from', from, fromSide, inferred.fromSide)
+      : { point: legacyPorts?.from || anchor(from, fromSide), spread: Boolean(legacyPorts?.from) };
+    const target = distinctAutomaticPorts
+      ? automaticEndpoint(conn, 'to', to, toSide, inferred.toSide)
+      : { point: legacyPorts?.to || anchor(to, toSide), spread: Boolean(legacyPorts?.to) };
+    const ports = { from: source.spread, to: target.spread };
     const { start, end } = alignFacingPorts(
       conn,
       from,
       to,
-      baseStart,
-      baseEnd,
+      source.point,
+      target.point,
       fromSide,
       toSide,
       ports,
     );
-    return { from, to, start, end, fromSide, toSide };
+    return { from, to, start, end, fromSide, toSide, crowded: source.crowded || target.crowded };
   }
 
   function routedForGeometry(conn, resolvedRoutes, geometry) {
@@ -676,7 +732,7 @@ export function createRouter(components, connections, {
   }
 
   function routeIsClear(conn, routed, geometry, resolvedRoutes) {
-    return routed.points.length >= 2
+    return !geometry.crowded && routed.points.length >= 2
       && routeHonorsEndpointSides(routed.points, geometry.fromSide, geometry.toSide)
       && routeClearsEndpointComponents(routed.points, geometry.from, geometry.to)
       && routeClearsComponents(conn, routed.points)

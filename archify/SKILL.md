@@ -18,7 +18,7 @@ For a real codebase, read [Repository authoring](references/repository-authoring
 
 ## Existing candidate handoff
 
-When the user supplies a frozen candidate, run `finalize` first as one CLI invocation. Its passing receipt completes the handoff; screenshots and an image-capable model are optional. For repair, follow step 5.
+When the user supplies a frozen candidate, run `finalize` first as one CLI invocation. Its passing receipt completes the automated gates; follow any visual review recommendation under Delivery before claiming visual quality. For repair, follow step 5.
 
 The update check is outside the delivery critical path. A harness may start it concurrently with `finalize`; if it cannot, omit it for this task. Never add a foreground tool turn or delay a required gate for update information.
 
@@ -76,7 +76,7 @@ Use the `finalize` command above for the first candidate and after a repair.
 
 `finalize` stops at the first non-passing gate. Its compact stdout and `<output-stem>.finalize-summary.json` are the normal evidence; `<output-stem>.finalize.json` is full audit detail, not ordinary repair context. A passing handoff reports `visualReview: "not-requested"` and creates no screenshots.
 
-Escalate to perceptual review only when the user requests an aesthetic review, a template/renderer/viewer change needs visual regression evidence, a novel layout or browser diagnostic leaves low confidence, or the run is a sampled audit. Run `visual-check` on the finalized artifact, open its HTML contact sheet in a browser or inspect the viewport PNGs with a capable image reader, and record that judgment separately. Model image capability is optional because this path is not part of ordinary acceptance.
+Escalate to perceptual review when the summary includes `visualReviewRecommendation`, the user requests an aesthetic review, a template/renderer/viewer change needs visual regression evidence, a novel layout or browser diagnostic leaves low confidence, or the run is a sampled audit. Run `visual-check` on the finalized artifact, open its HTML contact sheet in a browser or inspect the viewport PNGs with a capable image reader, and trace the affected routes at the common desktop viewport. Each arrow must remain distinct and each relationship traceable through crossings and bends. Repair unreadable placement or routes while preserving semantic coverage, then finalize the new candidate. The recommendation's counts trigger inspection; they are not content budgets or proof of a defect. If perceptual review is unavailable, report that quality remains unverified rather than treating automated success as visual approval.
 
 For recovery, the required order stays `deliver` → strict provenance `check` → `browser-check`. Run optional `visual-check` only against a strict-provenance artifact. Read `references/delivery-contract.md` for standalone syntax, any failed gate, stale provenance, recovery metadata, repeated delivery to one path, export evidence, or post-delivery opening.
 

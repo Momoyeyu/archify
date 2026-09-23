@@ -36,7 +36,7 @@ const optionalReviewSection = delivery.match(/## Optional perceptual review[\s\S
 test('ordinary handoff uses one deterministic finalizer without image capability', () => {
   assert.ok(skill.indexOf('## Existing candidate handoff') < skill.indexOf('## Fast authoring path'));
   assert.match(skill, /run `finalize` first as one CLI invocation/);
-  assert.match(skill, /passing receipt completes the handoff; screenshots and an image-capable model are optional/i);
+  assert.match(skill, /passing receipt completes the automated gates; follow any visual review recommendation/i);
   assert.match(skill, /archify\.mjs finalize <type> <candidate\.json> <output\.html> --quality showcase --json/);
   assert.match(skill, /When the user supplies a frozen candidate[\s\S]*?run `finalize` first as one CLI invocation/);
   assert.match(skill, /Once the complete first candidate is written, run `finalize` directly\. Its first gate is showcase validation/);
@@ -85,7 +85,8 @@ test('perceptual review is an explicit risk escalation with a bounded correction
   assert.match(optionalReviewSection, /run `visual-check`[\s\S]*contact sheet/i);
   assert.match(optionalReviewSection, /never exceed two focused correction rounds/i);
   assert.match(optionalReviewSection, /Never report\s+`visual_review: passed` without inspecting/i);
-  assert.match(skill, /Model image capability is optional/i);
+  assert.match(skill, /If perceptual review is unavailable, report that quality remains unverified/i);
+  assert.match(optionalReviewSection, /visualReviewRecommendation/);
   assert.match(delivery, /Open the HTML contact sheet in a browser or inspect the viewport PNGs/i);
 });
 

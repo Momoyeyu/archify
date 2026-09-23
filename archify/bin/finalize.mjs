@@ -502,6 +502,18 @@ export function compactFinalizeReceipt(receipt) {
     visualReview: receipt.visualReview || 'not-requested',
     durationMs: receipt.durationMs,
   };
+  const metrics = receipt.stages?.check?.receipt?.composition?.metrics;
+  const reviewSignals = Object.fromEntries([
+    'resolvedCrossovers', 'routesOverSuggestedBends', 'routesOverSuggestedStretch',
+  ].filter((key) => Number.isFinite(metrics?.[key]) && metrics[key] > 0)
+    .map((key) => [key, metrics[key]]));
+  if (receipt.ok && Object.keys(reviewSignals).length) {
+    compact.visualReviewRecommendation = {
+      action: 'inspect-route-readability',
+      signals: reviewSignals,
+      reason: 'Automated gates passed, but crossings or detours still need perceptual review before claiming visual quality.',
+    };
+  }
   if (!receipt.ok && receipt.status === 'fail' && receipt.failedStage === 'validate') {
     compact.nextAction = {
       action: 'edit-in-place',

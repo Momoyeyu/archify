@@ -261,7 +261,7 @@ Complete stage receipts and timings remain available for auditing in
 `<path>-summary.json`. Read the full receipt only when the compact summary is
 truncated and its shown subjects and evidence cannot identify a coherent local
 repair, or when complete audit evidence was explicitly requested. The compact
-receipt reports `visualReview: "not-requested"`; ordinary acceptance does not create images or require a perceptual reviewer.
+receipt reports `visualReview: "not-requested"`; the automated gate does not create images or require a perceptual reviewer. A compact `visualReviewRecommendation` retains positive crossover and route-detour metrics from the strict check so the author can apply the review escalation below without reading the full receipt. A recommendation does not change the machine exit code or claim that review happened.
 
 A passing finalizer receipt is sufficient evidence for all four gates. Merely
 naming the gates or requiring each one to pass does not require replaying their
@@ -490,10 +490,11 @@ Never start it by default. Do not use it for CI, unattended agents, remote shari
 
 ## Optional perceptual review
 
-The ordinary path ends with the deterministic browser gate and reports
+The automated path ends with the deterministic browser gate and reports
 `visual_review: not_requested`. Escalate to perceptual review when any of these
 conditions applies:
 
+- the compact finalizer includes `visualReviewRecommendation` for crossings or detours;
 - the user explicitly requests an aesthetic or visual review;
 - a template, renderer, or Viewer change needs visual regression evidence;
 - a novel layout or browser diagnostic leaves low confidence;

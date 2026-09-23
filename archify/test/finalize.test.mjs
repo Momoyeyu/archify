@@ -262,6 +262,23 @@ test('compact finalize receipts preserve the acceptance boundary', () => {
   assert.equal('nextAction' in compact, false);
 });
 
+test('compact success retains route-quality review signals without claiming perceptual approval', () => {
+  const compact = compactFinalizeReceipt({
+    ok: true, status: 'pass', diagnostics: [],
+    stages: { check: { status: 'pass', receipt: { composition: { metrics: {
+      resolvedCrossovers: 12, routesOverSuggestedBends: 11, routesOverSuggestedStretch: 0,
+    } } } } },
+  });
+  assert.equal(compact.ok, true);
+  assert.equal(compact.visualReview, 'not-requested');
+  assert.deepEqual(compact.visualReviewRecommendation.signals, { resolvedCrossovers: 12, routesOverSuggestedBends: 11 });
+  assert.equal(compact.visualReviewRecommendation.action, 'inspect-route-readability');
+  const uncomplicated = compactFinalizeReceipt({ ok: true, stages: { check: { receipt: { composition: { metrics: {
+    resolvedCrossovers: 0, routesOverSuggestedBends: 0, routesOverSuggestedStretch: 0,
+  } } } } } });
+  assert.equal('visualReviewRecommendation' in uncomplicated, false);
+});
+
 test('compact failure receipts retain diverse actionable subjects without embedding full stage evidence', () => {
   const diagnostics = Array.from({ length: 20 }, (_, index) => ({
     code: 'composition/proper-crossing',

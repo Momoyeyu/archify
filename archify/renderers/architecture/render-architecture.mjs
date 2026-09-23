@@ -21,6 +21,7 @@ import {
   cleanFlowProblems,
   cleanCrossingProblems,
   cleanAmbiguousCorridorProblems,
+  collectArrowheadCollisions,
   cleanBorderRunProblems,
   cleanRouteRhythmProblems,
   cleanLabelRouteClearanceProblems,
@@ -311,6 +312,7 @@ function layoutBoundaryTitles(rawBoundaries, minimumFontSize) {
 // title-expanded frames or the viewBox.
 const rawBoundaries = asArray(arch.boundaries).map(boundaryRect).filter(Boolean);
 const { pathFor, connectionSides, connectionEndpointSide } = createRouter(components, arch.connections, {
+  distinctAutomaticPorts: true,
   frames: rawBoundaries.map((boundary) => ({
     ...boundary,
     radius: boundary.kind === 'security-group' ? 8 : 12,
@@ -690,8 +692,29 @@ function validateArchitecture() {
     diagramType: 'architecture',
     relationCollection: 'connections',
     profile: arch.meta?.quality_profile,
-    routeHint: 'adjust route/via or fromSide/toSide so unrelated connections do not visually merge'
+    includeSharedEndpoints: (left, right) => hasAutomaticRouteGeometry(left) && !left.labelAt
+      && hasAutomaticRouteGeometry(right) && !right.labelAt,
+    routeHint: 'adjust route/via or fromSide/toSide so distinct connections do not visually merge'
   }));
+  if ((process.env.ARCHIFY_QUALITY_PROFILE || arch.meta?.quality_profile) === 'showcase') {
+    const collisions = collectArrowheadCollisions({
+      routedRelations: asArray(arch.connections)
+        .filter((conn) => components.has(conn.from) && components.has(conn.to) && hasAutomaticRouteGeometry(conn) && !conn.labelAt)
+        .map((relation) => ({ relation, points: pathFor(relation).points })),
+    });
+    for (const hit of collisions) {
+      const left = hit.left.relation;
+      const right = hit.right.relation;
+      const message = `[composition/arrowhead-collision] automatic connections "${left.id || left.from}" and "${right.id || right.from}" into "${left.to}" have arrowheads ${hit.distance}px apart (minimum ${hit.minimum}px) — enlarge or reposition the destination, or choose separate toSide ports.`;
+      problems.push(message);
+      diagnostics.push({
+        code: 'composition/arrowhead-collision', severity: 'error', message,
+        subject: { diagramType: 'architecture', collection: 'connections', id: left.id, from: left.from, to: left.to },
+        evidence: { otherId: right.id, distancePx: hit.distance, minimumPx: hit.minimum, endpoints: [hit.left.tip, hit.right.tip] },
+        supportedFixes: ['enlarge or reposition the destination', 'choose separate toSide ports'],
+      });
+    }
+  }
   problems.push(...cleanBorderRunProblems({
     relations: arch.connections,
     endpointIds: new Set(components.keys()),
@@ -819,7 +842,8 @@ function renderConnectionPath(conn, index) {
   const underlay = automaticRoute
     ? `          <path data-graph-role="automatic-crossover-underlay" d="${routed.d}" fill="none" stroke="var(--mask)" stroke-width="${strokeWidth + 4}" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>\n`
     : '';
-  const crossover = automaticRoute ? ' data-composition-crossover="halo"' : '';
+  const crossover = automaticRoute
+    ? ` data-composition-crossover="halo"${conn.labelAt ? '' : ' data-composition-independent="true"'}` : '';
   const edge = `        <path ${focusEdgeAttrs(conn.from, conn.to, conn.label, index, conn.id)} data-composition-points="${routePointsValue(routed.points)}"${crossover}${authoredStraightRouteAttrs(conn, routed.points)} d="${routed.d}" class="${cls}"${animateAttr(arch.meta, 'edge', index)} stroke-width="${strokeWidth}" marker-end="url(#${marker})"/>`;
   if (!automaticRoute) return edge;
   // The wrapper is presentation-only: viewer state remains on the one semantic

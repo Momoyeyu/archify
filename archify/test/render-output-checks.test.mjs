@@ -611,6 +611,39 @@ test('render output check: label-route thresholds include exact 2px and 4px boun
   assert.equal(showcaseBelowFour.result.composition.summary.errors, 1);
 });
 
+function automaticArrow(id, from, to, points, width = 1.5) {
+  const d = points.map(([x, y], index) => `${index ? 'L' : 'M'} ${x} ${y}`).join(' ');
+  return `<path data-graph-role="automatic-crossover-underlay" d="${d}" fill="none" stroke="var(--mask)" stroke-width="${width + 4}" pointer-events="none"/>
+    <path data-edge-id="${id}" data-edge-from="${from}" data-edge-to="${to}" data-composition-points="${points.map((point) => point.join(',')).join(';')}" data-composition-crossover="halo" data-composition-independent="true" d="${d}" class="a-default" stroke-width="${width}" marker-end="url(#arrowhead)"/>`;
+}
+
+test('render output check: automatic shared destinations do not excuse long merged corridors', () => {
+  const markup = automaticArrow('first', 'a', 'hub', [[20, 20], [100, 20], [100, 140]])
+    + automaticArrow('second', 'b', 'hub', [[180, 60], [100, 60], [100, 120], [140, 120], [140, 140]]);
+  const { code, result } = checkHtml('automatic-shared-corridor', markup, 'showcase');
+  assert.equal(code, 1);
+  const issue = result.composition.issues.find((entry) => entry.code === 'composition/ambiguous-corridor');
+  assert.equal(issue?.overlapLength, 60);
+  // Explicit junctions retain their historical compatibility contract.
+  const authored = checkHtml('authored-shared-corridor', markup.replaceAll('data-composition-crossover="halo"', ''), 'showcase');
+  assert.equal(authored.code, 0, JSON.stringify(authored.result));
+});
+
+test('render output check: incoming automatic markers must fit their actual stroke width', () => {
+  for (const [spacing, width, collision] of [[7, 1.5, true], [14, 1.5, false], [14, 4, true], [32, 4, false]]) {
+    const markup = automaticArrow('first', 'a', 'hub', [[100, 40], [100, 120]], width)
+      + automaticArrow('second', 'b', 'hub', [[100 + spacing, 40], [100 + spacing, 120]], width);
+    const { code, result } = checkHtml(`markers-${spacing}-${width}`, markup, 'showcase');
+    assert.equal(code, collision ? 1 : 0, JSON.stringify(result));
+    const issue = result.composition.issues.find((entry) => entry.code === 'composition/arrowhead-collision');
+    assert.equal(Boolean(issue), collision);
+    if (issue) {
+      assert.equal(issue.distancePx, spacing);
+      assert.equal(issue.minimumPx, width * 7);
+    }
+  }
+});
+
 test('render output check: unrelated shared corridors warn in standard and fail showcase', () => {
   for (const profile of ['standard', 'showcase']) {
     const { code, result } = checkHtml(`corridor-${profile}`, `
