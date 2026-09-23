@@ -536,7 +536,10 @@ function collectRelationshipCrossings(arrows) {
     const left = relationships[leftIndex];
     for (let rightIndex = leftIndex + 1; rightIndex < relationships.length; rightIndex += 1) {
       const right = relationships[rightIndex];
-      if ([left.from, left.to].some((id) => id === right.from || id === right.to)) continue;
+      // A shared semantic endpoint does not make an interior X a junction
+      // when both generated paths promise independent automatic ports.
+      if ([left.from, left.to].some((id) => id === right.from || id === right.to)
+          && (!left.independentPorts || !right.independentPorts)) continue;
       let point = null;
       for (const leftSegment of left.segments) {
         for (const rightSegment of right.segments) {

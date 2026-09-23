@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { compactFinalizeReceipt } from '../bin/finalize.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const skillRoot = path.resolve(__dirname, '..');
@@ -616,6 +617,29 @@ function automaticArrow(id, from, to, points, width = 1.5) {
   return `<path data-graph-role="automatic-crossover-underlay" d="${d}" fill="none" stroke="var(--mask)" stroke-width="${width + 4}" pointer-events="none"/>
     <path data-edge-id="${id}" data-edge-from="${from}" data-edge-to="${to}" data-composition-points="${points.map((point) => point.join(',')).join(';')}" data-composition-crossover="halo" data-composition-independent="true" d="${d}" class="a-default" stroke-width="${width}" marker-end="url(#arrowhead)"/>`;
 }
+
+test('render output check: independent shared-endpoint crossings still recommend visual review', () => {
+  const markup = automaticArrow('first', 'a', 'hub', [[20, 20], [80, 20], [80, 80], [140, 80]])
+    + automaticArrow('second', 'b', 'hub', [[20, 100], [120, 100], [120, 40], [140, 40]]);
+  const { code, result } = checkHtml('independent-shared-crossing', markup, 'showcase');
+  assert.equal(code, 0, JSON.stringify(result));
+  assert.equal(result.composition.metrics.resolvedCrossovers, 1);
+  assert.equal(result.composition.metrics.properCrossings, 0);
+  assert.equal(result.composition.metrics.routesOverSuggestedBends, 0);
+  assert.equal(result.composition.metrics.routesOverSuggestedStretch, 0);
+  const summary = compactFinalizeReceipt({ ok: true, stages: { check: { receipt: result } } });
+  assert.deepEqual(summary.visualReviewRecommendation.signals, { resolvedCrossovers: 1 });
+  assert.equal(summary.visualReview, 'not-requested');
+  // A legacy/authored shared junction must keep its existing interpretation.
+  for (const preserved of [
+    markup.replaceAll(' data-composition-independent="true"', ''),
+    markup.replace(' data-composition-independent="true"', ''),
+  ]) {
+    const legacy = checkHtml('legacy-shared-crossing', preserved, 'showcase');
+    assert.equal(legacy.code, 0, JSON.stringify(legacy.result));
+    assert.equal(legacy.result.composition.metrics.resolvedCrossovers, 0);
+  }
+});
 
 test('render output check: automatic shared destinations do not excuse long merged corridors', () => {
   const markup = automaticArrow('first', 'a', 'hub', [[20, 20], [100, 20], [100, 140]])
