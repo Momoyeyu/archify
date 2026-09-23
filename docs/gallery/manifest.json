@@ -680,7 +680,19 @@
                 "artifactIndex": 8
               },
               "bends": 3,
-              "stretch": 3.465
+              "stretch": 3.465,
+              "directCorridorBlockers": [
+                {
+                  "id": "contain",
+                  "label": "Contain",
+                  "box": [
+                    394,
+                    341,
+                    72,
+                    52
+                  ]
+                }
+              ]
             }
           ]
         },
@@ -1276,7 +1288,19 @@
                 "artifactIndex": 5
               },
               "bends": 3,
-              "stretch": 3.267
+              "stretch": 3.267,
+              "directCorridorBlockers": [
+                {
+                  "id": "approval",
+                  "label": "Needs Approval",
+                  "box": [
+                    339,
+                    278,
+                    126,
+                    58
+                  ]
+                }
+              ]
             },
             {
               "relationship": {
@@ -1288,7 +1312,19 @@
                 "artifactIndex": 7
               },
               "bends": 3,
-              "stretch": 2.368
+              "stretch": 2.368,
+              "directCorridorBlockers": [
+                {
+                  "id": "failed",
+                  "label": "Failed",
+                  "box": [
+                    339,
+                    356,
+                    126,
+                    58
+                  ]
+                }
+              ]
             }
           ]
         },
