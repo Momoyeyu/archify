@@ -488,12 +488,13 @@ The preview runtime ships inside the zero-dependency Skill ZIP and must work wit
 
 Never start it by default. Do not use it for CI, unattended agents, remote sharing, or mobile use. `--no-open` is only for a user who will open the printed local URL or for loop testing. Stop it with Ctrl-C before handoff. The first Ctrl-C drains the active delivery without publishing it; a second Ctrl-C forces shutdown of both delivery processes and HTTP connections, including incomplete requests. Shutdown preserves the last verified artifact and removes only staging files whose ownership can be verified. If delivery is interrupted before its receipt reaches Preview, unconfirmed files and recovery material may remain in the private staging directory; shutdown does not recursively delete unknown contents. Server state, port, source path, diagnostics, error text, and reload tokens must never enter the generated artifact or any export.
 
-## Optional perceptual review
+## Perceptual review
 
 The automated path ends with the deterministic browser gate and reports
 `visual_review: not_requested`. Escalate to perceptual review when any of these
 conditions applies:
 
+- an Architecture is newly authored or its nodes have been repositioned;
 - the compact finalizer includes `visualReviewRecommendation` for crossings or detours;
 - the user explicitly requests an aesthetic or visual review;
 - a template, renderer, or Viewer change needs visual regression evidence;
@@ -511,7 +512,7 @@ glance can support perceptual review only.
 
 Report one truthful optional-review status:
 
-- `visual_review: not_requested` — the default successful handoff.
+- `visual_review: not_requested` — no review trigger applies; this is not a visual acceptance claim.
 - `visual_review: passed` — only after inspecting the rendered artifact.
 - `visual_review: skipped (image reader unavailable)` — a requested or triggered review could not run.
 - `visual_review: failed` — with the concrete visible defect.
