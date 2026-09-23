@@ -35,6 +35,54 @@ test('all packaged HTML examples pass the real visual-check desktop gate', {
   }
 });
 
+test('default sequence and dataflow canvases fit the real desktop reader without changing explicit geometry', {
+  skip: chromePath ? false : 'Set ARCHIFY_CHROME to run the real browser regression.',
+}, async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-default-reader-'));
+  const cases = [
+    ['sequence', {
+      schema_version: 1, diagram_type: 'sequence',
+      meta: { title: 'Ping', output: 'seq.html' },
+      participants: [{ id: 'a', type: 'external', label: 'Client' }, { id: 'b', type: 'backend', label: 'Server' }],
+      messages: [{ from: 'a', to: 'b', y: 160, label: 'ping' }],
+    }, [920, 760]],
+    ['dataflow', {
+      schema_version: 1, diagram_type: 'dataflow',
+      meta: { title: 'Pipe', output: 'df.html' },
+      stages: [{ label: 'In' }, { label: 'Out' }],
+      nodes: [
+        { id: 'a', type: 'frontend', label: 'Client', stage: 0, row: 0 },
+        { id: 'b', type: 'database', label: 'Store', stage: 1, row: 0 },
+      ],
+      flows: [{ from: 'a', to: 'b', label: 'write' }],
+    }, [940, 720]],
+  ];
+  try {
+    for (const [type, doc, viewBox] of cases) {
+      for (const authored of [false, true]) {
+        const input = path.join(tmp, `${type}-${authored}.json`);
+        const artifact = path.join(tmp, `${type}-${authored}.html`);
+        const candidate = structuredClone(doc);
+        if (authored) candidate.meta.viewBox = viewBox;
+        fs.writeFileSync(input, JSON.stringify(candidate));
+        execFileSync(process.execPath, [path.join(skillRoot, 'bin/archify.mjs'), 'render', type, input, artifact]);
+        const result = await runVisualCheck({ artifactPath: artifact, chromePath });
+        if (authored) {
+          assert.equal(result.exitCode, 1, `${type}: explicit narrow canvas still requires repair`);
+          assert.ok(result.receipt.diagnostics.some(({ code }) => code === 'viewer/viewport-overflow'));
+          assert.ok(result.receipt.containment.viewports.every((v) => !v.verticalScrollAccepted));
+        } else {
+          assert.equal(result.exitCode, 0, `${type}: ${JSON.stringify(result.receipt.diagnostics)}`);
+          assert.equal(result.receipt.readability.status, 'pass');
+          assert.ok(result.receipt.containment.viewports.every((v) => v.ok && v.readerFit === 'intrinsic-height'));
+        }
+      }
+    }
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('visual-check collects nested ID-less semantic edge text for every renderer family', {
   skip: chromePath ? false : 'Set ARCHIFY_CHROME to run the real browser regression.',
 }, async () => {

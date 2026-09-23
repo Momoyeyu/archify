@@ -2183,7 +2183,7 @@ function usage() {
   archify validate <type> <input.json> [--json] [--layout-json] [--quality standard|showcase] [--repo-root path]
   archify migrate workflow <old.json> <new.json> --to-schema 2 [--output portable.html] [--json] [--repo-root path]
   archify inspect <type> <input.json>
-  archify check <output.html> [--require-provenance]
+  archify check <output.html> [--json] [--require-provenance]
   archify browser-check <output.html> [--json] [--require-provenance] [--out-dir <dir>]
   archify visual-check <output.html> [--json] [--require-provenance] [--out-dir <dir>]
   archify guide [scenario or question] [--json] [--lang en|zh]
@@ -2607,13 +2607,13 @@ const CHECK_FIXES = {
 };
 
 const COMPOSITION_FIXES = {
-  'composition/proper-crossing': ['adjust route/via or channel coordinates so unrelated relationships use separate corridors'],
-  'composition/ambiguous-corridor': ['adjust route/via or channel coordinates so unrelated relationships do not visually merge'],
-  'composition/container-border-run': ['route across the frame perpendicularly through a clear opening'],
-  'composition/label-route-clearance': ['adjust labelAt, labelDx, labelDy, labelSegment, message y, or the other relationship route'],
-  'composition/label-canvas-containment': ['adjust labelAt, labelDx, labelDy, or labelSegment so the label rect stays inside the viewBox, or enlarge meta.viewBox'],
-  'composition/micro-segment': ['move the route/channel/via point so every visible segment is at least 8px'],
-  'composition/short-interior-segment': ['move the route/channel/via point so every interior turn has at least 16px'],
+  'composition/proper-crossing': ['if authored via/route/channelX/channelY controls exist and are not required by the user, remove them to let the renderer re-plan; otherwise preserve that intent and adjust route/via or channel coordinates so unrelated relationships use separate corridors'],
+  'composition/ambiguous-corridor': ['if authored via/route/channelX/channelY controls exist and are not required by the user, remove them to let the renderer re-plan; otherwise preserve that intent and adjust route/via or channel coordinates so unrelated relationships do not visually merge'],
+  'composition/container-border-run': ['if authored via/route/channelX/channelY controls exist and are not required by the user, remove them to let the renderer re-plan; otherwise preserve that intent and route across the frame perpendicularly through a clear opening'],
+  'composition/label-route-clearance': ['if authored labelAt/labelDx/labelDy/labelSegment controls exist and are not required by the user, remove them to let the renderer re-plan; otherwise preserve that intent and adjust labelAt, labelDx, labelDy, labelSegment, message y, or the other relationship route'],
+  'composition/label-canvas-containment': ['if authored labelAt/labelDx/labelDy/labelSegment controls exist and are not required by the user, remove them to let the renderer re-plan; otherwise preserve that intent and adjust labelAt, labelDx, labelDy, or labelSegment so the label rect stays inside the viewBox, or enlarge meta.viewBox'],
+  'composition/micro-segment': ['if authored via/route/channelX/channelY controls exist and are not required by the user, remove them to let the renderer re-plan; otherwise preserve that intent and move the route/channel/via point so every visible segment is at least 8px'],
+  'composition/short-interior-segment': ['if authored via/route/channelX/channelY controls exist and are not required by the user, remove them to let the renderer re-plan; otherwise preserve that intent and move the route/channel/via point so every interior turn has at least 16px'],
 };
 
 function checkerDiagnostics(checker) {
@@ -5349,7 +5349,7 @@ function provenanceFailureReceipt({ command, artifactPath, provenance }) {
 }
 
 async function commandCheck(args) {
-  const knownOptions = new Set(['--require-provenance']);
+  const knownOptions = new Set(['--json', '--require-provenance']);
   const unknown = args.find((arg) => arg.startsWith('--') && !knownOptions.has(arg));
   if (unknown) fail(`Unknown check option "${unknown}".`);
   const requireProvenance = args.includes('--require-provenance');

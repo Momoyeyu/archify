@@ -275,6 +275,20 @@ function relationshipSubject(diagramType, relationCollection, relationIndex, rel
   };
 }
 
+const AUTHORED_PLAN_KEYS = ['route', 'via', 'channelX', 'channelY', 'fromSide', 'toSide', 'bias', 'labelAt', 'labelDx', 'labelDy', 'labelSegment'];
+
+// Re-planning advice only applies when the failing relation actually carries
+// authored controls; telling an author to remove controls that do not exist
+// just sends them hunting for a field that was never written.
+function rePlanHint(relations, fallback) {
+  const controls = new Set();
+  for (const relation of asArray(relations)) {
+    for (const key of AUTHORED_PLAN_KEYS) if (relation?.[key] !== undefined) controls.add(key);
+  }
+  if (!controls.size) return fallback;
+  return `if the authored ${[...controls].join('/')} are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and ${fallback}`;
+}
+
 const ENDPOINT_SIDE_RULES = {
   left: {
     axis: 'horizontal',
@@ -460,7 +474,8 @@ export function cleanFlowProblems({
       const from = points[hitSegment].map(Math.round).join(', ');
       const to = points[hitSegment + 1].map(Math.round).join(', ');
       const relationId = relation.id ? ` id "${relation.id}"` : '';
-      const message = `[clean-flow/edge-through-node] ${diagramType} ${relationCollection}[${relationIndex}]${relationId} "${relation.from}" -> "${relation.to}" crosses ${obstacleKind} "${obstacle.id}" (unrelated to this relationship) on segment ${hitSegment} [${from}] -> [${to}] (${clearance}px clearance) — ${routeHint}.`;
+      const hint = rePlanHint([relation], routeHint);
+      const message = `[clean-flow/edge-through-node] ${diagramType} ${relationCollection}[${relationIndex}]${relationId} "${relation.from}" -> "${relation.to}" crosses ${obstacleKind} "${obstacle.id}" (unrelated to this relationship) on segment ${hitSegment} [${from}] -> [${to}] (${clearance}px clearance) — ${hint}.`;
       recordDiagnostic({
         code: 'clean-flow/edge-through-node',
         severity: 'error',
@@ -474,7 +489,7 @@ export function cleanFlowProblems({
           to: points[hitSegment + 1],
           clearancePx: clearance,
         },
-        supportedFixes: [routeHint],
+        supportedFixes: [hint],
       });
       problems.push(message);
     }
@@ -628,7 +643,8 @@ export function cleanCrossingProblems({
         return `${relationCollection}[${index}]${id} "${relation.from}" -> "${relation.to}"`;
       };
       const point = hit.point.map((value) => Math.round(value * 10) / 10).join(', ');
-      const message = `[composition/proper-crossing] showcase ${diagramType} ${describe(left)} crosses ${describe(right)} at [${point}] (segments ${hit.leftSegment} and ${hit.rightSegment}) — ${routeHint}.`;
+      const hint = rePlanHint([left.relation, right.relation], routeHint);
+      const message = `[composition/proper-crossing] showcase ${diagramType} ${describe(left)} crosses ${describe(right)} at [${point}] (segments ${hit.leftSegment} and ${hit.rightSegment}) — ${hint}.`;
       recordDiagnostic({
         code: 'composition/proper-crossing',
         severity: 'error',
@@ -640,7 +656,7 @@ export function cleanCrossingProblems({
           segmentIndex: hit.leftSegment,
           otherSegmentIndex: hit.rightSegment,
         },
-        supportedFixes: [routeHint],
+        supportedFixes: [hint],
       });
       problems.push(message);
     }
@@ -727,7 +743,8 @@ export function cleanAmbiguousCorridorProblems({
     const length = Math.round(hit.overlapLength * 10) / 10;
     const from = hit.overlapStart.map((value) => Math.round(value * 10) / 10).join(', ');
     const to = hit.overlapEnd.map((value) => Math.round(value * 10) / 10).join(', ');
-    const message = `[composition/ambiguous-corridor] showcase ${diagramType} ${describe(hit.left)} shares a ${length}px corridor with ${describe(hit.right)} at [${from}] -> [${to}] (segments ${hit.leftSegment} and ${hit.rightSegment}; minimum ${minOverlapPx}px) — ${routeHint}.`;
+    const hint = rePlanHint([hit.left.relation, hit.right.relation], routeHint);
+    const message = `[composition/ambiguous-corridor] showcase ${diagramType} ${describe(hit.left)} shares a ${length}px corridor with ${describe(hit.right)} at [${from}] -> [${to}] (segments ${hit.leftSegment} and ${hit.rightSegment}; minimum ${minOverlapPx}px) — ${hint}.`;
     recordDiagnostic({
       code: 'composition/ambiguous-corridor',
       severity: 'error',
@@ -742,7 +759,7 @@ export function cleanAmbiguousCorridorProblems({
         segmentIndex: hit.leftSegment,
         otherSegmentIndex: hit.rightSegment,
       },
-      supportedFixes: [routeHint],
+      supportedFixes: [hint],
     });
     return message;
   });
@@ -819,7 +836,8 @@ export function cleanBorderRunProblems({
     const length = Math.round(hit.overlapLength * 10) / 10;
     const from = hit.overlapStart.map((value) => Math.round(value * 10) / 10).join(', ');
     const to = hit.overlapEnd.map((value) => Math.round(value * 10) / 10).join(', ');
-    const message = `[composition/container-border-run] ${diagramType} ${relationCollection}[${hit.relationIndex}]${relationId} "${relation.from}" -> "${relation.to}" follows ${frameKind} "${frameIdentity}" ${hit.side} border for ${length}px on segment ${hit.segmentIndex} [${from}] -> [${to}] — ${routeHint}.`;
+    const hint = rePlanHint([relation], routeHint);
+    const message = `[composition/container-border-run] ${diagramType} ${relationCollection}[${hit.relationIndex}]${relationId} "${relation.from}" -> "${relation.to}" follows ${frameKind} "${frameIdentity}" ${hit.side} border for ${length}px on segment ${hit.segmentIndex} [${from}] -> [${to}] — ${hint}.`;
     recordDiagnostic({
       code: 'composition/container-border-run',
       severity: 'error',
@@ -835,7 +853,7 @@ export function cleanBorderRunProblems({
         from: hit.overlapStart,
         to: hit.overlapEnd,
       },
-      supportedFixes: [routeHint],
+      supportedFixes: [hint],
     });
     return message;
   });
@@ -964,7 +982,8 @@ export function cleanRouteRhythmProblems({
     const rule = hit.code === 'composition/micro-segment'
       ? `is below the ${microSegmentPx}px micro-segment floor`
       : `is below the ${interiorSegmentPx}px interior-segment floor`;
-    const message = `[${hit.code}] showcase ${diagramType} ${relationCollection}[${hit.relationIndex}]${relationId} "${relation.from}" -> "${relation.to}" has a ${length}px ${hit.position} segment ${hit.segmentIndex} [${from}] -> [${to}] that ${rule} — ${routeHint}.`;
+    const hint = rePlanHint([relation], routeHint);
+    const message = `[${hit.code}] showcase ${diagramType} ${relationCollection}[${hit.relationIndex}]${relationId} "${relation.from}" -> "${relation.to}" has a ${length}px ${hit.position} segment ${hit.segmentIndex} [${from}] -> [${to}] that ${rule} — ${hint}.`;
     recordDiagnostic({
       code: hit.code,
       severity: 'error',
@@ -978,7 +997,7 @@ export function cleanRouteRhythmProblems({
         from: hit.start,
         to: hit.end,
       },
-      supportedFixes: [routeHint],
+      supportedFixes: [hint],
     });
     return message;
   });
@@ -1007,7 +1026,8 @@ export function cleanLabelRouteClearanceProblems({
     const clearance = Math.round(hit.clearance * 10) / 10;
     const from = hit.start.map((value) => Math.round(value * 10) / 10).join(', ');
     const to = hit.end.map((value) => Math.round(value * 10) / 10).join(', ');
-    const message = `[composition/label-route-clearance] showcase ${diagramType} label "${hit.label?.label || hit.labelRelation?.label || ''}" on ${describe(hit.labelRelation, hit.labelRelationIndex)} is ${clearance}px from ${describe(hit.otherRelation, hit.otherRelationIndex)} segment ${hit.segmentIndex} [${from}] -> [${to}] (label rect ${formatRect(hit.rect)}; minimum ${threshold}px) — ${routeHint}.`;
+    const hint = rePlanHint([hit.labelRelation, hit.otherRelation], routeHint);
+    const message = `[composition/label-route-clearance] showcase ${diagramType} label "${hit.label?.label || hit.labelRelation?.label || ''}" on ${describe(hit.labelRelation, hit.labelRelationIndex)} is ${clearance}px from ${describe(hit.otherRelation, hit.otherRelationIndex)} segment ${hit.segmentIndex} [${from}] -> [${to}] (label rect ${formatRect(hit.rect)}; minimum ${threshold}px) — ${hint}.`;
     recordDiagnostic({
       code: 'composition/label-route-clearance',
       severity: 'error',
@@ -1023,7 +1043,7 @@ export function cleanLabelRouteClearanceProblems({
         from: hit.start,
         to: hit.end,
       },
-      supportedFixes: [routeHint],
+      supportedFixes: [hint],
     });
     return message;
   });
@@ -1115,7 +1135,8 @@ export function cleanLabelCanvasContainmentProblems({
     const relation = hit.relation;
     const relationId = relation?.id ? ` id "${relation.id}"` : '';
     const labelText = hit.label?.label || relation?.label || '';
-    const message = `[composition/label-canvas-containment] showcase ${diagramType} label "${labelText}" on ${relationCollection}[${hit.relationIndex}]${relationId} "${relation?.from}" -> "${relation?.to}" extends past the ${describeLabelCanvasOverflow(hit)} (label rect ${formatRect(hit.rect)}; viewBox ${hit.viewBox[0]}x${hit.viewBox[1]}) — ${routeHint}.`;
+    const hint = rePlanHint([relation], routeHint);
+    const message = `[composition/label-canvas-containment] showcase ${diagramType} label "${labelText}" on ${relationCollection}[${hit.relationIndex}]${relationId} "${relation?.from}" -> "${relation?.to}" extends past the ${describeLabelCanvasOverflow(hit)} (label rect ${formatRect(hit.rect)}; viewBox ${hit.viewBox[0]}x${hit.viewBox[1]}) — ${hint}.`;
     recordDiagnostic({
       code: 'composition/label-canvas-containment',
       severity: 'error',
@@ -1128,7 +1149,7 @@ export function cleanLabelCanvasContainmentProblems({
         overflowPx: hit.overflowPx,
         tolerancePx: hit.tolerance,
       },
-      supportedFixes: [routeHint],
+      supportedFixes: [hint],
     });
     return message;
   });

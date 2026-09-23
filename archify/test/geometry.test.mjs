@@ -397,6 +397,30 @@ test('cleanCrossingProblems reports one deterministic proper X in showcase', () 
   assert.match(problems[0], /move a via point/);
 });
 
+test('crossing repair advice distinguishes automatic routes from optional authored controls', () => {
+  const first = { from: 'a', to: 'b' };
+  const second = { from: 'c', to: 'd' };
+  const options = {
+    relations: [first, second],
+    endpointIds: new Set(['a', 'b', 'c', 'd']),
+    pathFor: (relation) => ({ points: relation === first
+      ? [[0, 50], [100, 50]] : [[50, 0], [50, 100]] }),
+    diagramType: 'architecture', relationCollection: 'connections', profile: 'showcase',
+    routeHint: 'move the nodes into separate corridors',
+  };
+  const automatic = cleanCrossingProblems(options);
+  assert.equal(automatic.length, 1);
+  assert.doesNotMatch(automatic[0], /remove|authored/);
+  second.via = [[50, 25]];
+  second.labelDx = 3;
+  const before = structuredClone(options.relations);
+  const authored = cleanCrossingProblems(options);
+  assert.equal(authored.length, 1);
+  assert.match(authored[0], /authored via\/labelDx are not required by the user/);
+  assert.match(authored[0], /otherwise preserve that intent and move the nodes/);
+  assert.deepEqual(options.relations, before, 'diagnostics must not change authored geometry');
+});
+
 test('cleanCrossingProblems keeps proper X as non-blocking in standard', () => {
   const relations = [{ from: 'a', to: 'b' }, { from: 'c', to: 'd' }];
   const routes = [[[0, 50], [100, 50]], [[50, 0], [50, 100]]];

@@ -90,6 +90,51 @@ test('repository root rejects a different physical directory inside the reposito
   );
 });
 
+test('repository url carrying a local path names the origin-discovery fix', () => {
+  const data = fixture();
+  data.diagram.meta.repository.url = data.root;
+  assert.throws(
+    () => verifyRepositoryEvidence('architecture', data.diagram, data.root),
+    (error) => {
+      const diagnostic = error?.archifyDiagnostics?.find(({ code }) => code === 'repository-evidence/url-invalid');
+      assert.ok(diagnostic);
+      assert.equal(diagnostic.evidence.authoredValueLooksLike, 'local filesystem path; the expected value is the remote origin address');
+      assert.ok(diagnostic.supportedFixes.some((fix) => fix.includes('git remote get-url origin')));
+      assert.equal(JSON.stringify(diagnostic).includes(data.root), false, 'the authored value must not be echoed into diagnostics');
+      return true;
+    },
+  );
+
+  data.diagram.meta.repository.url = 'not a url at all';
+  assert.throws(
+    () => verifyRepositoryEvidence('architecture', data.diagram, data.root),
+    (error) => {
+      const diagnostic = error?.archifyDiagnostics?.find(({ code }) => code === 'repository-evidence/url-invalid');
+      assert.ok(diagnostic);
+      assert.equal(diagnostic.evidence.authoredValueLooksLike, undefined);
+      return true;
+    },
+  );
+});
+
+test('repository URL diagnostics identify Windows local paths without echoing them', () => {
+  const data = fixture();
+  for (const localPath of [String.raw`\\server\share\repo`, String.raw`C:\work\repo`, String.raw`.\repo`, String.raw`..\repo`]) {
+    data.diagram.meta.repository.url = localPath;
+    assert.throws(
+      () => verifyRepositoryEvidence('architecture', data.diagram, data.root),
+      (error) => {
+        const diagnostic = error?.archifyDiagnostics?.find(({ code }) => code === 'repository-evidence/url-invalid');
+        assert.ok(diagnostic);
+        assert.match(diagnostic.evidence.authoredValueLooksLike, /local filesystem path/);
+        assert.ok(diagnostic.supportedFixes.some((fix) => fix.includes('git remote get-url origin')));
+        assert.equal(JSON.stringify(diagnostic).includes(JSON.stringify(localPath).slice(1, -1)), false);
+        return true;
+      },
+    );
+  }
+});
+
 test('repository root fails closed when physical identity is indeterminate', (t) => {
   const data = fixture();
   const inaccessible = Object.assign(new Error('synthetic identity failure'), { code: 'EACCES' });

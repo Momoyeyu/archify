@@ -891,6 +891,20 @@ test('cli: a later successful delivery replaces stale provenance with an artifac
   assert.equal(mismatch.diagnostics[0].code, 'delivery/provenance-mismatch');
 });
 
+test('cli: check accepts --json and emits the receipt', () => {
+  const input = path.join(skillRoot, 'examples/agent-tool-call.workflow.json');
+  const out = path.join(tmp, 'check-json-flag.html');
+
+  const delivered = run(['deliver', 'workflow', input, out, '--json']);
+  assert.equal(delivered.status, 0, delivered.stderr);
+
+  const checked = run(['check', out, '--json']);
+  assert.equal(checked.status, 0, checked.stderr);
+  const receipt = JSON.parse(checked.stdout);
+  assert.equal(receipt.ok, true);
+  assert.equal(receipt.provenance, 'current');
+});
+
 test('cli: delivery pair rollback restores the previous HTML and marks it stale', () => {
   const input = path.join(skillRoot, 'examples/agent-tool-call.workflow.json');
   const out = path.join(tmp, 'delivery-pair-rollback.html');
@@ -3906,9 +3920,9 @@ test('cli: check rejects unknown options and extra positionals', () => {
   const input = path.join(skillRoot, 'examples/agent-tool-call.workflow.json');
   assert.equal(run(['render', 'workflow', input, out]).status, 0);
 
-  const unknown = run(['check', '--json', out]);
+  const unknown = run(['check', '--strict-json', out]);
   assert.equal(unknown.status, 2);
-  assert.match(unknown.stderr, /Unknown check option "--json"/);
+  assert.match(unknown.stderr, /Unknown check option "--strict-json"/);
 
   const strict = run(['check', '--require-provenance', out]);
   assert.equal(strict.status, 1);

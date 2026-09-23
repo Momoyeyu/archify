@@ -110,9 +110,13 @@ export function verifyRepositoryEvidence(diagramType, diagram, repoRootInput) {
   }
   const location = parseRepositoryRemote(repository.url, { authored: true });
   if (!location) {
+    // A filesystem path is the common authoring mistake: the field carries the
+    // remote origin identity, which `git remote get-url origin` reports.
+    const filesystemPath = /^(?:[\\/]|~|\.{1,2}(?:[\\/]|$)|[A-Za-z]:[\\/])/.test(String(repository.url ?? ''));
     evidenceFailure('repository-evidence/url-invalid', '/meta/repository/url must be a credential-free HTTP(S) or Git SSH repository address without query, fragment, or dot segments.', {
       subject: { path: '/meta/repository/url' },
-      supportedFixes: ['declare the matching repository address without credentials; use link_mode: local-only for internal repositories'],
+      evidence: filesystemPath ? { authoredValueLooksLike: 'local filesystem path; the expected value is the remote origin address' } : {},
+      supportedFixes: ['run `git remote get-url origin` inside --repo-root and declare that credential-free address', 'use link_mode: local-only for internal repositories'],
     });
   }
   const linkMode = repository.link_mode ?? 'web';
