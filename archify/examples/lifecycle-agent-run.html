@@ -4242,7 +4242,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     /* Stable semantic exploration hooks emitted by every renderer. */
     svg [data-node-id] {
       cursor: pointer;
-      transition: opacity 0.18s ease, filter 0.18s ease;
+      transition: opacity 0.18s ease, fill-opacity 0.18s ease, stroke-opacity 0.18s ease, filter 0.18s ease;
     }
     svg [data-edge-from],
     svg [data-graph-role="automatic-crossover-underlay"] { transition: opacity 0.18s ease, filter 0.18s ease; }
@@ -4593,7 +4593,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     /* Intent Trace is a temporary, pre-click exploration layer. Related
        topology stays readable while a short viewer-only signal runs over
        cloned edge geometry; the authored edge remains untouched underneath. */
-    svg[data-intent-trace-active] [data-node-id],
+    /* Keep the node's opaque backing mask intact while its visible ink dims.
+       Fading the whole group also fades that mask and briefly exposes arrows
+       routed underneath the node when the pointer leaves. */
+    svg[data-intent-trace-active] [data-node-id] { fill-opacity: 0.2; stroke-opacity: 0.2; }
+    svg [data-node-id] > .c-mask { fill-opacity: 1; }
+    svg[data-intent-trace-active] [data-node-id][data-intent-trace-match] { fill-opacity: 1; stroke-opacity: 1; }
     svg[data-intent-trace-active] [data-edge-from] { opacity: 0.2; }
     svg[data-intent-trace-active] [data-graph-role="automatic-crossover"] > [data-graph-role="automatic-crossover-underlay"] { opacity: 0.2; }
     svg[data-intent-trace-active] [data-lifecycle-rail] { opacity: 0; }
