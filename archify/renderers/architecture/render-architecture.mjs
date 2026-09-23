@@ -925,7 +925,8 @@ function renderSvg() {
   // keep its common-desktop text at a comfortable reading size instead of
   // shrinking a semantically rich graph to the universal emergency floor.
   const readerMinimumText = arch.meta?.viewBox ? '' : ' data-reader-min-text="7.5"';
-  return `      <svg viewBox="0 0 ${viewBox[0]} ${viewBox[1]}" ${svgRootAttrs(arch.meta)}${readerFit}${readerMinimumText}>
+  const readerPrimaryText = arch.meta?.viewBox ? '' : ' data-reader-primary-text="14"';
+  return `      <svg viewBox="0 0 ${viewBox[0]} ${viewBox[1]}" ${svgRootAttrs(arch.meta)}${readerFit}${readerMinimumText}${readerPrimaryText}>
 ${svgAccessibleText(arch.meta, 'architecture')}
 ${renderDefinitions()}
 
