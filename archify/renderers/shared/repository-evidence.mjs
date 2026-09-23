@@ -112,7 +112,7 @@ export function verifyRepositoryEvidence(diagramType, diagram, repoRootInput) {
   if (!location) {
     // A filesystem path is the common authoring mistake: the field carries the
     // remote origin identity, which `git remote get-url origin` reports.
-    const filesystemPath = /^(?:\/|~|\.{1,2}(?:\/|$)|[A-Za-z]:[\\/])/.test(String(repository.url ?? ''));
+    const filesystemPath = /^(?:[\\/]|~|\.{1,2}(?:[\\/]|$)|[A-Za-z]:[\\/])/.test(String(repository.url ?? ''));
     evidenceFailure('repository-evidence/url-invalid', '/meta/repository/url must be a credential-free HTTP(S) or Git SSH repository address without query, fragment, or dot segments.', {
       subject: { path: '/meta/repository/url' },
       evidence: filesystemPath ? { authoredValueLooksLike: 'local filesystem path; the expected value is the remote origin address' } : {},

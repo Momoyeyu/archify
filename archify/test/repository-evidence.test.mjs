@@ -117,6 +117,24 @@ test('repository url carrying a local path names the origin-discovery fix', () =
   );
 });
 
+test('repository URL diagnostics identify Windows local paths without echoing them', () => {
+  const data = fixture();
+  for (const localPath of [String.raw`\\server\share\repo`, String.raw`C:\work\repo`, String.raw`.\repo`, String.raw`..\repo`]) {
+    data.diagram.meta.repository.url = localPath;
+    assert.throws(
+      () => verifyRepositoryEvidence('architecture', data.diagram, data.root),
+      (error) => {
+        const diagnostic = error?.archifyDiagnostics?.find(({ code }) => code === 'repository-evidence/url-invalid');
+        assert.ok(diagnostic);
+        assert.match(diagnostic.evidence.authoredValueLooksLike, /local filesystem path/);
+        assert.ok(diagnostic.supportedFixes.some((fix) => fix.includes('git remote get-url origin')));
+        assert.equal(JSON.stringify(diagnostic).includes(JSON.stringify(localPath).slice(1, -1)), false);
+        return true;
+      },
+    );
+  }
+});
+
 test('repository root fails closed when physical identity is indeterminate', (t) => {
   const data = fixture();
   const inaccessible = Object.assign(new Error('synthetic identity failure'), { code: 'EACCES' });
