@@ -281,7 +281,9 @@ test('compact success retains route-quality review signals without claiming perc
 
 test('compact success bounds review context and preserves relationship identity', () => {
   const crossings = Array.from({ length: 10 }, (_, index) => ({ left: { id: `edge-${index}` }, right: { id: 'hub' }, point: [index, 50] }));
-  const detours = [{ relationship: { id: 'return', from: 'worker', to: 'api' }, bends: 4, stretch: 1.5 }];
+  const detours = [{ relationship: { id: 'return', from: 'worker', to: 'api' }, bends: 4, stretch: 1.5,
+    directCorridorBlockers: [{ id: 'store', label: 'Shared store', box: [100, 40, 80, 50] }],
+  }];
   const compact = compactFinalizeReceipt({ ok: true, stages: { check: { receipt: { composition: {
     metrics: { resolvedCrossovers: 10, routesOverSuggestedBends: 1 }, routeReview: { crossings, detours },
   } } } } });
@@ -290,6 +292,7 @@ test('compact success bounds review context and preserves relationship identity'
   });
   assert.equal(crossings.length, 10, 'compaction does not truncate the full evidence');
   assert.equal(compact.visualReview, 'not-requested');
+  assert.match(compact.visualReviewRecommendation.repair, /architecture-layout-repair\.md/);
 });
 
 test('compact failure receipts retain diverse actionable subjects without embedding full stage evidence', () => {
@@ -322,6 +325,8 @@ test('compact failure receipts retain diverse actionable subjects without embedd
   assert.equal(new Set(compact.diagnostics.map(({ subject }) => subject.id)).size, 8);
   assert.deepEqual(compact.diagnosticSummary, { total: 20, shown: 8, truncated: true });
   assert.equal(compact.nextAction.action, 'edit-in-place');
+  assert.match(compact.nextAction.constraint, /Preserve all semantics and user-fixed geometry/);
+  assert.match(compact.nextAction.constraint, /local repair or connected-scene reflow/);
   assert.equal('stages' in compact, false);
   assert.ok(JSON.stringify(compact).length < JSON.stringify(receipt).length / 4);
 });

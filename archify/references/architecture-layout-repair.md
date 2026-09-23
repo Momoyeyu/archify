@@ -2,6 +2,12 @@
 
 Use this after actual visual review finds several tangled routes. A successful machine receipt does not settle composition. Work on the existing candidate, retaining all required components, relationships, labels, evidence, boundaries, and node sizes.
 
+## Choose the repair scope
+
+If the main and secondary chains already read clearly, repair the isolated defect locally. If a main chain is blocked, several routes tangle, or a local fix repeatedly damages another route, reflow the connected scene in one edit. Preserve all semantics and user-fixed geometry; agent-generated positions and route controls may change. After moving nodes, remove stale generated route overrides before selecting sides for the new placement.
+
+The receipt's `directCorridorBlockers`, when present, names nodes between an edge's aligned endpoints. This is geometric evidence, not proof that the edge is the main path or a new validation failure. Trace the reader's actual main path first. When a listed blocker interrupts that path, reposition the connected group instead of adding another detour.
+
 ## One coherent repair
 
 1. Trace the affected relationships and their endpoints in the JSON. Before choosing coordinates, write the reader’s main path as an ordered list of existing edges, then identify shared state and real feedback cycles. Every neighboring pair in that main path must have the relationship being explained; place other components on branches beside their actual owner. Use `validate architecture <candidate.json> --layout-json --repo-root <root>` once if the compact receipt and screenshot do not reveal the needed route or label geometry; omit `--repo-root` only for a design without repository evidence. Do not guess repeated waypoint coordinates.

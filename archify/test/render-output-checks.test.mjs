@@ -765,6 +765,30 @@ test('render output check: composition receipt records neutral normalized route 
   assert.deepEqual(result.composition.suggestedLimits, { bendsPerRelationship: 2, stretch: 1.35, segmentPx: 16, microSegmentPx: 8 });
 });
 
+test('render output check: detours identify intervening nodes without failing valid routing', () => {
+  for (const vertical of [false, true]) {
+    const point = (x, y) => vertical ? [y, x] : [x, y];
+    const rect = (id, x, y, extra = '') => {
+      const [left, top] = point(x, y);
+      return `<g data-node-id="${id}" data-node-label="${id} role" ${extra}><rect class="c-mask" x="${left}" y="${top}" width="40" height="40"/></g>`;
+    };
+    const points = [[50, 70], [70, 70], [70, 20], [190, 20], [190, 70], [210, 70]].map(([x, y]) => point(x, y));
+    const edge = `<path data-edge-from="a" data-edge-to="b" data-composition-points="${points.map(p => p.join(',')).join(';')}" d="M ${points.map(p => p.join(' ')).join(' L ')}" class="a-default" marker-end="url(#arrowhead)"/>`;
+    const endpoints = rect('a', 10, 50) + rect('b', 210, 50);
+    const { code, result } = checkHtml(`blocked-direct-${vertical}`, endpoints + rect('blocker', 110, 50) + rect('off-row', 110, 100) + edge, 'showcase', '0 0 560 280');
+    assert.equal(code, 0, 'a legal route around an intervening node is still valid');
+    assert.deepEqual(result.composition.summary, { errors: 0, warnings: 0 });
+    assert.deepEqual(result.composition.routeReview.detours[0].directCorridorBlockers, [{
+      id: 'blocker', label: 'blocker role', box: [...point(110, 50), 40, 40],
+    }]);
+
+    const transformed = checkHtml(`transformed-blocker-${vertical}`, endpoints + `<g transform="translate(100 100)">${rect('blocker', 110, 50)}</g>` + edge, 'showcase', '0 0 560 280');
+    assert.equal(transformed.result.composition.routeReview.detours[0].directCorridorBlockers, undefined, 'unresolved coordinate spaces are not guessed');
+    const offset = checkHtml(`offset-endpoints-${vertical}`, rect('a', 10, 40) + rect('b', 210, 50) + rect('blocker', 110, 50) + edge, 'showcase', '0 0 560 280');
+    assert.equal(offset.result.composition.routeReview.detours[0].directCorridorBlockers, undefined, 'different rows have no single direct corridor');
+  }
+});
+
 test('render output check: endpoint stubs from 8px pass while cramped interior turns are profile-aware', () => {
   const clean = checkHtml('endpoint-stubs', `
     <path data-edge-id="lane-hop" data-edge-from="a" data-edge-to="b" data-composition-points="0,20;13,20;13,60;80,60;80,73" d="M 0 20 L 13 20 L 13 60 L 80 60 L 80 73" class="a-default" marker-end="url(#arrowhead)"/>

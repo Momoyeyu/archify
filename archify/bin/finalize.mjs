@@ -519,7 +519,7 @@ export function compactFinalizeReceipt(receipt) {
           detours: routeReview.detours.slice(0, 8),
           truncated: routeReview.crossings.length > 8 || routeReview.detours.length > 8,
         },
-        repair: 'Trace these relationships at the desktop viewport. If several routes tangle around the same nodes, reposition that connected neighborhood together, preserving all semantics and unrelated geometry; rerun finalize once. Choose endpoint sides for the main rail and return corridors together with placement; reserve detailed waypoints or label overrides for an isolated remaining defect.',
+        repair: 'Trace these relationships at the desktop viewport. For Architecture, use references/architecture-layout-repair.md: reflow a blocked main path or tangled connected scene, and repair an isolated defect locally only when the surrounding composition is accepted. Preserve all semantic content and user-fixed geometry. Rerun finalize once after the edit.',
       } : {}),
     };
   }
@@ -527,7 +527,9 @@ export function compactFinalizeReceipt(receipt) {
     compact.nextAction = {
       action: 'edit-in-place',
       candidate: receipt.specification?.path,
-      constraint: 'Preserve unaffected semantics and geometry; do not replace the whole candidate.',
+      constraint: receipt.type === 'architecture'
+        ? 'Preserve all semantics and user-fixed geometry. Use references/architecture-layout-repair.md to choose a local repair or connected-scene reflow; edit the existing candidate.'
+        : 'Preserve unaffected semantics and geometry; do not replace the whole candidate.',
       then: 'finalize-once',
     };
   }

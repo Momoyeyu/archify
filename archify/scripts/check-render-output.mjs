@@ -151,6 +151,7 @@ if (svgMatches.length === 1) {
   const routedRelationships = arrows
     .filter((arrow) => arrow.from && arrow.to && arrow.routePoints.length)
     .map((arrow) => ({ relation: arrow, relationIndex: arrow.index, points: arrow.routePoints }));
+  const nodeRects = svgAttrs.transform ? [] : collectUntransformedNodeRects(beforeLegend);
   const routeMetrics = routeBudgetMetrics({ routedRelations: routedRelationships });
   const routeRhythmIssues = collectRouteRhythmIssues({ routedRelations: routedRelationships });
   const ambiguousCorridors = collectAmbiguousCorridors({
@@ -237,10 +238,12 @@ if (svgMatches.length === 1) {
       })),
       detours: routedRelationships.flatMap((entry) => {
         const metrics = routeBudgetMetrics({ routedRelations: [entry] });
+        const blockers = directCorridorBlockers(entry.relation, nodeRects);
         return metrics.routesOverSuggestedBends || metrics.routesOverSuggestedStretch ? [{
           relationship: relationshipRecord(entry.relation),
           bends: metrics.maxBends,
           stretch: metrics.maxStretch == null ? null : Math.round(metrics.maxStretch * 1000) / 1000,
+          ...(blockers.length ? { directCorridorBlockers: blockers } : {}),
         }] : [];
       }),
     },
@@ -576,6 +579,53 @@ function relationshipName(arrow) {
   return arrow.id
     ? `relationship id "${arrow.id}" ("${arrow.from}" -> "${arrow.to}")`
     : `relationship "${arrow.from}" -> "${arrow.to}"`;
+}
+
+// Review evidence only. Mask rectangles are the visible node bounds emitted by
+// our renderers. Skip transformed ancestry rather than mixing coordinate spaces.
+function collectUntransformedNodeRects(fragment) {
+  const groups = [];
+  const nodes = new Map();
+  for (const token of fragment.matchAll(SVG_TAG_TOKEN)) {
+    if (!token[2]) continue;
+    const name = token[2].toLowerCase();
+    if (name === 'g') {
+      if (token[1]) groups.pop();
+      else if (!/\/\s*>$/.test(token[0])) groups.push(parseAttrs(token[0]));
+      continue;
+    }
+    if (name !== 'rect' || token[1] || groups.some((group) => group.transform)) continue;
+    const attrs = parseAttrs(token[0]);
+    const owner = [...groups].reverse().find((group) => group['data-node-id']);
+    if (!owner || attrs.transform || !String(attrs.class || '').split(/\s+/).includes('c-mask')) continue;
+    const box = ['x', 'y', 'width', 'height'].map((key) => numberAttr(attrs, key));
+    if (!box.every(Number.isFinite) || box[2] <= 0 || box[3] <= 0) continue;
+    const id = owner['data-node-id'];
+    // Ambiguous ownership is not reliable evidence for moving a node.
+    nodes.set(id, nodes.has(id) ? null : { id, label: owner['data-node-label'] || id, box });
+  }
+  return [...nodes.values()].filter(Boolean);
+}
+
+function directCorridorBlockers(relation, nodes) {
+  const from = nodes.find((node) => node.id === relation.from);
+  const to = nodes.find((node) => node.id === relation.to);
+  if (!from || !to || from === to) return [];
+  const center = ({ box: [x, y, w, h] }) => [x + w / 2, y + h / 2];
+  const a = center(from);
+  const b = center(to);
+  const horizontal = Math.abs(a[1] - b[1]) < 0.01;
+  const vertical = Math.abs(a[0] - b[0]) < 0.01;
+  if (horizontal === vertical) return [];
+  const axis = horizontal ? 0 : 1;
+  const cross = 1 - axis;
+  const [first, last] = a[axis] < b[axis] ? [from, to] : [to, from];
+  const low = first.box[axis] + first.box[axis + 2];
+  const high = last.box[axis];
+  if (high <= low) return [];
+  return nodes.filter((node) => node !== from && node !== to
+    && node.box[axis] < high && node.box[axis] + node.box[axis + 2] > low
+    && node.box[cross] < a[cross] && node.box[cross] + node.box[cross + 2] > a[cross]);
 }
 
 function relationshipRecord(arrow) {
