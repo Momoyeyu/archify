@@ -30,7 +30,10 @@ fact has supporting source evidence.
 3. **Trace ownership.** For each step, name the controller that owns the
    decision, the runtime that performs it, and the filesystem or durable store
    that supplies or receives bytes. Keep control ownership separate from file
-   I/O. A configured provider, an injected adapter, a local stub, and a durable
+   I/O in your source understanding. Choose which distinctions need separate
+   nodes using [Composition and meaning](authoring-defaults.md#composition-and-meaning);
+   discovering an implementation role does not automatically add it to the overview.
+   A configured provider, an injected adapter, a local stub, and a durable
    service are different claims; label the one the source supports.
 
 4. **Record evidence while reading.** Keep exact repository-relative paths and
@@ -86,8 +89,8 @@ boundaries currently use `kind: "region"` or `kind: "security-group"`; source
 references use `path`, `line`, and optional `end_line`; guided-view notes have
 their own limit.
 
-Repository-backed components need concise, truthful `sources` references. Keep
-control ownership separate from filesystem I/O: the code that reads or writes
+Repository-backed components need concise, truthful `sources` references. Preserve
+control ownership when summarizing filesystem I/O: the code that reads or writes
 a file owns that action, while a pure in-memory transform receives and returns
-values. Use the existing examples for valid field shape, then replace all
+values. This fact-check does not require a separate overview node for every helper. Use the existing examples for valid field shape, then replace all
 identifiers, wording, source paths, and claims with inspected repository facts.

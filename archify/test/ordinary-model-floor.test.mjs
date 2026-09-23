@@ -940,9 +940,9 @@ test('packaged skill puts a bounded ordinary-model path before progressive featu
   }
   assert.doesNotMatch(skill.slice(fastPath, fastPathEnd), /Then run exactly one `validate/);
   assert.match(skill.slice(fastPath, fastPathEnd), /references\/authoring-defaults\.md/);
-  assert.match(skill, /real system determine the number of nodes and relationships/i);
+  assert.match(skill, /default to a system overview/i);
   assert.match(skill, /Never use node, relationship, source-reference, view, card, or boundary counts as an authoring target/i);
-  assert.match(authoringDefaults, /Let the real system determine node and relationship counts/i);
+  assert.match(authoringDefaults, /Let the requested question and source facts determine node and relationship counts/i);
   assert.match(authoringDefaults, /never target a total reference count/i);
   for (const instructions of [skill, authoringDefaults]) {
     assert.doesNotMatch(
