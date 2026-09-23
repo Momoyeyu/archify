@@ -3675,7 +3675,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5 2.5h7l3 3v12H5zM12 2.5v3h3' fill='none' stroke='black' stroke-width='1.7'/%3E%3Cpath d='M7.5 14l2-2 1.5 1.5 1.5-1.5' fill='none' stroke='black' stroke-width='1.7'/%3E%3C/svg%3E");
       mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5 2.5h7l3 3v12H5zM12 2.5v3h3' fill='none' stroke='black' stroke-width='1.7'/%3E%3Cpath d='M7.5 14l2-2 1.5 1.5 1.5-1.5' fill='none' stroke='black' stroke-width='1.7'/%3E%3C/svg%3E");
     }
-    .toolbar .export-menu button[data-format="svg"]::before,
+    .toolbar .export-menu button[data-format^="svg"]::before,
     .toolbar .export-menu button[data-format="webm"]::before {
       -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M10 2.5l7 4v7l-7 4-7-4v-7zM3 6.5l7 4 7-4M10 10.5v7' fill='none' stroke='black' stroke-width='1.7'/%3E%3C/svg%3E");
       mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M10 2.5l7 4v7l-7 4-7-4v-7zM3 6.5l7 4 7-4M10 10.5v7' fill='none' stroke='black' stroke-width='1.7'/%3E%3C/svg%3E");
@@ -5172,7 +5172,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         </div>
         <div class="export-menu-section" role="group" aria-label="{{i18n:viewer.export.vectorMotion}}">
           <span class="export-menu-heading" aria-hidden="true">{{i18n:viewer.export.vectorMotion.heading}}</span>
-          <button data-format="svg" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>SVG</strong><small class="hint">{{i18n:viewer.export.editable}}</small></span></button>
+          <button data-format="svg" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>{{i18n:viewer.export.svg.auto}}</strong><small class="hint">{{i18n:viewer.export.svg.auto.hint}}</small></span></button>
+          <button data-format="svg-light" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>{{i18n:viewer.export.svg.light}}</strong><small class="hint">{{i18n:viewer.export.svg.light.hint}}</small></span></button>
+          <button data-format="svg-dark" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>{{i18n:viewer.export.svg.dark}}</strong><small class="hint">{{i18n:viewer.export.svg.dark.hint}}</small></span></button>
           <button data-format="webm" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>WebM</strong><small class="hint">{{i18n:viewer.export.motion6s}}</small></span></button>
         </div>
       </div>
@@ -6090,10 +6092,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
        *   (PNG/JPEG/WebP/clipboard) because canvas rasterization needs
        *   deterministic colors; a raster cannot react to
        *   prefers-color-scheme after encoding.
-       * - autoTheme=true — emits BOTH dark and light variable sets plus a
+       * - theme=auto — emits BOTH dark and light variable sets plus a
        *   `@media (prefers-color-scheme)` rule so the resulting SVG
        *   self-themes when embedded in GitHub READMEs or other hosts that
-       *   expose a color scheme. Used for "Download SVG".
+       *   expose a color scheme. Used for the default "Download SVG".
+       * - theme=light|dark — locks the standalone SVG to the requested
+       *   theme, independently of its source Viewer and host OS themes.
        */
       function applyRouteSnapshot(clone, snapshot) {
         if (!snapshot || !Array.isArray(snapshot.nodeIds) || !Array.isArray(snapshot.edges) ||
@@ -6262,7 +6266,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         // the raster path. Defaults to 1 (natural size) for SVG download.
         scale = scale || 1;
         opts = opts || {};
-        var autoTheme = opts.autoTheme === true;
+        var requestedTheme = opts.theme || (opts.autoTheme === true ? 'auto' : null);
+        if (requestedTheme && requestedTheme !== 'auto' && requestedTheme !== 'light' && requestedTheme !== 'dark') {
+          throw new Error('Unsupported SVG theme: ' + requestedTheme);
+        }
+        var autoTheme = requestedTheme === 'auto';
         var svg = document.querySelector('.diagram-container svg');
         var clone = svg.cloneNode(true);
 
@@ -6376,9 +6384,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           // swaps with the media query.
           bgRect.setAttribute('class', 'c-bg-rect');
         } else {
-          // Raster path: lock to the viewer's current theme.
-          var theme = document.documentElement.getAttribute('data-theme') || 'dark';
-          var themeHost = document.querySelector('[data-theme="' + theme + '"]') || document.documentElement;
+          // Raster exports keep the viewer's current theme. Explicit SVG
+          // exports instead select their own stable light/dark source.
+          var lockedTheme = requestedTheme || document.documentElement.getAttribute('data-theme') || 'dark';
+          var themeHost = document.querySelector('[data-theme="' + lockedTheme + '"]') || document.documentElement;
           var computed = getComputedStyle(themeHost);
           var vars = varNames.map(function (n) {
             return n + ': ' + computed.getPropertyValue(n).trim() + ';';
@@ -6394,6 +6403,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             hostStyle + "\n" +
             ":root, svg { " + vars + " }\n";
 
+          if (requestedTheme) clone.setAttribute('data-theme', lockedTheme);
           bgRect.setAttribute('fill', computed.getPropertyValue('--bg').trim() || '#ffffff');
         }
 
@@ -7071,6 +7081,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
       function runExport(format) {
         var base = diagramFilename();
+        var svgTheme = format === 'svg' ? 'auto' :
+          format === 'svg-light' ? 'light' :
+          format === 'svg-dark' ? 'dark' : null;
         close(true);
         clearExportReceipt();
         if (format === 'webm') toast(viewerText('viewer.export.recording'));
@@ -7080,11 +7093,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
               download(blob, base + '-share-card.png');
               toast(viewerText('viewer.export.downloadedShare'));
             })
-          : format === 'svg'
-          ? Promise.resolve(serializeSvg(1, { autoTheme: true })).then(function (d) {
+          : svgTheme
+          ? Promise.resolve(serializeSvg(1, { theme: svgTheme })).then(function (d) {
               var blob = new Blob([d.svgString], { type: 'image/svg+xml;charset=utf-8' });
               recordExportReceipt('svg', blob, d.canonicalStateClean);
-              download(blob, base + '.svg');
+              download(blob, base + (svgTheme === 'auto' ? '' : '-' + svgTheme) + '.svg');
             })
           : format === 'webm'
             ? recordWebm().then(function (blob) {
