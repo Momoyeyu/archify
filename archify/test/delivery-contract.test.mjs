@@ -31,7 +31,7 @@ test('delivery contract describes the directory-wide physical delivery lock', ()
 
 const finalizeSection = delivery.match(/For the ordinary agent handoff path[\s\S]*?The individual commands remain authoritative/)?.[0] ?? '';
 const browserSection = delivery.match(/## Automated browser evidence[\s\S]*?## Optional capture evidence/)?.[0] ?? '';
-const optionalReviewSection = delivery.match(/## Optional perceptual review[\s\S]*?## Handoff receipt/)?.[0] ?? '';
+const perceptualReviewSection = delivery.match(/## Perceptual review[\s\S]*?## Handoff receipt/)?.[0] ?? '';
 
 test('ordinary handoff uses one deterministic finalizer without image capability', () => {
   assert.ok(skill.indexOf('## Existing candidate handoff') < skill.indexOf('## Fast authoring path'));
@@ -73,20 +73,21 @@ test('strict provenance succeeds before either browser command', () => {
   const ordering = delivery.match(/Run strict `check` after `deliver` exits zero\.[\s\S]*?collecting new browser evidence\./)?.[0] ?? '';
   assert.match(ordering, /Run `browser-check` or optional\s+`visual-check` only after that strict check exits zero/i);
   assert.match(skill, /required order stays `deliver` → strict provenance `check` → `browser-check`/);
-  assert.match(skill, /Run optional `visual-check` only against a strict-provenance artifact/);
+  assert.match(skill, /Run `visual-check` only against a strict-provenance artifact/);
 });
 
-test('perceptual review is an explicit risk escalation with a bounded correction loop', () => {
-  assert.match(optionalReviewSection, /visual_review: not_requested/);
-  assert.match(optionalReviewSection, /user explicitly requests an aesthetic or visual review/i);
-  assert.match(optionalReviewSection, /template, renderer, or Viewer change/i);
-  assert.match(optionalReviewSection, /novel layout or browser diagnostic leaves low confidence/i);
-  assert.match(optionalReviewSection, /sampled audit or dogfood/i);
-  assert.match(optionalReviewSection, /run `visual-check`[\s\S]*contact sheet/i);
-  assert.match(optionalReviewSection, /never exceed two focused correction rounds/i);
-  assert.match(optionalReviewSection, /Never report\s+`visual_review: passed` without inspecting/i);
+test('perceptual review covers fresh architectures and risk escalation with a bounded correction loop', () => {
+  assert.match(perceptualReviewSection, /visual_review: not_requested/);
+  assert.match(perceptualReviewSection, /Architecture is newly authored or its nodes have been repositioned/);
+  assert.match(perceptualReviewSection, /user explicitly requests an aesthetic or visual review/i);
+  assert.match(perceptualReviewSection, /template, renderer, or Viewer change/i);
+  assert.match(perceptualReviewSection, /novel layout or browser diagnostic leaves low confidence/i);
+  assert.match(perceptualReviewSection, /sampled audit or dogfood/i);
+  assert.match(perceptualReviewSection, /run `visual-check`[\s\S]*contact sheet/i);
+  assert.match(perceptualReviewSection, /never exceed two focused correction rounds/i);
+  assert.match(perceptualReviewSection, /Never report\s+`visual_review: passed` without inspecting/i);
   assert.match(skill, /If perceptual review is unavailable, report that quality remains unverified/i);
-  assert.match(optionalReviewSection, /visualReviewRecommendation/);
+  assert.match(perceptualReviewSection, /visualReviewRecommendation/);
   assert.match(delivery, /Open the HTML contact sheet in a browser or inspect the viewport PNGs/i);
 });
 
