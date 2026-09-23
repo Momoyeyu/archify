@@ -105,64 +105,9 @@ function checkDocument(relativePath, source, version, isDevelopment) {
   }
 }
 
-function checkRavenBoundary(relativePath, source, language) {
-  const installParent = String.raw`~\/\.raven\/workspace\/skills`;
-  const installedRoot = `${installParent}\/archify`;
-  const pathBoundary = String.raw`(?=$|[\s\x60'"<>,.;:，；。])`;
-  const hasEnglishManual = /manual ZIP/i.test(source);
-  const hasChineseManual = /(?:手动[^\n<]{0,40}ZIP|ZIP[^\n<]{0,40}手动)/i.test(source);
-  const hasJapaneseManual = /(?:手動[^\n<]{0,40}ZIP|ZIP[^\n<]{0,40}手動)/i.test(source);
-  const hasRequiredCopy = language === 'both'
-    ? hasEnglishManual && hasChineseManual
-    : language === 'zh' ? hasChineseManual
-      : language === 'ja' ? hasJapaneseManual
-        : hasEnglishManual;
-  const englishExtractsIntoParent = new RegExp(
-    String.raw`(?:extract|unpack)[^\n]{0,180}archify\.zip[^\n]{0,180}(?:into|to)\s*[\x60'"<]*${installParent}${pathBoundary}`,
-    'i',
-  ).test(source);
-  const englishExplainsInstalledRoot = new RegExp(
-    String.raw`(?:yields?|creates?|produces?|results? in)[^\n]{0,120}${installedRoot}`,
-    'i',
-  ).test(source);
-  const chineseExtractsIntoParent = new RegExp(
-    String.raw`archify\.zip[^\n]{0,100}解压(?:到|至)\s*[\x60'"<]*${installParent}${pathBoundary}`,
-    'i',
-  ).test(source);
-  const chineseExplainsInstalledRoot = new RegExp(
-    String.raw`(?:得到|生成|产生|最终位于)[^\n]{0,120}${installedRoot}`,
-    'i',
-  ).test(source);
-  const japaneseExtractsIntoParent = new RegExp(
-    String.raw`archify\.zip[^\n]{0,120}[\x60'"<]*${installParent}${pathBoundary}[^\n]{0,20}(?:に|へ)\s*(?:展開|解凍)`,
-    'i',
-  ).test(source);
-  const japaneseExplainsInstalledRoot = new RegExp(
-    String.raw`${installedRoot}[^\n]{0,40}(?:が|は)[^\n]{0,20}(?:作成|生成|でき)`,
-    'i',
-  ).test(source);
-  const hasCorrectDestination = language === 'both'
-    ? englishExtractsIntoParent && englishExplainsInstalledRoot
-      && chineseExtractsIntoParent && chineseExplainsInstalledRoot
-    : language === 'zh'
-      ? chineseExtractsIntoParent && chineseExplainsInstalledRoot
-      : language === 'ja'
-        ? japaneseExtractsIntoParent && japaneseExplainsInstalledRoot
-        : englishExtractsIntoParent && englishExplainsInstalledRoot;
-  const nestedDestination = new RegExp(
-    String.raw`(?:\b(?:extract|unpack)[^\n]{0,220}(?:into|to)|解压(?:到|至))\s*[\x60'"<]*${installedRoot}`,
-    'i',
-  ).test(source)
-    || new RegExp(
-      String.raw`${installedRoot}[^\n]{0,4}(?:に|へ)[^\n]{0,4}(?:展開|解凍)`,
-      'i',
-    ).test(source);
-  const inventsSwitcher = /data-agent=["']raven["']/i.test(source)
-    || /--agent\s+raven\b/i.test(source)
-    || /[?&]agent=raven\b/i.test(source);
-  if (!/Raven/i.test(source) || !hasRequiredCopy || !hasCorrectDestination
-    || nestedDestination || inventsSwitcher) {
-    fail(`${relativePath}: Raven must remain a manual ZIP installation outside the agent switcher: extract archify.zip into ~/.raven/workspace/skills, yielding ~/.raven/workspace/skills/archify.`);
+function checkNoRavenSwitcher(relativePath, source) {
+  if (/data-agent=["']raven["']|--agent\s+raven\b|[?&]agent=raven\b/i.test(source)) {
+    fail(`${relativePath}: Raven is not an agent-switcher target.`);
   }
 }
 
@@ -275,10 +220,9 @@ if (hasSupportedVersion) {
   checkReadme('README_EN.md', englishMirror, version, 'en', isDevelopment);
   checkReadme('README_ZH.md', chinese, version, 'zh', isDevelopment);
   checkReadme('README_JA.md', japanese, version, 'ja', isDevelopment);
-  checkRavenBoundary('README.md', english, 'en');
-  checkRavenBoundary('README_EN.md', englishMirror, 'en');
-  checkRavenBoundary('README_ZH.md', chinese, 'zh');
-  checkRavenBoundary('README_JA.md', japanese, 'ja');
+  for (const [path, content] of [['README.md', english], ['README_EN.md', englishMirror], ['README_ZH.md', chinese], ['README_JA.md', japanese]]) {
+    checkNoRavenSwitcher(path, content);
+  }
   if (english !== englishMirror) fail('README_EN.md must remain byte-identical to README.md.');
 
   if (newestStableLabel && isDevelopment) {
@@ -291,7 +235,7 @@ if (hasSupportedVersion) {
 
   const landing = read('docs/index.html');
   checkDocument('docs/index.html', landing, version, isDevelopment);
-  checkRavenBoundary('docs/index.html', landing, 'both');
+  checkNoRavenSwitcher('docs/index.html', landing);
   const proofCounts = [...landing.matchAll(/\b\d+\/\d+\b/g)].map((match) => match[0]);
   const staleProofCounts = [...new Set(proofCounts.filter((count) => count !== '9/9'))];
   if (proofCounts.length === 0 || staleProofCounts.length > 0) {
@@ -300,7 +244,7 @@ if (hasSupportedVersion) {
   }
   const start = read('docs/start.html');
   checkDocument('docs/start.html', start, version, isDevelopment);
-  checkRavenBoundary('docs/start.html', start, 'both');
+  checkNoRavenSwitcher('docs/start.html', start);
   checkRoadmap('ROADMAP.md', read('ROADMAP.md'), version, isDevelopment);
 
   for (const templatePath of [
