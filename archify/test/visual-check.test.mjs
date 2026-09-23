@@ -2239,7 +2239,7 @@ for (const scenario of [
     assert.equal(JSON.parse(fs.readFileSync(outputs.receipt, 'utf8')).status, 'pass');
     const summary = summarizeBrowserEvidence(result.receipt);
     assert.equal(summary.status, 'fail', 'cleanup failure stays visible after evidence was committed');
-    assert.equal(fs.realpathSync(summary.evidence.receipt), fs.realpathSync(outputs.receipt));
+    assert.equal(fs.realpathSync.native(summary.evidence.receipt), fs.realpathSync.native(outputs.receipt));
     assert.deepEqual(summary.publication, result.receipt.publication);
     assert.equal(summary.publication.recoveryDirectory, expectedRecovery);
     assert.deepEqual(summary.diagnostics, result.receipt.diagnostics);
