@@ -1,0 +1,12 @@
+# Architecture layout repair
+
+Use this after actual visual review finds several tangled routes. A successful machine receipt does not settle composition. Work on the existing candidate, retaining all required components, relationships, labels, evidence, boundaries, and node sizes.
+
+## One coherent repair
+
+1. Trace the affected relationships and their endpoints in the JSON. Identify the reader’s main interaction, shared state used by multiple actors, and any real feedback loop. Use `validate architecture <candidate.json> --layout-json --repo-root <root>` once if the compact receipt and screenshot do not reveal the needed route or label geometry; omit `--repo-root` only for a design without repository evidence. Do not guess repeated waypoint coordinates.
+2. Place main-path neighbors in reading order. Put shared state between its readers/writers, on an adjacent row if necessary, so one writer does not need a line across the whole execution area. Arrange a feedback loop around an open rectangle with short branches inside or beside it; preserve every edge and its actual direction. Do not force the whole graph into one rail or sort nodes by implementation category.
+3. Assign simple endpoint sides with that placement: facing ports for the main rail, a distinct side for the return direction of a bidirectional pair, and side/top/bottom ports for branches. This is one coordinated layout change, not one correction per edge. Only use detailed `via` or label coordinates for a remaining measured defect. Keep external actors outside the resolved boundary rectangle, including its padding; not listing a node in `wraps` does not visually exclude it. Keep an internal relationship and its label inside the shared boundary unless crossing it conveys a real fact; do not imply an external hop merely to avoid another route.
+4. Compact unused gaps while preserving measured label space and the previous text size. Keep the main interaction and all required nodes readable in the default desktop view; do not trade crossings for a large blank canvas, tiny text, or a chain that doubles back without a semantic reason.
+
+Run the complete `finalize` once after the edit, then `visual-check` on the successful artifact and inspect its desktop captures. Trace the main path, each secondary chain, and every affected arrow and label. A bounded second repair may address a remaining specific defect. If it still fails visual acceptance, retain the candidate and report the concrete gap; do not count it as a successful repair or continue blind coordinate changes.

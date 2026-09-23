@@ -519,7 +519,7 @@ export function compactFinalizeReceipt(receipt) {
           detours: routeReview.detours.slice(0, 8),
           truncated: routeReview.crossings.length > 8 || routeReview.detours.length > 8,
         },
-        repair: 'Trace these relationships at the desktop viewport. If several routes tangle around the same nodes, reposition that connected neighborhood together, preserving all semantics and unrelated geometry; rerun finalize once. Use a local side or label control only for an isolated remaining defect.',
+        repair: 'Trace these relationships at the desktop viewport. If several routes tangle around the same nodes, reposition that connected neighborhood together, preserving all semantics and unrelated geometry; rerun finalize once. Choose endpoint sides for the main rail and return corridors together with placement; reserve detailed waypoints or label overrides for an isolated remaining defect.',
       } : {}),
     };
   }
