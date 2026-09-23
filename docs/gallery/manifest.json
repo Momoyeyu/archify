@@ -123,6 +123,10 @@
             }
           ]
         },
+        "leadingSpace": {
+          "measured": false,
+          "reviewSuggested": false
+        },
         "desktopReadability": {
           "budgetBasis": "legacy-930",
           "readerContract": "declared-wide-v1",
@@ -248,6 +252,16 @@
         "routeReview": {
           "crossings": [],
           "detours": []
+        },
+        "leadingSpace": {
+          "measured": true,
+          "emptyTopPx": 85,
+          "emptyTopRatio": 0.117,
+          "occupiedTop": 85,
+          "viewBoxTop": 0,
+          "canvasHeight": 728,
+          "typicalNodeHeight": 62,
+          "reviewSuggested": false
         },
         "desktopReadability": {
           "budgetBasis": "recognized-declared-wide",
@@ -380,6 +394,10 @@
           "crossings": [],
           "detours": []
         },
+        "leadingSpace": {
+          "measured": false,
+          "reviewSuggested": false
+        },
         "desktopReadability": {
           "budgetBasis": "legacy-930",
           "readerContract": "declared-wide-v1",
@@ -505,6 +523,10 @@
         "routeReview": {
           "crossings": [],
           "detours": []
+        },
+        "leadingSpace": {
+          "measured": false,
+          "reviewSuggested": false
         },
         "desktopReadability": {
           "budgetBasis": "legacy-930",
@@ -696,6 +718,10 @@
             }
           ]
         },
+        "leadingSpace": {
+          "measured": false,
+          "reviewSuggested": false
+        },
         "desktopReadability": {
           "budgetBasis": "legacy-930",
           "readerContract": "declared-wide-v1",
@@ -853,6 +879,10 @@
             }
           ]
         },
+        "leadingSpace": {
+          "measured": false,
+          "reviewSuggested": false
+        },
         "desktopReadability": {
           "budgetBasis": "legacy-930",
           "readerContract": "declared-wide-v1",
@@ -978,6 +1008,10 @@
         "routeReview": {
           "crossings": [],
           "detours": []
+        },
+        "leadingSpace": {
+          "measured": false,
+          "reviewSuggested": false
         },
         "desktopReadability": {
           "budgetBasis": "legacy-930",
@@ -1134,6 +1168,10 @@
               "stretch": 2.663
             }
           ]
+        },
+        "leadingSpace": {
+          "measured": false,
+          "reviewSuggested": false
         },
         "desktopReadability": {
           "budgetBasis": "legacy-930",
@@ -1328,6 +1366,10 @@
             }
           ]
         },
+        "leadingSpace": {
+          "measured": false,
+          "reviewSuggested": false
+        },
         "desktopReadability": {
           "budgetBasis": "legacy-930",
           "readerContract": "declared-wide-v1",
@@ -1453,6 +1495,10 @@
         "routeReview": {
           "crossings": [],
           "detours": []
+        },
+        "leadingSpace": {
+          "measured": false,
+          "reviewSuggested": false
         },
         "desktopReadability": {
           "budgetBasis": "legacy-930",
@@ -1610,6 +1656,16 @@
               "stretch": 1
             }
           ]
+        },
+        "leadingSpace": {
+          "measured": true,
+          "emptyTopPx": 110,
+          "emptyTopRatio": 0.187,
+          "occupiedTop": 110,
+          "viewBoxTop": 0,
+          "canvasHeight": 588,
+          "typicalNodeHeight": 60,
+          "reviewSuggested": false
         },
         "desktopReadability": {
           "budgetBasis": "recognized-declared-wide",
