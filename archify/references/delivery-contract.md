@@ -406,8 +406,10 @@ Both browser commands inspect the exact delivered HTML without modifying or rere
 perceptual review:
 
 ```bash
-node bin/archify.mjs visual-check <output.html> --json --require-provenance
+node bin/archify.mjs visual-check <output.html> --summary --require-provenance
 ```
+
+`--summary` returns compact JSON with all diagnostics and absolute paths to the complete receipt, contact sheet, and every screenshot. For a chosen visual review, inspect the relevant captures; capture success is not perceptual approval. `--json` retains the full receipt output for existing consumers. Both modes run the same checks and keep the same exit status. If cleanup fails after publication, the summary retains the final failure diagnostics and `publication` recovery details; the linked receipt records the earlier committed evidence.
 
 It performs the same automated browser measurements, captures light/dark
 screenshots at 1440×900 and 2048×1320, and writes four viewport PNG sidecars,
@@ -468,7 +470,7 @@ Browser evidence belongs to exact artifact bytes. After editing a candidate whos
 
 ```bash
 node bin/archify.mjs finalize architecture candidate.json diagram.html --quality showcase --repo-root <root> --out-dir diagram.review-2 --json
-node bin/archify.mjs visual-check diagram.html --out-dir diagram.review-2 --json --require-provenance
+node bin/archify.mjs visual-check diagram.html --out-dir diagram.review-2 --summary --require-provenance
 ```
 
 Keep the requested HTML path stable. Use a new revision directory for each changed candidate, and retain the same directory for retries of unchanged bytes. For a diagram without repository evidence, omit `--repo-root`. Let the commands create their output directory. A prior validation failure that produced no HTML or browser evidence needs no new directory. Never remove unknown evidence to make a retry pass.
@@ -502,11 +504,12 @@ Never start it by default. Do not use it for CI, unattended agents, remote shari
 ## Perceptual review
 
 The automated path ends with the deterministic browser gate and reports
-`visual_review: not_requested`. Escalate to perceptual review when any of these
-conditions applies:
+`visual_review: not_requested`. Ordinary generation does not require screenshots
+or an image-reading step, including newly authored or repositioned Architecture.
+Perceptual review is optional; use it for an explicit request or a concrete visual
+investigation. Possible reasons include:
 
-- an Architecture is newly authored or its nodes have been repositioned;
-- the compact finalizer includes `visualReviewRecommendation` for crossings or detours;
+- the compact finalizer includes `visualReviewRecommendation` for crossings or detours (advisory, not a delivery gate);
 - the user explicitly requests an aesthetic or visual review;
 - a template, renderer, or Viewer change needs visual regression evidence;
 - a novel layout or browser diagnostic leaves low confidence;

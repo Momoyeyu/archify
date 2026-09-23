@@ -78,9 +78,10 @@ test('strict provenance succeeds before either browser command', () => {
   assert.match(skill, /Run `visual-check` only against a strict-provenance artifact/);
 });
 
-test('perceptual review covers fresh architectures and risk escalation with a bounded correction loop', () => {
+test('perceptual review is optional for fresh architectures and available for visual diagnosis', () => {
   assert.match(perceptualReviewSection, /visual_review: not_requested/);
-  assert.match(perceptualReviewSection, /Architecture is newly authored or its nodes have been repositioned/);
+  assert.match(perceptualReviewSection, /Ordinary generation does not require screenshots/);
+  assert.match(skill, /Perceptual review is optional in ordinary generation/);
   assert.match(perceptualReviewSection, /user explicitly requests an aesthetic or visual review/i);
   assert.match(perceptualReviewSection, /template, renderer, or Viewer change/i);
   assert.match(perceptualReviewSection, /novel layout or browser diagnostic leaves low confidence/i);

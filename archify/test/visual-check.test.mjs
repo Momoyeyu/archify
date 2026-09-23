@@ -21,6 +21,7 @@ import {
   runBrowserCheck,
   browserCheckSidecarPaths,
   sidecarPaths,
+  summarizeBrowserEvidence,
 } from '../bin/visual-check.mjs';
 import { sameLocation } from '../renderers/shared/path-semantics.mjs';
 
@@ -28,6 +29,33 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const skillRoot = path.resolve(__dirname, '..');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-visual-check-'));
 const png = Buffer.from('89504e470d0a1a0a', 'hex');
+
+test('summary indexes every captured viewport/theme and preserves failed diagnostics', async () => {
+  const input = artifact('summary-captures.html');
+  const result = await runVisualCheck({ artifactPath: input, browserFactory: () => fakeBrowser() });
+  const receipt = result.receipt;
+  const summary = summarizeBrowserEvidence(receipt);
+  assert.equal(summary.visualReview, 'pending');
+  assert.equal(summary.evidence.screenshots.length, 4);
+  for (const capture of summary.evidence.screenshots) {
+    assert.ok(path.isAbsolute(capture.path));
+    assert.ok(fs.existsSync(capture.path));
+    assert.ok(['light', 'dark'].includes(capture.theme));
+  }
+  assert.deepEqual(summary.evidence.screenshots.map(({ width, height, theme }) => [width, height, theme]),
+    receipt.captures.screenshots.map(({ width, height, theme }) => [width, height, theme]));
+  assert.ok(fs.existsSync(summary.evidence.receipt));
+  assert.ok(fs.existsSync(summary.evidence.contactSheet));
+  assert.ok(JSON.stringify(summary).length < JSON.stringify(receipt).length / 2);
+  const diagnostic = { code: 'viewer/example', severity: 'error', evidence: { gap: 3 }, supportedFixes: ['reposition'] };
+  const failed = summarizeBrowserEvidence({ ...receipt, ok: false, status: 'fail', diagnostics: [diagnostic] });
+  assert.equal(failed.ok, false);
+  assert.equal(failed.status, 'fail');
+  assert.deepEqual(failed.diagnostics, [diagnostic]);
+  assert.equal(failed.evidence.receipt, undefined);
+  assert.equal(failed.evidence.contactSheet, undefined);
+  assert.deepEqual(failed.evidence.screenshots, [], 'unpublished capture metadata is not an evidence link');
+});
 
 function artifact(name = 'diagram.html') {
   const file = path.join(tmp, name);
@@ -2209,6 +2237,12 @@ for (const scenario of [
       scenario.fault === 'unlink' ? oldContactSheet : claimantBytes,
     );
     assert.equal(JSON.parse(fs.readFileSync(outputs.receipt, 'utf8')).status, 'pass');
+    const summary = summarizeBrowserEvidence(result.receipt);
+    assert.equal(summary.status, 'fail', 'cleanup failure stays visible after evidence was committed');
+    assert.equal(fs.realpathSync(summary.evidence.receipt), fs.realpathSync(outputs.receipt));
+    assert.deepEqual(summary.publication, result.receipt.publication);
+    assert.equal(summary.publication.recoveryDirectory, expectedRecovery);
+    assert.deepEqual(summary.diagnostics, result.receipt.diagnostics);
     assert.equal(fs.existsSync(outputs.contactSheet), true);
     assert.equal(outputs.screenshots.every((entry) => fs.existsSync(entry.path)), true);
   });

@@ -1963,6 +1963,46 @@ function contactSheetHtml({ artifactPath, receipt, screenshots }) {
 `;
 }
 
+const publishedBrowserEvidenceReceipts = new WeakSet();
+
+// Keep detailed observations in the bound receipt; expose every review image and
+// every failure without repeating the same viewport metrics in CLI context.
+export function summarizeBrowserEvidence(receipt) {
+  const directory = receipt.sidecars?.directory || path.dirname(receipt.artifact.path);
+  const evidencePath = (file) => file ? path.resolve(directory, file) : undefined;
+  const published = publishedBrowserEvidenceReceipts.has(receipt);
+  return {
+    schemaVersion: receipt.schemaVersion,
+    command: receipt.command,
+    ok: receipt.ok,
+    status: receipt.status,
+    evidenceKind: receipt.evidenceKind,
+    visualReview: receipt.visualReview,
+    artifact: receipt.artifact,
+    provenance: receipt.provenance,
+    deliveryReceiptId: receipt.deliveryReceiptId,
+    state: receipt.state,
+    chrome: receipt.chrome,
+    checks: Object.fromEntries(['containment', 'readability', 'viewerChrome', 'themeStates', 'captures']
+      .filter((key) => receipt[key])
+      .map((key) => [key, receipt[key].status])),
+    error: receipt.error,
+    publication: receipt.publication,
+    diagnostics: receipt.diagnostics || [],
+    evidence: {
+      receipt: published ? evidencePath(receipt.sidecars?.receipt) : undefined,
+      contactSheet: published ? evidencePath(receipt.captures?.contactSheet) : undefined,
+      screenshots: (published ? receipt.captures?.screenshots || [] : []).map((entry) => ({
+        path: evidencePath(entry.file),
+        width: entry.width,
+        height: entry.height,
+        theme: entry.theme,
+        resolvedTheme: entry.resolvedTheme,
+      })),
+    },
+  };
+}
+
 function viewportSubject(artifact, entry) {
   return {
     artifact,
@@ -2302,6 +2342,7 @@ function persistBrowserEvidenceFailure(
     activeOwnership = preflight.ownership;
   }
   const publication = publishReceiptOnly(artifactPath, outputs, receipt, activeOwnership);
+  if (publication.ok) publishedBrowserEvidenceReceipts.add(receipt);
   appendEvidencePublicationFailure(receipt, publication);
   appendEvidenceCleanupWarning(receipt, publication);
   return receipt;
@@ -2421,6 +2462,7 @@ async function runBrowserEvidence({
       supportedFixes: [`set ARCHIFY_CHROME to a Chrome or Chromium executable and rerun ${command}`],
     })];
     const publication = publishReceiptOnly(artifact, outputs, receipt, ownership);
+    if (publication.ok) publishedBrowserEvidenceReceipts.add(receipt);
     if (!publication.ok) {
       appendEvidencePublicationFailure(receipt, publication);
       return { exitCode: EXIT.fail, receipt };
@@ -2554,6 +2596,7 @@ async function runBrowserEvidence({
       receipt.status = 'fail';
       return { exitCode: EXIT.fail, receipt };
     }
+    publishedBrowserEvidenceReceipts.add(receipt);
     if (appendEvidenceCleanupWarning(receipt, publication)) {
       return { exitCode: EXIT.fail, receipt };
     }

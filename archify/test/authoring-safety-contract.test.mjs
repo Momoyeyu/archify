@@ -48,7 +48,7 @@ test('visual-check stays a pending sidecar receipt instead of a polish claim', (
   assert.match(skill, /references\/delivery-contract\.md/);
   assert.match(skill, /without (?:rerendering or )?modifying/i);
 
-  assert.match(deliveryContract, /visual-check <output\.html> --json/);
+  assert.match(deliveryContract, /visual-check <output\.html> --summary/);
   assert.match(deliveryContract, /1440×900[\s\S]*1600×1000[\s\S]*1920×1080[\s\S]*2048×1320/);
   assert.match(deliveryContract, /visualReview: "pending"/);
   assert.match(deliveryContract, /never changes.*delivered|without (?:rerendering or )?modifying/i);
