@@ -1,12 +1,17 @@
 #!/usr/bin/env node
 
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { collectAmbiguousCorridors, collectBorderRuns, collectLabelRouteClearance, collectRouteRhythmIssues, routeBudgetMetrics } from '../renderers/shared/geometry.mjs';
+import { collectAmbiguousCorridors, collectBorderRuns, collectLabelCanvasOverflow, collectLabelRouteClearance, collectRouteRhythmIssues, describeLabelCanvasOverflow, formatRect, minimumLabelRouteClearance, routeBudgetMetrics } from '../renderers/shared/geometry.mjs';
 import {
   DESKTOP_READABILITY_VIEWPORT,
   DESKTOP_READER_DIAGRAM_WIDTH,
+  DECLARED_WIDE_READER_CONTRACT,
+  declaredWideReadabilityBudget,
   MIN_PROJECTED_NODE_TEXT_PX,
+  describeFixedWidthOverflow,
+  predictedFixedWidthOverflow,
   projectedNodeTextPx,
 } from '../renderers/shared/desktop-readability.mjs';
 
@@ -19,8 +24,11 @@ if (!input || input === '-h' || input === '--help') {
 
 const htmlPath = path.resolve(input);
 let html;
+let artifact;
 try {
-  html = fs.readFileSync(htmlPath, 'utf8');
+  const bytes = fs.readFileSync(htmlPath);
+  html = bytes.toString('utf8');
+  artifact = { sha256: createHash('sha256').update(bytes).digest('hex'), bytes: bytes.byteLength };
 } catch (err) {
   console.error(JSON.stringify({
     ok: false,
@@ -38,10 +46,12 @@ let composition = {
   summary: { errors: 0, warnings: 0 },
   metrics: {
     properCrossings: 0,
+    resolvedCrossovers: 0,
     ambiguousCorridors: 0,
     containerBorderRuns: 0,
     labelRouteClearanceIssues: 0,
     minLabelRouteClearance: null,
+    labelCanvasOverflowIssues: 0,
     maxBends: 0,
     routesOverSuggestedBends: 0,
     maxStretch: null,
@@ -62,9 +72,11 @@ let composition = {
 const NON_FINITE_TOKEN = /\b(?:NaN|undefined|Infinity)\b/;
 // Consume comments/CDATA as whole tokens, including any tag-like prose.
 const SVG_TAG_TOKEN = /<!--[\s\S]*?(?:-->|$)|<!\[CDATA\[[\s\S]*?(?:\]\]>|$)|<(\/?)([A-Za-z][\w:-]*)(?=[\s/>])(?:[^>"']|"[^"]*"|'[^']*')*>/g;
+const AUTOMATIC_CROSSOVER_UNDERLAY_TAG = /<path\b[^>]*\bdata-graph-role="automatic-crossover-underlay"[^>]*\/>/i;
 const HTML_VOID_ELEMENTS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
 const SVG_HTML_INTEGRATION_POINTS = new Set(['foreignobject', 'desc', 'title']);
 const HTML_ATTRIBUTE = /([A-Za-z_:][\w:.-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/g;
+const readerContract = readerContractFromHtml(html);
 const NUMERIC_ATTRS = new Set([
   'x', 'y', 'x1', 'y1', 'x2', 'y2', 'dx', 'dy', 'cx', 'cy', 'r', 'rx', 'ry', 'fx', 'fy',
   'fr', 'width', 'height', 'd', 'points', 'pathlength', 'transform', 'viewbox', 'offset',
@@ -102,15 +114,29 @@ if (svgMatches.length === 1) {
   addCheck('finite_svg', nonFiniteAttrs.length === 0, nonFiniteAttrs);
   const legendStart = svg.indexOf('<!-- Legend -->');
   const beforeLegend = legendStart >= 0 ? svg.slice(0, legendStart) : svg;
-  const desktopReadabilityIssue = collectDesktopReadability(svgAttrs, beforeLegend);
+  const desktopReadability = collectDesktopReadability(svgAttrs, beforeLegend, readerContract);
+  const desktopReadabilityIssue = desktopReadability.issue;
+  // The browser gate measures this later; the geometry is already certain here.
+  const viewportHeightIssue = predictedFixedWidthOverflow({
+    viewBoxWidth: viewBoxSize(svgAttrs)[0],
+    viewBoxHeight: viewBoxSize(svgAttrs)[1],
+    readerFit: svgAttrs['data-reader-fit'] || null,
+    hasGuidedViews: /class="guided-views/.test(html),
+  });
   const arrows = collectArrows(beforeLegend);
   const diagonal = arrows.flatMap((arrow) => diagonalStraightSegments(arrow).map((segment) => ({ arrow, ...segment })));
   addCheck(
     'orthogonal_arrows',
     diagonal.length === 0,
-    diagonal.map(({ arrow, segmentIndex }) => `${arrow.kind} ${arrow.index} segment ${segmentIndex + 1}: ${arrow.raw}`),
+    diagonal.map(({ arrow, segmentIndex }) => `${arrow.kind} ${arrow.index} segment ${segmentIndex + 1}: expected an orthogonal segment or an explicitly authored direct straight route; ${arrow.raw}`),
   );
-  const relationshipCrossings = collectRelationshipCrossings(arrows);
+  const measuredRelationshipCrossings = collectRelationshipCrossings(arrows);
+  const resolvedCrossovers = measuredRelationshipCrossings.filter((hit) => (
+    hit.left.crossoverHalo && hit.right.crossoverHalo
+  ));
+  const relationshipCrossings = measuredRelationshipCrossings.filter((hit) => (
+    !hit.left.crossoverHalo || !hit.right.crossoverHalo
+  ));
   const compositionFrames = collectCompositionFrames(beforeLegend);
   const containerBorderRuns = collectBorderRuns({
     routedRelations: arrows
@@ -140,23 +166,37 @@ if (svgMatches.length === 1) {
     routedRelations: arrows.map((arrow) => ({ relation: arrow, relationIndex: arrow.index, points: arrow.routePoints })),
     threshold: labelClearanceThreshold,
   });
+  // The renderers bound their own label rects, but `check` also re-measures an
+  // artifact it did not produce; see collectLabelCanvasOverflow in
+  // shared/geometry.mjs.
+  const labelCanvasOverflow = collectLabelCanvasOverflow({
+    labels: relationshipLabels,
+    viewBox: viewBoxRect(svgAttrs),
+  });
   const crossingIsError = qualityProfile === 'showcase';
   const corridorIsError = qualityProfile === 'showcase';
   const rhythmIsError = qualityProfile === 'showcase';
   const labelClearanceIsError = qualityProfile === 'showcase';
+  const labelContainmentIsError = qualityProfile === 'showcase';
   const desktopReadabilityIsError = qualityProfile === 'showcase';
+  // Certain geometry, but new: surface it as evidence first (CONTRIBUTING.md#product-and-compatibility-contracts).
+  const viewportHeightIsError = false;
   const compositionErrors = (qualityGatesEnforced ? containerBorderRuns.length : 0)
     + (crossingIsError ? relationshipCrossings.length : 0)
     + (corridorIsError ? ambiguousCorridors.length : 0)
     + (labelClearanceIsError ? labelRouteClearance.length : 0)
+    + (labelContainmentIsError ? labelCanvasOverflow.length : 0)
     + (rhythmIsError ? routeRhythmIssues.length : 0)
-    + (desktopReadabilityIsError && desktopReadabilityIssue ? 1 : 0);
+    + (desktopReadabilityIsError && desktopReadabilityIssue ? 1 : 0)
+    + (viewportHeightIsError && viewportHeightIssue ? 1 : 0);
   const compositionWarnings = (qualityGatesEnforced ? 0 : containerBorderRuns.length)
     + (crossingIsError ? 0 : relationshipCrossings.length)
     + (corridorIsError ? 0 : ambiguousCorridors.length)
     + (labelClearanceIsError ? 0 : labelRouteClearance.length)
+    + (labelContainmentIsError ? 0 : labelCanvasOverflow.length)
     + (rhythmIsError ? 0 : routeRhythmIssues.length)
-    + (desktopReadabilityIsError || !desktopReadabilityIssue ? 0 : 1);
+    + (desktopReadabilityIsError || !desktopReadabilityIssue ? 0 : 1)
+    + (viewportHeightIsError || !viewportHeightIssue ? 0 : 1);
   composition = {
     schemaVersion: 1,
     profile: qualityProfile,
@@ -167,17 +207,19 @@ if (svgMatches.length === 1) {
     },
     metrics: {
       properCrossings: relationshipCrossings.length,
+      resolvedCrossovers: resolvedCrossovers.length,
       ambiguousCorridors: ambiguousCorridors.length,
       containerBorderRuns: containerBorderRuns.length,
       labelRouteClearanceIssues: labelRouteClearance.length,
-      minLabelRouteClearance: labelRouteMeasurements.length
-        ? Math.round(Math.min(...labelRouteMeasurements.map((hit) => hit.clearance)) * 10) / 10
-        : null,
+      labelCanvasOverflowIssues: labelCanvasOverflow.length,
+      minLabelRouteClearance: minimumLabelRouteClearance(labelRouteMeasurements),
       desktopReadabilityIssues: desktopReadabilityIssue ? 1 : 0,
-      minProjectedNodeTextPx: desktopReadabilityIssue?.projectedFontPx ?? null,
+      viewportHeightIssues: viewportHeightIssue ? 1 : 0,
+      minProjectedNodeTextPx: desktopReadability.evidence.minimumProjectedTextPx,
       ...roundedRouteMetrics(routeMetrics),
     },
     suggestedLimits: { bendsPerRelationship: 2, stretch: 1.35, segmentPx: 16, microSegmentPx: 8 },
+    desktopReadability: desktopReadability.evidence,
     issues: [
       ...containerBorderRuns.map((hit) => ({
         severity: qualityGatesEnforced ? 'error' : 'warning',
@@ -204,6 +246,20 @@ if (svgMatches.length === 1) {
         from: hit.start.map((value) => Math.round(value * 10) / 10),
         to: hit.end.map((value) => Math.round(value * 10) / 10),
       })),
+      ...labelCanvasOverflow.map((hit) => {
+        const label = hit.label?.label || hit.relation?.label || '';
+        return {
+          severity: labelContainmentIsError ? 'error' : 'warning',
+          code: 'composition/label-canvas-containment',
+          label,
+          relationship: relationshipRecord(hit.relation),
+          labelRect: roundedRect(hit.rect),
+          viewBox: hit.viewBox,
+          viewBoxOrigin: hit.viewBoxOrigin,
+          overflowPx: hit.overflowPx,
+          detail: `[composition/label-canvas-containment] ${qualityProfile} label "${label}" on ${relationshipName(hit.relation)} extends past the ${describeLabelCanvasOverflow(hit)} (label rect ${formatRect(hit.rect)}; viewBox ${hit.viewBox[0]}x${hit.viewBox[1]}${hit.viewBoxOrigin.some(Boolean) ? ` at ${hit.viewBoxOrigin[0]},${hit.viewBoxOrigin[1]}` : ''}) — use renderer-supported label controls (shorten the label or reorder participants for sequence; otherwise labelAt, labelDx, labelDy, or labelSegment), or enlarge meta.viewBox.`,
+        };
+      }),
       ...relationshipCrossings.map((hit) => ({
         severity: crossingIsError ? 'error' : 'warning',
         code: 'composition/proper-crossing',
@@ -235,9 +291,16 @@ if (svgMatches.length === 1) {
       ...(desktopReadabilityIssue ? [{
         severity: desktopReadabilityIsError ? 'error' : 'warning',
         code: 'composition/desktop-readability',
+        ...(desktopReadabilityIssue.nodeId ? { nodeId: desktopReadabilityIssue.nodeId } : {}),
+        owner: desktopReadabilityIssue.owner,
         viewportWidth: DESKTOP_READABILITY_VIEWPORT.width,
         viewportHeight: DESKTOP_READABILITY_VIEWPORT.height,
-        availableDiagramWidth: DESKTOP_READER_DIAGRAM_WIDTH,
+        availableDiagramWidth: desktopReadability.evidence.availableDiagramWidth,
+        budgetBasis: desktopReadability.evidence.budgetBasis,
+        readerContract: desktopReadability.evidence.readerContract,
+        requestedTargetPx: desktopReadability.evidence.requestedTargetPx,
+        requestedTargetMet: desktopReadability.evidence.requestedTargetMet,
+        budgetLimit: desktopReadability.evidence.limit,
         viewBoxWidth: desktopReadabilityIssue.viewBoxWidth,
         scale: desktopReadabilityIssue.scale,
         text: desktopReadabilityIssue.text,
@@ -245,6 +308,15 @@ if (svgMatches.length === 1) {
         sourceFontPx: desktopReadabilityIssue.sourceFontPx,
         projectedFontPx: desktopReadabilityIssue.projectedFontPx,
         minimumProjectedFontPx: MIN_PROJECTED_NODE_TEXT_PX,
+      }] : []),
+      ...(viewportHeightIssue ? [{
+        severity: viewportHeightIsError ? 'error' : 'warning',
+        code: 'composition/viewport-height',
+        readerFit: svgAttrs['data-reader-fit'] || null,
+        viewBoxWidth: viewBoxSize(svgAttrs)[0],
+        viewBoxHeight: viewBoxSize(svgAttrs)[1],
+        ...viewportHeightIssue,
+        detail: `[composition/viewport-height] ${describeFixedWidthOverflow({ ...viewportHeightIssue, viewBoxWidth: viewBoxSize(svgAttrs)[0], viewBoxHeight: viewBoxSize(svgAttrs)[1] })}`,
       }] : []),
     ],
   };
@@ -299,19 +371,44 @@ if (svgMatches.length === 1) {
 }
 
 const ok = checks.every((check) => check.ok) && composition.status !== 'fail';
-console.log(JSON.stringify({ ok, file: htmlPath, checks, composition }, null, 2));
+console.log(JSON.stringify({ ok, file: htmlPath, artifact, checks, composition }, null, 2));
 // Let pending stdout writes drain: large receipts are asynchronous when piped.
 process.exitCode = ok ? 0 : 1;
 
 function collectArrows(fragment) {
   const arrows = [];
   let index = 0;
+  let previousTag = null;
+  let previousTagEnd = 0;
 
   for (const tag of fragment.matchAll(/<(path|line)\b[^>]*>/gi)) {
+    const tagStart = tag.index;
     const raw = tag[0];
+    const gap = previousTag ? fragment.slice(previousTagEnd, tagStart) : '';
+    const precedingUnderlay = previousTag
+      && /^\s*$/.test(gap)
+      && previousTag.name === 'path'
+      && previousTag.underlayAttrs;
+    previousTag = {
+      name: tag[1].toLowerCase(),
+      underlayAttrs: tag[1].toLowerCase() === 'path' && AUTOMATIC_CROSSOVER_UNDERLAY_TAG.test(raw)
+        ? parseAttrs(raw)
+        : null,
+    };
+    previousTagEnd = tagStart + raw.length;
     if (!/\bclass="[^"]*\ba-(?:default|emphasis|security|dashed)\b/.test(raw)) continue;
     if (!/\bmarker-end=/.test(raw)) continue;
     const attrs = parseAttrs(raw);
+    const routeStrokeWidth = numberAttr(attrs, 'stroke-width');
+    const underlayStrokeWidth = precedingUnderlay ? numberAttr(precedingUnderlay, 'stroke-width') : NaN;
+    const verifiedCrossoverHalo = attrs['data-composition-crossover'] === 'halo'
+      && precedingUnderlay?.d === attrs.d
+      && precedingUnderlay?.fill === 'none'
+      && precedingUnderlay?.stroke === 'var(--mask)'
+      && precedingUnderlay?.['pointer-events'] === 'none'
+      && Number.isFinite(routeStrokeWidth)
+      && Number.isFinite(underlayStrokeWidth)
+      && underlayStrokeWidth >= routeStrokeWidth + 3;
     const segments = tag[1].toLowerCase() === 'line'
       ? lineSegments(attrs)
       : pathSegments(attrs.d || '');
@@ -322,6 +419,13 @@ function collectArrows(fragment) {
       kind: tag[1].toLowerCase(),
       index: index += 1,
       raw,
+      // Trust route intent only for a semantic edge with one visible direct
+      // segment. A stale marker on bent/curved geometry cannot waive the gate.
+      authoredStraight: attrs['data-composition-route'] === 'straight'
+        && Boolean(attrs['data-edge-from'] && attrs['data-edge-to'])
+        && segments.length === 1 && borderSegments.length === 1
+        && (tag[1].toLowerCase() === 'line' || /^\s*M\s+[-+\d.eE]+\s+[-+\d.eE]+\s+L\s+[-+\d.eE]+\s+[-+\d.eE]+\s*$/.test(attrs.d || '')),
+      crossoverHalo: verifiedCrossoverHalo,
       segments,
       borderSegments,
       routePoints: parseRoutePoints(attrs['data-composition-points']) || (
@@ -583,6 +687,7 @@ function straightPathSegments(d) {
 }
 
 function diagonalStraightSegments(arrow) {
+  if (arrow.authoredStraight) return [];
   return arrow.borderSegments.flatMap(({ start, end }, segmentIndex) => (
     Math.abs(start[0] - end[0]) > 0.01 && Math.abs(start[1] - end[1]) > 0.01
       ? [{ segmentIndex, start, end }]
@@ -646,35 +751,128 @@ function textBox(attrs, text) {
   };
 }
 
-function collectDesktopReadability(svgAttrs, fragment) {
+// A foreign artifact may author a legal non-zero viewBox origin, so containment
+// needs all four numbers; sizing checks read the trailing pair.
+function viewBoxRect(svgAttrs) {
   const viewBox = String(svgAttrs.viewBox || '').trim().split(/[\s,]+/).map(Number);
-  const viewBoxWidth = viewBox.length === 4 ? viewBox[2] : Number.NaN;
-  if (!Number.isFinite(viewBoxWidth) || viewBoxWidth <= 0) return null;
-  const scale = Math.min(1, DESKTOP_READER_DIAGRAM_WIDTH / viewBoxWidth);
-  let worst = null;
-  for (const match of fragment.matchAll(/<text\b([^>]*)>([\s\S]*?)<\/text>/gi)) {
-    const primary = /\bdata-node-label(?:\s*=|\s|$)/i.test(match[1]);
-    const boundary = /\bdata-boundary-label(?:\s*=|\s|$)/i.test(match[1]);
-    const context = /\bdata-detail\s*=\s*"context"/i.test(match[1]);
-    if (!primary && !boundary && !context) continue;
+  return viewBox.length === 4 ? viewBox : [Number.NaN, Number.NaN, Number.NaN, Number.NaN];
+}
+
+function viewBoxSize(svgAttrs) {
+  return viewBoxRect(svgAttrs).slice(2);
+}
+
+function hasAttribute(attrs, name) {
+  return new RegExp('(?:^|\\s)' + name + '(?:\\s*=|\\s|$)', 'i').test(attrs);
+}
+
+function readerContractFromHtml(source) {
+  const markers = [...source.matchAll(/<meta\b[^>]*>/gi)]
+    .map((match) => parseAttrs(match[0]))
+    .filter((attrs) => attrs.name === 'archify-reader-contract');
+  return markers.length === 1 && markers[0].content === DECLARED_WIDE_READER_CONTRACT
+    ? DECLARED_WIDE_READER_CONTRACT
+    : null;
+}
+
+function collectDesktopReadability(svgAttrs, fragment, contract) {
+  const [viewBoxWidth, viewBoxHeight] = viewBoxSize(svgAttrs);
+  const requestedMinimumTextPx = Number.parseFloat(svgAttrs['data-reader-min-text'] || '');
+  const entries = [];
+  let invalidSemanticText = false;
+  const groups = [];
+  // Keep the complete ancestry, rather than a node-only stack: an edge can
+  // share its context group with its label or nest that group (Sequence).
+  for (const match of fragment.matchAll(/<!--[\s\S]*?(?:-->|$)|<!\[CDATA\[[\s\S]*?(?:\]\]>|$)|<text\b([^>]*)>([\s\S]*?)<\/text>|<g\b[^>]*>|<\/g\s*>/gi)) {
+    if (match[0].startsWith('<!')) continue;
+    if (match[1] === undefined) {
+      if (/^<\/g/i.test(match[0])) groups.pop();
+      else if (!/\/\s*>$/.test(match[0])) groups.push(parseAttrs(match[0]));
+      continue;
+    }
     const attrs = parseAttrs(match[1]);
+    if (attrs['data-detail'] === 'fine' || groups.some((group) => group['data-detail'] === 'fine')) continue;
+    const primary = hasAttribute(match[1], 'data-node-label');
+    const boundary = hasAttribute(match[1], 'data-boundary-label');
+    const context = attrs['data-detail'] === 'context'
+      || groups.some((group) => group['data-detail'] === 'context');
+    const nodeOwner = [...groups].reverse().find((group) => group['data-node-id']);
+    const edgeOwner = [...groups].reverse().find((group) => group['data-edge-from'] && group['data-edge-to']);
+    const owner = primary
+      ? { kind: 'node', id: nodeOwner?.['data-node-id'] || null }
+      : boundary ? { kind: 'boundary', id: null }
+        : context && edgeOwner ? {
+          kind: 'edge', id: edgeOwner['data-edge-id'] || null,
+          from: edgeOwner['data-edge-from'], to: edgeOwner['data-edge-to'],
+        }
+          : context && nodeOwner ? { kind: 'node', id: nodeOwner['data-node-id'] }
+            : null;
+    // A context text with neither semantic owner is legend/fine/loose copy.
+    if (!owner) continue;
     const fontSize = Number.parseFloat(attrs['font-size'] || '');
-    if (!Number.isFinite(fontSize)) continue;
-    const projected = projectedNodeTextPx(fontSize, viewBoxWidth);
-    if (projected >= MIN_PROJECTED_NODE_TEXT_PX) continue;
-    const candidate = {
-      viewBoxWidth,
-      scale,
+    if (!Number.isFinite(fontSize)) {
+      invalidSemanticText = true;
+      continue;
+    }
+    if (fontSize <= 0) invalidSemanticText = true;
+    entries.push({
+      ...(owner.kind === 'node' && owner.id ? { nodeId: owner.id } : {}),
+      owner,
       text: stripTags(match[2]).trim(),
-      detail: primary
-        ? 'primary'
-        : boundary ? 'boundary' : 'context',
+      detail: primary ? 'primary' : boundary ? 'boundary' : owner.kind === 'edge' ? 'edge' : 'context',
       sourceFontPx: fontSize,
-      projectedFontPx: projected,
-    };
-    if (!worst || candidate.projectedFontPx < worst.projectedFontPx) worst = candidate;
+    });
   }
-  return worst;
+  const minimumSourceTextPx = entries.length ? Math.min(...entries.map((entry) => entry.sourceFontPx)) : Number.NaN;
+  const eligible = contract === DECLARED_WIDE_READER_CONTRACT
+    && svgAttrs['data-reader-fit'] === 'intrinsic-height'
+    && Number.isFinite(requestedMinimumTextPx) && requestedMinimumTextPx > 0
+    && !invalidSemanticText && entries.length > 0;
+  const declared = eligible ? declaredWideReadabilityBudget({
+    viewBoxWidth,
+    viewBoxHeight,
+    minimumSourceTextPx,
+    requestedMinimumTextPx,
+  }) : null;
+  const availableDiagramWidth = declared?.guaranteedSvgWidth ?? DESKTOP_READER_DIAGRAM_WIDTH;
+  const budgetBasis = declared ? 'recognized-declared-wide' : 'legacy-930';
+  const scale = Number.isFinite(viewBoxWidth) && viewBoxWidth > 0
+    ? Math.min(1, availableDiagramWidth / viewBoxWidth) : Number.NaN;
+  const projected = entries.map((entry) => ({
+    ...entry,
+    viewBoxWidth,
+    scale,
+    projectedFontPx: projectedNodeTextPx(entry.sourceFontPx, viewBoxWidth, availableDiagramWidth),
+  }));
+  const worst = projected.reduce((current, entry) => (
+    !current || entry.projectedFontPx < current.projectedFontPx ? entry : current
+  ), null);
+  const projectedMinimumTextPx = Number.isFinite(worst?.projectedFontPx) ? worst.projectedFontPx : null;
+  const hardFloorMet = Number.isFinite(worst?.projectedFontPx)
+    ? worst.projectedFontPx >= MIN_PROJECTED_NODE_TEXT_PX : null;
+  const requestedTargetMet = worst && Number.isFinite(requestedMinimumTextPx)
+    ? worst.projectedFontPx >= requestedMinimumTextPx : null;
+  const evidence = {
+    budgetBasis,
+    readerContract: contract,
+    availableDiagramWidth,
+    actualBudgetPx: availableDiagramWidth,
+    ...(declared ? {
+      actualReaderWidth: declared.actualReaderWidth,
+      desiredReaderWidth: declared.desiredReaderWidth,
+      viewportCap: declared.viewportCap,
+      limit: declared.limit,
+    } : { limit: 'legacy' }),
+    requestedTargetPx: Number.isFinite(requestedMinimumTextPx) ? requestedMinimumTextPx : null,
+    requestedTargetMet,
+    hardFloorPx: MIN_PROJECTED_NODE_TEXT_PX,
+    hardFloorMet,
+    minimumOwner: worst?.owner || null,
+    minimumSourceTextPx: worst?.sourceFontPx ?? null,
+    minimumProjectedTextPx: projectedMinimumTextPx,
+    semanticTextCount: entries.length,
+  };
+  return { evidence, issue: worst && hardFloorMet === false ? worst : null };
 }
 
 function estimatedTextWidth(text, fontSize) {

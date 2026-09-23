@@ -16,7 +16,7 @@ function verticalWorkflow({ direction = 'down', edge = {}, schemaVersion = 2 } =
   return {
     schema_version: schemaVersion,
     diagram_type: 'workflow',
-    meta: { title: 'Vertical handoff', legend: { mode: 'hidden' } },
+    meta: { title: 'Vertical handoff', output: 'vertical.html', legend: { mode: 'hidden' } },
     lanes: [{ id: 'top', label: 'Top' }, { id: 'bottom', label: 'Bottom' }],
     nodes: [
       { id: 'a', lane: 'top', col: 0, type: 'backend', label: 'A' },

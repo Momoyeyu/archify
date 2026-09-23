@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const skillRoot = path.resolve(__dirname, '..');
 const skill = fs.readFileSync(path.join(skillRoot, 'SKILL.md'), 'utf8');
+const authoringDefaults = fs.readFileSync(path.join(skillRoot, 'references', 'authoring-defaults.md'), 'utf8');
 const authoringContract = fs.readFileSync(
   path.join(skillRoot, 'references', 'authoring-contract.md'),
   'utf8',
@@ -14,7 +15,7 @@ const authoringContract = fs.readFileSync(
 const schemaReadme = fs.readFileSync(path.join(skillRoot, 'schemas', 'README.md'), 'utf8');
 
 test('semantic relationship labels are preserved and deletion is not a geometry repair', () => {
-  for (const [name, source] of [['SKILL.md', skill], ['authoring contract', authoringContract]]) {
+  for (const [name, source] of [['authoring defaults', authoringDefaults], ['authoring contract', authoringContract]]) {
     assert.match(source, /Relationship labels are semantic data/i, name);
     assert.match(source, /move the label[\s\S]*adjust the route or spacing[\s\S]*shorten/i, name);
     assert.match(source, /protocol[\s\S]*action[\s\S]*direction[\s\S]*synchronous[\s\S]*asynchronous[\s\S]*cross-boundary mechanism/i, name);
@@ -31,10 +32,10 @@ test('schema policy documents the workflow v1/v2 compatibility boundary', () => 
 });
 
 test('deployment ownership stays explicit, fact-backed, and cannot be removed to pass', () => {
-  assert.match(skill, /Omit `meta\.engineering_profile` by default/);
-  assert.match(skill, /Region.*cluster.*security boundar.*do not.*enable/i);
-  assert.match(skill, /production deployment topology.*ownership.*fail-closed deployment review/i);
-  assert.match(skill, /must not remove.*engineering profile.*pass validation/i);
+  assert.match(authoringDefaults, /Omit `meta\.engineering_profile` by default/);
+  assert.match(authoringDefaults, /Region.*cluster.*security boundar.*do not.*enable/i);
+  assert.match(authoringDefaults, /production deployment topology.*ownership.*fail-closed deployment review/i);
+  assert.match(authoringDefaults, /must not remove.*engineering profile.*pass validation/i);
 });
 
 test('visual-check stays a pending sidecar receipt instead of a polish claim', () => {
@@ -42,8 +43,8 @@ test('visual-check stays a pending sidecar receipt instead of a polish claim', (
     path.join(skillRoot, 'references', 'delivery-contract.md'),
     'utf8',
   );
-  assert.match(skill, /visual-check <output\.html> --json/);
-  assert.match(skill, /automated browser evidence[\s\S]*perceptual visual review/i);
+  assert.match(skill, /Run `visual-check` on the finalized artifact/);
+  assert.match(skill, /machine-readable browser evidence[\s\S]*perceptual review/i);
   assert.match(skill, /references\/delivery-contract\.md/);
   assert.match(skill, /without (?:rerendering or )?modifying/i);
 

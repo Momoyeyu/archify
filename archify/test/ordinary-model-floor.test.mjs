@@ -159,6 +159,38 @@ test('benchmark rejects a renderer-valid candidate that changes required technic
   assert.equal(receipt.firstPassUsable, false);
 });
 
+test('benchmark checks accepted node labels even when an authored identity matches', () => {
+  for (const identityField of ['key', 'id']) {
+    const caseData = JSON.parse(fs.readFileSync(path.join(repoRoot, 'benchmarks/ordinary-model-floor/cases/web-runtime.architecture.case.json'), 'utf8'));
+    const requirement = caseData.requirements.nodes.find((node) => node.key === 'cache');
+    delete requirement.key;
+    requirement[identityField] = 'cache';
+    const caseFile = writeJson(`node-label-${identityField}.case.json`, caseData);
+    for (const label of ['Redis Cache', 'MySQL']) {
+      const source = JSON.parse(fs.readFileSync(path.join(skillRoot, 'examples/web-app.architecture.json'), 'utf8'));
+      source.components.find((node) => node.id === 'cache').label = label;
+      const candidate = writeJson(`node-label-${identityField}.architecture.json`, source);
+      const runFile = writeJson(`node-label-${identityField}.run.json`, {
+        schema_version: 1, case_id: caseData.id,
+        agent: 'fixture-agent', model: 'fixture-model', attempt: 1,
+        visual_review: { status: 'passed', reviewer: 'fixture-reviewer', defects: [] },
+      });
+      const result = run(['verify', '--case', caseFile, '--candidate', candidate, '--run', runFile]);
+      const accepted = label === 'Redis Cache';
+      assert.equal(result.status, accepted ? 0 : 1, result.stderr || result.stdout);
+      const receipt = JSON.parse(result.stdout);
+      assert.equal(receipt.gates.validation.ok, true);
+      assert.equal(receipt.gates.semantic.ok, accepted);
+      assert.deepEqual(receipt.gates.semantic.missingNodeIds, []);
+      assert.deepEqual(receipt.gates.semantic.missingRelationships, []);
+      assert.deepEqual(receipt.gates.semantic.mismatchedNodes, accepted ? [] : [
+        { id: 'cache', field: 'label', expected: requirement.labels, actual: 'MySQL' },
+      ]);
+      assert.equal(receipt.firstPassUsable, accepted);
+    }
+  }
+});
+
 test('benchmark never accepts a visual pass without an identified reviewer', () => {
   const caseFile = writeJson('unreviewed.case.json', {
     schema_version: 1,
@@ -864,44 +896,62 @@ test('benchmark documentation locks the fair-run and truthful-evidence contract'
 
 test('packaged skill puts a bounded ordinary-model path before progressive feature references', () => {
   const skill = fs.readFileSync(path.join(skillRoot, 'SKILL.md'), 'utf8');
+  const authoringDefaults = fs.readFileSync(path.join(skillRoot, 'references', 'authoring-defaults.md'), 'utf8');
   const authoring = fs.readFileSync(path.join(skillRoot, 'references', 'authoring-contract.md'), 'utf8');
   const viewer = fs.readFileSync(path.join(skillRoot, 'references', 'viewer-runtime.md'), 'utf8');
+  assert.match(skill, /## Existing candidate handoff[\s\S]*run `finalize` first as one CLI invocation/);
+  assert.match(skill, /After editing, omit any earlier `--candidate-sha256`/);
   const fastPath = skill.indexOf('## Fast authoring path');
-  const progressiveReferences = skill.indexOf('references/authoring-contract.md');
+  // A diagnosed repair may link to a reference inside the fast path. Bound
+  // the contract by its next section, not by the first inline link.
+  const fastPathEnd = skill.indexOf('## Type router', fastPath);
 
   assert.ok(fastPath > 0, 'fast authoring path must exist');
-  assert.ok(fastPath < progressiveReferences, 'fast authoring path must precede progressive references');
+  assert.ok(fastPathEnd > fastPath, 'fast authoring path must precede the type router');
   assert.ok(skill.trimEnd().split('\n').length <= 160, 'ordinary authors must not ingest the viewer catalogue');
   for (const required of [
-    'one matching schema',
-    'one matching JSON example',
-    'the next tool action must write the candidate',
-    'Do not plan exact coordinates in prose',
-    'Fresh authorship means new stable IDs, domain wording, and layout',
-    'Write the candidate before inspecting renderer internals',
-    'Start with automatic routes and labels',
-    'Do not add `via`, `channelX`, `channelY`, or `labelAt` before a diagnostic',
+    'exact paths in the Type router',
+    'do not list `schemas/` or `examples/` first',
+    'once requested scope and source evidence are covered, write the candidate directly',
+    'do not plan coordinates in prose',
+    'Fresh authorship means new IDs, domain wording, and layout',
+    'let the renderer route every connection',
+    'omit `via`, `route`, `fromSide`, `toSide`, `channelX`, `channelY`, `labelAt`, `labelDx`, `labelDy`, and `labelSegment`',
+    'Add the smallest control only after a measured diagnostic',
     'Set `meta.quality_profile` to `"showcase"`',
-    'A recoverable state uses `type: "failure"` plus a real transition back to the active state',
-    'after every candidate edit',
-    'A passing final validation freezes the candidate: never edit it afterward',
-    'A receipt with only 4 artifact checks is basic validation, never showcase acceptance',
-    'a showcase pass must report all 9 artifact checks with 0 composition errors and 0 warnings',
-    'If the candidate omits or misspells the exact `meta.quality_profile` field',
-    '`deliver` is the final acceptance command',
-    'deliver <type> <candidate.json> <output.html> --quality showcase --json',
-    'A non-zero exit can never be described as success',
-    'Continue focused correction while the objective error count reaches a new minimum',
-    'If two consecutive rounds do not improve that best count',
-    'Do not read `renderers/shared/geometry.mjs`',
-    'validate <type>',
-    'supportedFixes',
+    'Once the complete first candidate is written, run `finalize` directly',
+    'Keep the candidate unchanged while the command runs',
+    'A passing validation returns `candidateFrozen: true`',
+    'A receipt with only 4 artifact checks is basic validation',
+    'require all 9 checks with 0 composition errors and 0 warnings',
+    'Fix `meta.quality_profile` before geometry',
+    'finalize <type> <candidate.json> <output.html> --quality showcase --json',
+    'successful first drafts need no separate pre-validation',
+    'Do not read its full sidecar or rerun individual commands afterward',
+    'A non-zero exit is never success',
+    'Do not read `bin/` implementation',
+    'not prose coordinate exploration or whole-candidate replacement',
+    'After the edit, rerun the complete `finalize` command from step 4 once',
   ]) {
     assert.match(
-      skill.slice(fastPath, progressiveReferences),
+      skill.slice(fastPath, fastPathEnd),
       new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'),
     );
   }
+  assert.doesNotMatch(skill.slice(fastPath, fastPathEnd), /Then run exactly one `validate/);
+  assert.match(skill.slice(fastPath, fastPathEnd), /references\/authoring-defaults\.md/);
+  assert.match(skill, /real system determine the number of nodes and relationships/i);
+  assert.match(skill, /Never use node, relationship, source-reference, view, card, or boundary counts as an authoring target/i);
+  assert.match(authoringDefaults, /Let the real system determine node and relationship counts/i);
+  assert.match(authoringDefaults, /never target a total reference count/i);
+  for (const instructions of [skill, authoringDefaults]) {
+    assert.doesNotMatch(
+      instructions,
+      /(?:at most|no more than|maximum of|cap(?:ped)? at|limit(?:ed)? to)\s+\d+\s+(?:nodes?|components?|relationships?)/i,
+      'authoring instructions must not impose a fixed topology quota',
+    );
+  }
+  assert.match(authoringDefaults, /A recoverable state uses `type: "failure"` plus a real transition back to the active state/);
   assert.match(authoring, /componentType/);
   assert.match(authoring, /clear gap between boxes, not center distance/i);
   assert.match(viewer, /Direct Relationship Pin/);

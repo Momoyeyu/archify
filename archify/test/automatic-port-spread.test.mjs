@@ -13,7 +13,9 @@ function render(mode, doc) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-port-spread-'));
   const input = path.join(tmp, 'input.json');
   const output = path.join(tmp, 'output.html');
-  fs.writeFileSync(input, JSON.stringify(doc));
+  const renderDoc = structuredClone(doc);
+  renderDoc.meta = { ...renderDoc.meta, output: `${mode}-automatic-port-spread.html` };
+  fs.writeFileSync(input, JSON.stringify(renderDoc));
   try {
     execFileSync('node', [
       path.join(skillRoot, `renderers/${mode}/render-${mode}.mjs`),
@@ -359,7 +361,7 @@ test('lifecycle: same-band port spread remains orthogonal', () => {
 });
 
 test('skill and READMEs describe automatic port spread as bounded default behavior', () => {
-  const skill = fs.readFileSync(path.join(skillRoot, 'SKILL.md'), 'utf8');
+  const skill = fs.readFileSync(path.join(skillRoot, 'references/authoring-defaults.md'), 'utf8');
   assert.match(skill, /Automatic Port Spread is a default renderer behavior/);
   assert.match(skill, /single relationship|single relationships/);
   assert.match(skill, /explicit `via`.*`channelX`.*`channelY`.*`labelAt`/);
@@ -373,4 +375,5 @@ test('skill and READMEs describe automatic port spread as bounded default behavi
     assert.match(fs.readFileSync(path.join(repoRoot, file), 'utf8'), /shared automatic endpoints spread deterministically/);
   }
   assert.match(fs.readFileSync(path.join(repoRoot, 'README_ZH.md'), 'utf8'), /共享的自动端点会确定性展开/);
+  assert.match(fs.readFileSync(path.join(repoRoot, 'README_JA.md'), 'utf8'), /共有される自動接続点は決定論的に分散/);
 });
