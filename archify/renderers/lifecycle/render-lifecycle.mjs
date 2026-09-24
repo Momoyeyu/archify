@@ -389,8 +389,8 @@ function plannerRouted(transition) {
 
 const plannedTransitions = asArray(lifecycle.transitions).filter(plannerRouted);
 const planner = createRouter(states, plannedTransitions, {
-  labelRectFor: (transition, points, { routes, labels }) => (transition.label ? reservedLabelRect({
-    label: { relation: transition, label: transition.label, ...transitionLabelBoxAt(transition, labelPoint(transition, points)) },
+  labelRectFor: (transition, points, { routes, labels }) => ((transition.label || transition.note) ? reservedLabelRect({
+    label: { relation: transition, label: transition.label || transition.note, ...transitionLabelBoxAt(transition, labelPoint(transition, points)) },
     points,
     routes: routes.map((route, index) => ({ relationIndex: index, points: route })),
     labels,
@@ -455,15 +455,15 @@ function transitionLabelBox(transition) {
 function transitionLabelBoxAt(transition, [lx, ly]) {
   const longestLine = Math.max(textUnits(transition.label), textUnits(transition.note || ''));
   const width = Math.max(32, longestLine * 4.9 + 12);
-  const height = transition.note ? 27 : 16;
+  const height = transition.label && transition.note ? 27 : 16;
   return { x: lx - width / 2, y: ly - 11, width, height, lx, ly };
 }
 
 function transitionLabelRects() {
   const rects = [];
   for (const [relationIndex, transition] of asArray(lifecycle.transitions).entries()) {
-    if (!transition.label || !states.has(transition.from) || !states.has(transition.to)) continue;
-    rects.push({ relation: transition, relationIndex, label: transition.label, ...transitionLabelBox(transition) });
+    if (!(transition.label || transition.note) || !states.has(transition.from) || !states.has(transition.to)) continue;
+    rects.push({ relation: transition, relationIndex, label: transition.label || transition.note, ...transitionLabelBox(transition) });
   }
   return rects;
 }
@@ -553,7 +553,7 @@ function renderTransitionPath(transition, index) {
   const strokeWidth = transition.width || (transition.variant === 'emphasis' ? 2 : 1.1);
   const automaticRoute = plannerRouted(transition);
   const crossover = automaticRoute ? ' data-composition-crossover="halo"' : '';
-  const edge = `        <path ${focusEdgeAttrs(transition.from, transition.to, transition.label, index, transition.id)} data-composition-points="${routePointsValue(routed.points)}"${crossover}${authoredStraightRouteAttrs(transition, routed.points)} d="${routed.d}" class="${cls}"${animateAttr(lifecycle.meta, 'edge', index)} stroke-width="${strokeWidth}" marker-end="url(#${marker})"/>`;
+  const edge = `        <path ${focusEdgeAttrs(transition.from, transition.to, transition.label || transition.note, index, transition.id)} data-composition-points="${routePointsValue(routed.points)}"${crossover}${authoredStraightRouteAttrs(transition, routed.points)} d="${routed.d}" class="${cls}"${animateAttr(lifecycle.meta, 'edge', index)} stroke-width="${strokeWidth}" marker-end="url(#${marker})"/>`;
   if (!automaticRoute) return edge;
   // Same presentation-only wrapper as architecture: the mask underlay lets two
   // planner routes cross legibly while the viewer still sees one semantic edge.
@@ -562,14 +562,16 @@ function renderTransitionPath(transition, index) {
 }
 
 function renderTransitionLabel(transition, index) {
-  if (!transition.label) return '';
+  if (!(transition.label || transition.note)) return '';
   const { lx, ly, width: labelW, height: labelH } = transitionLabelBox(transition);
-  const note = transition.note
-    ? `\n        <text data-detail="fine" x="${lx}" y="${ly + 11}" class="t-dim" font-size="7" text-anchor="middle">${esc(transition.note)}</text>`
+  const label = transition.label
+    ? `\n          <text x="${lx}" y="${ly}" class="${edgeLabelAccent(transition.variant)}" font-size="8" text-anchor="middle">${esc(transition.label)}</text>`
     : '';
-  return `        <g data-detail="context" ${focusEdgeAttrs(transition.from, transition.to, transition.label, index, transition.id)}>
-          <rect x="${lx - labelW / 2}" y="${ly - 11}" width="${labelW}" height="${labelH}" rx="4" class="c-mask"/>
-          <text x="${lx}" y="${ly}" class="${edgeLabelAccent(transition.variant)}" font-size="8" text-anchor="middle">${esc(transition.label)}</text>${note}
+  const note = transition.note
+    ? `\n        <text data-detail="fine" x="${lx}" y="${ly + (transition.label ? 11 : 0)}" class="t-dim" font-size="7" text-anchor="middle">${esc(transition.note)}</text>`
+    : '';
+  return `        <g data-detail="${transition.label ? 'context' : 'fine'}" ${focusEdgeAttrs(transition.from, transition.to, transition.label || transition.note, index, transition.id)}>
+          <rect x="${lx - labelW / 2}" y="${ly - 11}" width="${labelW}" height="${labelH}" rx="4" class="c-mask"/>${label}${note}
         </g>`;
 }
 
