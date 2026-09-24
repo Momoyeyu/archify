@@ -114,8 +114,8 @@ test('Export cleanup preserves canonical artifacts and live interaction state', 
 
   await t.test('explicit light and dark SVG exports stay fixed under the opposite OS theme', async () => {
     const cases = [
-      { authorTheme: 'light', hostTheme: 'dark', format: 'svg-light', theme: 'light', background: 'rgb(248, 250, 252)' },
-      { authorTheme: 'dark', hostTheme: 'light', format: 'svg-dark', theme: 'dark', background: 'rgb(2, 6, 23)' },
+      { authorTheme: 'dark', hostTheme: 'dark', format: 'svg-light', theme: 'light', background: 'rgb(248, 250, 252)' },
+      { authorTheme: 'light', hostTheme: 'light', format: 'svg-dark', theme: 'dark', background: 'rgb(2, 6, 23)' },
     ];
     for (const item of cases) {
       await load(files.architecture, item.authorTheme);
@@ -150,6 +150,20 @@ test('Export cleanup preserves canonical artifacts and live interaction state', 
         }
       })()`, true);
       assert.deepEqual(rendered, { theme: item.theme, background: item.background }, item.format);
+    }
+  });
+
+  await t.test('fixed SVG options do not depend on WebP encoding', async () => {
+    const script = await send('Page.addScriptToEvaluateOnNewDocument', { source: `
+      HTMLCanvasElement.prototype.toDataURL = function () { return 'data:image/png;base64,'; };
+    ` });
+    try {
+      await load(files.architecture);
+      for (const format of ['svg', 'svg-light', 'svg-dark']) {
+        assert.equal(await evaluate(`document.querySelector('[data-format="${format}"]').disabled`), false, format);
+      }
+    } finally {
+      await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: script.identifier });
     }
   });
 

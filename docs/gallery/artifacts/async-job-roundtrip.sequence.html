@@ -6481,9 +6481,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           document.body.appendChild(probe);
           try {
             var c = getComputedStyle(probe);
-            return varNames.map(function (n) {
-              return n + ': ' + c.getPropertyValue(n).trim() + ';';
-            }).join(' ');
+            return {
+              background: c.getPropertyValue('--bg').trim(),
+              vars: varNames.map(function (n) {
+                return n + ': ' + c.getPropertyValue(n).trim() + ';';
+              }).join(' ')
+            };
           } finally {
             document.body.removeChild(probe);
           }
@@ -6503,17 +6506,17 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           // prefers-color-scheme still render), light swaps in via media
           // query, and svg[data-theme="..."] still lets downstream
           // consumers force a specific theme.
-          var darkVars = resolveVars('dark');
-          var lightVars = resolveVars('light');
+          var darkTheme = resolveVars('dark');
+          var lightTheme = resolveVars('light');
 
           style.textContent =
             fontCss + "\n" +
             "svg { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Noto Sans Mono CJK SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', monospace; }\n" +
             hostStyle + "\n" +
-            ":root, svg { " + darkVars + " }\n" +
-            "@media (prefers-color-scheme: light) { :root, svg { " + lightVars + " } }\n" +
-            "svg[data-theme=\"light\"] { " + lightVars + " }\n" +
-            "svg[data-theme=\"dark\"] { " + darkVars + " }\n" +
+            ":root, svg { " + darkTheme.vars + " }\n" +
+            "@media (prefers-color-scheme: light) { :root, svg { " + lightTheme.vars + " } }\n" +
+            "svg[data-theme=\"light\"] { " + lightTheme.vars + " }\n" +
+            "svg[data-theme=\"dark\"] { " + darkTheme.vars + " }\n" +
             "rect.c-bg-rect { fill: var(--bg); }\n";
 
           // Don't lock the serialized SVG to the viewer's current theme.
@@ -6525,9 +6528,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           // Raster exports keep the viewer's current theme. Explicit SVG
           // exports instead select their own stable light/dark source.
           var lockedTheme = requestedTheme || document.documentElement.getAttribute('data-theme') || 'dark';
-          var themeHost = document.querySelector('[data-theme="' + lockedTheme + '"]') || document.documentElement;
-          var computed = getComputedStyle(themeHost);
-          var vars = varNames.map(function (n) {
+          var resolvedTheme = requestedTheme && resolveVars(lockedTheme);
+          var computed = getComputedStyle(document.documentElement);
+          var vars = resolvedTheme ? resolvedTheme.vars : varNames.map(function (n) {
             return n + ': ' + computed.getPropertyValue(n).trim() + ';';
           }).join(' ');
 
@@ -6542,7 +6545,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             ":root, svg { " + vars + " }\n";
 
           if (requestedTheme) clone.setAttribute('data-theme', lockedTheme);
-          bgRect.setAttribute('fill', computed.getPropertyValue('--bg').trim() || '#ffffff');
+          bgRect.setAttribute('fill', (resolvedTheme ? resolvedTheme.background : computed.getPropertyValue('--bg').trim()) || '#ffffff');
         }
 
         if (opts.routeSnapshot) {
@@ -7112,7 +7115,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       // WebP encoding (older Safari), so detect explicitly.
       function supports(format) {
         if (format === 'share-card') return true;
-        if (format === 'svg' || format === 'png') return true;
+        if (format === 'svg' || format === 'svg-light' || format === 'svg-dark' || format === 'png') return true;
         if (format === 'webm') return canRecordMotion();
         var mime = format === 'jpeg' ? 'image/jpeg' : 'image/webp';
         try {
