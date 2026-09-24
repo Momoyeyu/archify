@@ -284,6 +284,18 @@ The SVG carries `data-layout-contract="readable-v2"` and each edge's role so
 artifact checks apply the same classification to actual visible path geometry,
 not stale composition-point metadata. These internal output attributes do not
 add authoring schema fields. Other diagram types retain their existing rules.
+V2 proper-crossing diagnostics retain the relationship IDs, intersection point,
+and supported fixes in both compiler/layout-JSON receipts and final HTML checks;
+`standard` reports warnings while `showcase` rejects the crossing. Both analyses
+merge forward-collinear waypoints without rewriting authored paths; real bends
+and reversals remain endpoint touches rather than being merged into an X.
+
+The older per-edge `data-composition-routing="workflow-v2-auto"` marker remains
+for compatibility with first-round exported HTML that has no root layout
+contract and with older artifact checkers. Marker-only artifacts retain their
+narrower automatic-pair crossing/counterflow policy; the root `readable-v2`
+contract is authoritative when present and also checks explicit routes. Do not
+remove the marker-only path as dead code without retiring that export format.
 Showcase also
 rejects any route segment below 8px and any interior turn segment below 16px;
 ordinary 8–15px endpoint stubs remain valid for fixed lane gaps.

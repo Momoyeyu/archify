@@ -90,3 +90,36 @@ was actually re-recorded by the user, not merely rehashed. The distributable
 `archify.zip` must be rebuilt with Node 22 from the combined tracked sources
 after integrating dev's independent lifecycle fixes. Remote CI remains a
 separate requirement; local success does not imply CI or maintainer approval.
+
+## PR #558 review follow-up
+
+The follow-up to reviewed head `6def29f9` fixes two reproduced P2 findings:
+
+- Shared-endpoint proper crossings now reach public compiler/layout-JSON
+  receipts as `composition/proper-crossing`, with relationship IDs, intersection
+  coordinates and supported fixes. V2 standard warnings and showcase errors
+  are both covered; v1 and other callers retain the default shared-helper policy.
+- The final HTML checker uses the same forward-collinear analysis as the
+  compiler for readable-v2. Adding a redundant via at an intersection no longer
+  hides it. Regression coverage includes splits on either/both strokes, real
+  bends, reversals, endpoint touches, stale metadata and the v1 exemption.
+
+The P3 opt-in simplification was investigated rather than applied blindly:
+first-round delivered HTML exists with only `workflow-v2-auto` edge markers and
+no root contract. The marker-only compatibility path is retained and documented
+in the workflow renderer README; the root contract remains authoritative.
+
+Both new failure reproductions were observed red before fixing. The six focused
+test files now pass 282 tests with no failures or skips. Removing diagnostic
+forwarding reproduces the empty-diagnostic failure; removing collinear analysis
+reproduces the missed crossing. Removing marker-only counterflow handling fails
+the existing legacy-export regression. Each removal was restored; no production
+mechanism was permanently deleted in this follow-up.
+
+Compared with `6def29f9`, all six previously measured fixed inputs produce
+byte-identical SVG and identical compile receipts. The three accepted frozen
+OpenPI/Maka HTML artifacts and bundled workflow example pass the revised final
+HTML checker. No route, Viewer or visual output changed, so the previous browser
+evidence is reused, not described as a new browser run. Gallery, examples and
+README animation are unchanged; only the ZIP is rebuilt from revised sources.
+The final full-suite result and revision are recorded in the PR follow-up.

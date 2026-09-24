@@ -2454,6 +2454,8 @@ function validateWorkflow() {
     profileIsAuthoritative: true,
     mergeForwardCollinearWaypoints: workflow.schema_version === 2,
     includeSharedEndpoints: () => workflow.schema_version === 2,
+    warnInStandard: workflow.schema_version === 2,
+    ...(workflow.schema_version === 2 ? { onDiagnostic: diagnostic => workflowDiagnostics.push(diagnostic) } : {}),
     routeHint: 'adjust route/via, bias, or channel coordinates so the edges use separate lane corridors'
   }));
   problems.push(...cleanAmbiguousCorridorProblems({

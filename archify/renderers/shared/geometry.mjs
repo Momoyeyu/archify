@@ -590,9 +590,12 @@ export function cleanCrossingProblems({
   mergeForwardCollinearWaypoints = false,
   includeSharedEndpoints = () => false,
   crossingResolved = () => false,
+  warnInStandard = false,
+  onDiagnostic = recordDiagnostic,
   routeHint = 'adjust route/via or channel coordinates so the relationships use separate corridors'
 }) {
-  if (qualityProfileForGate(profile, profileIsAuthoritative) !== 'showcase') return [];
+  const severity = qualityProfileForGate(profile, profileIsAuthoritative) === 'showcase' ? 'error' : 'warning';
+  if (severity === 'warning' && !warnInStandard) return [];
   const routed = asArray(relations).map((relation, index) => {
     if (!relation || !endpointIds.has(relation.from) || !endpointIds.has(relation.to)) return null;
     const points = pathFor(relation)?.points;
@@ -645,10 +648,10 @@ export function cleanCrossingProblems({
       };
       const point = hit.point.map((value) => Math.round(value * 10) / 10).join(', ');
       const hint = rePlanHint([left.relation, right.relation], routeHint);
-      const message = `[composition/proper-crossing] showcase ${diagramType} ${describe(left)} crosses ${describe(right)} at [${point}] (segments ${hit.leftSegment} and ${hit.rightSegment}) — ${hint}.`;
-      recordDiagnostic({
+      const message = `[composition/proper-crossing] ${severity === 'error' ? 'showcase' : 'standard'} ${diagramType} ${describe(left)} crosses ${describe(right)} at [${point}] (segments ${hit.leftSegment} and ${hit.rightSegment}) — ${hint}.`;
+      onDiagnostic({
         code: 'composition/proper-crossing',
-        severity: 'error',
+        severity,
         message,
         subject: relationshipSubject(diagramType, relationCollection, left.index, left.relation),
         evidence: {
@@ -659,7 +662,7 @@ export function cleanCrossingProblems({
         },
         supportedFixes: [hint],
       });
-      problems.push(message);
+      if (severity === 'error') problems.push(message);
     }
   }
   return problems;
@@ -671,6 +674,8 @@ export function cleanCrossingProblems({
 // automatic architecture routes opt in because they promise separate ports.
 // Workflow v2 opts into shared-endpoint checks with a bounded terminal-trunk
 // exception. Other callers keep their existing authored-junction contract.
+// The counterflow-only opt-in serves older workflow exports without a root
+// readable-v2 contract; full shared-endpoint checking takes precedence.
 // Tiny overlaps below the route rhythm
 // floor are ignored to avoid turning sub-pixel rounding into a quality debt.
 export function collectAmbiguousCorridors({

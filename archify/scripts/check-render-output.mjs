@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { collectAmbiguousCorridors, collectArrowheadCollisions, collectBorderRuns, collectLabelCanvasOverflow, collectLabelRouteClearance, collectRouteRhythmIssues, describeLabelCanvasOverflow, formatRect, minimumLabelRouteClearance, routeBudgetMetrics } from '../renderers/shared/geometry.mjs';
+import { collectAmbiguousCorridors, collectArrowheadCollisions, collectBorderRuns, collectLabelCanvasOverflow, collectLabelRouteClearance, collectRouteRhythmIssues, describeLabelCanvasOverflow, formatRect, forwardCollinearAnalysisSegments, minimumLabelRouteClearance, routeBudgetMetrics } from '../renderers/shared/geometry.mjs';
 import {
   DESKTOP_READABILITY_VIEWPORT,
   DESKTOP_READER_DIAGRAM_WIDTH,
@@ -476,8 +476,9 @@ function collectArrows(fragment, useActualPoints = false) {
         && (tag[1].toLowerCase() === 'line' || /^\s*M\s+[-+\d.eE]+\s+[-+\d.eE]+\s+L\s+[-+\d.eE]+\s+[-+\d.eE]+\s*$/.test(attrs.d || '')),
       crossoverHalo: verifiedCrossoverHalo,
       independentPorts: verifiedCrossoverHalo && attrs['data-composition-independent'] === 'true',
-      // This opt-in only tightens shared-endpoint checks. It does not certify
-      // a crossover halo or exempt any existing artifact-quality rule.
+      // Compatibility with first-round exports lacking a root layout contract.
+      // Readable-v2's root contract supersedes this narrower automatic-pair rule.
+      // This marker never certifies a crossover halo or waives a quality rule.
       automaticWorkflowRoute: attrs['data-composition-routing'] === 'workflow-v2-auto',
       width: routeStrokeWidth,
       variant: raw.match(/\ba-(default|emphasis|security|dashed)\b/)?.[1] || 'default',
@@ -566,7 +567,12 @@ function parseRoutePoints(value) {
 }
 
 function collectRelationshipCrossings(arrows, includeSharedEndpoints = false) {
-  const relationships = arrows.filter((arrow) => arrow.from && arrow.to && arrow.segments.length);
+  const relationships = arrows.filter((arrow) => arrow.from && arrow.to && arrow.segments.length).map(arrow => ({
+    ...arrow,
+    // Readable-v2 routePoints come from the visible path, never its metadata.
+    // A straight-through via is not a visual endpoint; preserve real bends.
+    segments: includeSharedEndpoints ? forwardCollinearAnalysisSegments(arrow.routePoints) : arrow.segments,
+  }));
   const crossings = [];
   for (let leftIndex = 0; leftIndex < relationships.length; leftIndex += 1) {
     const left = relationships[leftIndex];
