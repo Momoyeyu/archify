@@ -264,7 +264,26 @@ Set `meta.quality_profile` to `showcase` for polished delivery. Unrelated proper
 X crossings then fail with `composition/proper-crossing`; default `standard`
 keeps them as artifact-receipt warnings. Collinear lane corridors are outside
 the proper-X rule, but a separate gate warns in `standard` and fails in
-`showcase` when unrelated edges overlap for at least 8px. Shared semantic
-endpoints, point touches, and shorter overlaps remain valid. Showcase also
+`showcase` when unrelated edges overlap for at least 8px. V1 keeps its authored
+shared-endpoint contract. V2 also checks shared endpoints, including explicitly
+controlled routes: long or mixed-style trunks, counterflow, proper interior X
+crossings and overlapping independent arrowheads are not exempt. Pins are
+preserved, not silently repaired; unresolved v2 corridor/arrowhead collisions
+warn in `standard` and fail in `showcase`.
+
+V2 permits a same-direction shared terminal stub of at most 24 SVG units only
+when both relationships share the actual source or target port, effective
+variant, stroke width and role. A nonterminal overlap is never such a stub;
+forward-collinear waypoints do not split a long trunk into permitted pieces.
+Compatible short merges may share their terminal arrowhead. Automatic routes
+consider separate ports, reserve absolute routes at contested nodes, and prefer
+clear paths over shorter ambiguous ones. Crowded automatic corridors can use a
+bounded local adjustment without moving nodes or changing explicit coordinates.
+
+The SVG carries `data-layout-contract="readable-v2"` and each edge's role so
+artifact checks apply the same classification to actual visible path geometry,
+not stale composition-point metadata. These internal output attributes do not
+add authoring schema fields. Other diagram types retain their existing rules.
+Showcase also
 rejects any route segment below 8px and any interior turn segment below 16px;
 ordinary 8–15px endpoint stubs remain valid for fixed lane gaps.

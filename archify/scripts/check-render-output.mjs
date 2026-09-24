@@ -109,6 +109,7 @@ if (svgMatches.length === 1) {
   const svgRoot = svg.match(/<svg\b[^>]*>/i)?.[0] || '';
   const svgAttrs = parseAttrs(svgRoot);
   const qualityProfile = svgAttrs['data-quality-profile'] || 'standard';
+  const workflowV2 = svgAttrs['data-layout-contract'] === 'readable-v2';
   const qualityGatesEnforced = svgAttrs['data-quality-gates'] !== 'advisory';
   const nonFiniteAttrs = collectNonFiniteAttrs(svg);
   addCheck('finite_svg', nonFiniteAttrs.length === 0, nonFiniteAttrs);
@@ -124,14 +125,14 @@ if (svgMatches.length === 1) {
     diagramType: svgAttrs['data-diagram-type'] || null,
     hasGuidedViews: /class="guided-views/.test(html),
   });
-  const arrows = collectArrows(beforeLegend);
+  const arrows = collectArrows(beforeLegend, workflowV2);
   const diagonal = arrows.flatMap((arrow) => diagonalStraightSegments(arrow).map((segment) => ({ arrow, ...segment })));
   addCheck(
     'orthogonal_arrows',
     diagonal.length === 0,
     diagonal.map(({ arrow, segmentIndex }) => `${arrow.kind} ${arrow.index} segment ${segmentIndex + 1}: expected an orthogonal segment or an explicitly authored direct straight route; ${arrow.raw}`),
   );
-  const measuredRelationshipCrossings = collectRelationshipCrossings(arrows);
+  const measuredRelationshipCrossings = collectRelationshipCrossings(arrows, workflowV2);
   const resolvedCrossovers = measuredRelationshipCrossings.filter((hit) => (
     hit.left.crossoverHalo && hit.right.crossoverHalo
   ));
@@ -157,10 +158,13 @@ if (svgMatches.length === 1) {
   const routeRhythmIssues = collectRouteRhythmIssues({ routedRelations: routedRelationships });
   const ambiguousCorridors = collectAmbiguousCorridors({
     routedRelations: routedRelationships,
-    includeSharedEndpoints: (left, right) => left.independentPorts && right.independentPorts,
+    includeSharedEndpoints: (left, right) => workflowV2 || (left.independentPorts && right.independentPorts),
+    allowShortWorkflowTrunks: workflowV2,
+    includeSharedEndpointCounterflow: (left, right) => left.automaticWorkflowRoute && right.automaticWorkflowRoute,
   });
   const arrowheadCollisions = collectArrowheadCollisions({
-    routedRelations: routedRelationships.filter((entry) => entry.relation.independentPorts),
+    routedRelations: routedRelationships.filter((entry) => workflowV2 || entry.relation.independentPorts),
+    allowShortWorkflowTrunks: workflowV2,
   });
   const relationshipLabels = collectRelationshipLabelMasks(beforeLegend, arrows);
   const leadingSpace = collectArchitectureLeadingSpace({
@@ -420,7 +424,7 @@ console.log(JSON.stringify({ ok, file: htmlPath, artifact, checks, composition }
 // Let pending stdout writes drain: large receipts are asynchronous when piped.
 process.exitCode = ok ? 0 : 1;
 
-function collectArrows(fragment) {
+function collectArrows(fragment, useActualPoints = false) {
   const arrows = [];
   let index = 0;
   let previousTag = null;
@@ -472,10 +476,15 @@ function collectArrows(fragment) {
         && (tag[1].toLowerCase() === 'line' || /^\s*M\s+[-+\d.eE]+\s+[-+\d.eE]+\s+L\s+[-+\d.eE]+\s+[-+\d.eE]+\s*$/.test(attrs.d || '')),
       crossoverHalo: verifiedCrossoverHalo,
       independentPorts: verifiedCrossoverHalo && attrs['data-composition-independent'] === 'true',
+      // This opt-in only tightens shared-endpoint checks. It does not certify
+      // a crossover halo or exempt any existing artifact-quality rule.
+      automaticWorkflowRoute: attrs['data-composition-routing'] === 'workflow-v2-auto',
       width: routeStrokeWidth,
+      variant: raw.match(/\ba-(default|emphasis|security|dashed)\b/)?.[1] || 'default',
+      role: attrs['data-edge-role'],
       segments,
       borderSegments,
-      routePoints: parseRoutePoints(attrs['data-composition-points']) || (
+      routePoints: (!useActualPoints && parseRoutePoints(attrs['data-composition-points'])) || (
         borderSegments.length ? [borderSegments[0].start, ...borderSegments.map((segment) => segment.end)] : []
       ),
       from: attrs['data-edge-from'] || attrs['data-composition-edge-from'],
@@ -556,7 +565,7 @@ function parseRoutePoints(value) {
   return points.length >= 2 && points.every(isPoint) ? points : null;
 }
 
-function collectRelationshipCrossings(arrows) {
+function collectRelationshipCrossings(arrows, includeSharedEndpoints = false) {
   const relationships = arrows.filter((arrow) => arrow.from && arrow.to && arrow.segments.length);
   const crossings = [];
   for (let leftIndex = 0; leftIndex < relationships.length; leftIndex += 1) {
@@ -564,9 +573,11 @@ function collectRelationshipCrossings(arrows) {
     for (let rightIndex = leftIndex + 1; rightIndex < relationships.length; rightIndex += 1) {
       const right = relationships[rightIndex];
       // A shared semantic endpoint does not make an interior X a junction
-      // when both generated paths promise independent automatic ports.
+      // when both paths opt into automatic workflow or independent-port checks.
       if ([left.from, left.to].some((id) => id === right.from || id === right.to)
-          && (!left.independentPorts || !right.independentPorts)) continue;
+          && !includeSharedEndpoints
+          && !(left.independentPorts && right.independentPorts)
+          && !(left.automaticWorkflowRoute && right.automaticWorkflowRoute)) continue;
       let point = null;
       for (const leftSegment of left.segments) {
         for (const rightSegment of right.segments) {
