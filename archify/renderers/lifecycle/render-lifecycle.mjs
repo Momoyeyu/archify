@@ -2,7 +2,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { esc, renderDefinitions, renderSemanticSigil, textUnits } from '../shared/utils.mjs';
 import { animateAttr, focusEdgeAttrs, focusNodeAttrs, focusNodeTitle, loadDiagramWithBrandMarks, writeDiagram, svgAccessibleText, svgRootAttrs } from '../shared/cli.mjs';
-import { throwDiagnosticProblems } from '../shared/diagnostics.mjs';
+import { recordDiagnostic, throwDiagnosticProblems } from '../shared/diagnostics.mjs';
 import { createRouter } from '../architecture/routing.mjs';
 import { placeAutomaticLabels, reservedLabelRect } from '../architecture/labels.mjs';
 import { resolveLegend, renderLegend as renderResolvedLegend } from '../shared/legend.mjs';
@@ -293,6 +293,21 @@ function validateLifecycle() {
   }));
 
   const labelRects = transitionLabelRects();
+  if (lifecycle.meta?.quality_profile === 'showcase') {
+    for (const rect of labelRects) {
+      for (const title of bandGeometry()) {
+        if (!rectsOverlap(rect, title)) continue;
+        const message = `Transition ${rect.relationIndex} label "${rect.label}" overlaps lifecycle band title "${title.label}" — move the label with labelAt/labelDx/labelDy/labelSegment or provide more space.`;
+        recordDiagnostic({
+          code: 'composition/label-band-title-overlap', severity: 'error', message,
+          subject: { diagramType: 'lifecycle', collection: 'transitions', index: rect.relationIndex, from: rect.relation.from, to: rect.relation.to },
+          evidence: { labelRect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height }, bandTitle: title },
+          supportedFixes: ['move the transition label with labelAt/labelDx/labelDy/labelSegment while preserving its text'],
+        });
+        problems.push(message);
+      }
+    }
+  }
   for (const rect of labelRects) {
     for (const state of states.values()) {
       if (rectsOverlap(rect, state, -2)) {
@@ -478,7 +493,7 @@ if (lifecycle.meta?.quality_profile === 'showcase') {
         ? [{ relationIndex, points: pathFor(transition).points }] : []
     )),
     components: [...states.values()],
-    titles: [],
+    titles: bandGeometry(),
     viewBox,
     placementBottom: lifecycleAreaBottom(),
   });
@@ -497,15 +512,18 @@ function bandTitles() {
   ];
 }
 
+function bandGeometry() {
+  return bandTitles().map((title, index) => {
+    const baseline = [100, 252, 424][index];
+    const label = `${String(index + 1).padStart(2, '0')} / ${title}`;
+    return { index, label, x: 72, y: baseline - 11, width: textUnits(label) * 6.2, height: 14, baseline };
+  });
+}
+
 function renderBands() {
   const right = viewBox[0] - 72;
-  const titles = bandTitles();
-  return `        <path d="M 72 112 L ${right} 112" class="a-default" stroke-width="0.8" stroke-dasharray="3,8"/>
-        <text x="72" y="100" class="t-dim" font-size="10" font-weight="600">01 / ${esc(titles[0])}</text>
-        <path d="M 72 264 L ${right} 264" class="a-default" stroke-width="0.8" stroke-dasharray="3,8"/>
-        <text x="72" y="252" class="t-dim" font-size="10" font-weight="600">02 / ${esc(titles[1])}</text>
-        <path d="M 72 436 L ${right} 436" class="a-default" stroke-width="0.8" stroke-dasharray="3,8"/>
-        <text x="72" y="424" class="t-dim" font-size="10" font-weight="600">03 / ${esc(titles[2])}</text>`;
+  return bandGeometry().map((band) => `        <path d="M 72 ${band.baseline + 12} L ${right} ${band.baseline + 12}" class="a-default" stroke-width="0.8" stroke-dasharray="3,8"/>
+        <text x="${band.x}" y="${band.baseline}" class="t-dim" font-size="10" font-weight="600">${esc(band.label)}</text>`).join('\n');
 }
 
 function renderState(state) {
