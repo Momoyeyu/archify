@@ -36,6 +36,28 @@ for (const [index, y] of [100, 252, 424].entries()) {
     assert.equal(box.y + 11, y - 5);
   });
 }
+test('same-label collisions retain a diagnostic for each transition', t => {
+  const doc = structuredClone(fixture);
+  const indexes = [];
+  doc.transitions.forEach((transition, index) => {
+    if (transition.label !== '申请退款') return;
+    indexes.push(index);
+    transition.labelAt = [100 + indexes.length * 5, 95];
+  });
+  assert.equal(indexes.length, 2);
+  const result = run(t, doc);
+  assert.equal(result.status, 1, result.stdout);
+  const diagnostics = JSON.parse(result.stdout).diagnostics.filter(d => d.code === 'composition/label-band-title-overlap');
+  assert.deepEqual(diagnostics.map(d => d.subject.index), indexes);
+  diagnostics.forEach((diagnostic, i) => {
+    const transition = doc.transitions[indexes[i]];
+    assert.equal(diagnostic.subject.from, transition.from);
+    assert.equal(diagnostic.subject.to, transition.to);
+    assert.equal(diagnostic.evidence.bandTitle.index, 0);
+    const box = diagnostic.evidence.labelRect;
+    assert.equal(box.x + box.width / 2, transition.labelAt[0]);
+  });
+});
 test('standard preserves authored label placement', t => {
   const doc = structuredClone(fixture);
   doc.meta.quality_profile = 'standard';

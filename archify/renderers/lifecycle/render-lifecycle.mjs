@@ -297,7 +297,7 @@ function validateLifecycle() {
     for (const rect of labelRects) {
       for (const title of bandGeometry()) {
         if (!rectsOverlap(rect, title)) continue;
-        const message = `Transition label "${rect.label}" overlaps lifecycle band title "${title.label}" — move the label with labelAt/labelDx/labelDy/labelSegment or provide more space.`;
+        const message = `Transition ${rect.relationIndex} label "${rect.label}" overlaps lifecycle band title "${title.label}" — move the label with labelAt/labelDx/labelDy/labelSegment or provide more space.`;
         recordDiagnostic({
           code: 'composition/label-band-title-overlap', severity: 'error', message,
           subject: { diagramType: 'lifecycle', collection: 'transitions', index: rect.relationIndex, from: rect.relation.from, to: rect.relation.to },
