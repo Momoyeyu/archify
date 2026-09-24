@@ -694,7 +694,12 @@ test('zoomed camera restores its bounded desktop rail after crossing the mobile 
     assert.ok(Math.abs(restored.reserve - baseline.reserve) <= 1, JSON.stringify({ baseline, zoomed, restored }));
     assert.equal(restored.receiptReserve, restored.reserve, JSON.stringify(restored));
     assert.equal(restored.receiptEligible, true, JSON.stringify(restored));
-    assert.ok(restored.scrollHeight <= restored.innerHeight, JSON.stringify(restored));
+    // Reading-size preservation may require ordinary page scroll before zoom.
+    // Crossing the breakpoint must restore that same layout, not grow it.
+    assert.ok(Math.abs(restored.scrollHeight - baseline.scrollHeight) <= 1, JSON.stringify({ baseline, restored }));
+    assert.ok(Math.abs(restored.containerHeight - baseline.containerHeight) <= 1, JSON.stringify({ baseline, restored }));
+    assert.ok(restored.scrollWidth <= restored.innerWidth, JSON.stringify(restored));
+    assert.equal(restored.dockStageIntersectionArea, 0, JSON.stringify(restored));
   } finally {
     await browser.close();
   }
