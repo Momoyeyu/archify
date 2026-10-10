@@ -149,7 +149,7 @@ function options({ input, output, outDir, runCommand, runBrowserCheck, resolveCh
   };
 }
 
-test('finalize prestarts Chrome during deliver without inspecting it before the browser gate consumes it', async t => {
+test('finalize starts Chrome after deliver passes so startup overlaps check without inspecting before the browser gate consumes it', async t => {
   const { input, output, outDir, source } = inputs(t);
   const events = [];
   let delivered;
@@ -166,12 +166,12 @@ test('finalize prestarts Chrome during deliver without inspecting it before the 
       events.push(`run:${stage}`);
       assert.deepEqual(events.filter((event) => event === 'inspect'), []);
       if (stage === 'deliver') {
-        assert.deepEqual(events, ['create', 'run:deliver']);
+        assert.deepEqual(events, ['run:deliver']);
         await Promise.resolve();
         delivered = delivery({ input, output, source });
         return stageResult(delivered);
       }
-      assert.deepEqual(events, ['create', 'run:deliver', 'run:check']);
+      assert.deepEqual(events, ['run:deliver', 'create', 'run:check']);
       return stageResult(check(output, delivered));
     },
     runBrowserCheck: async ({ artifactPath, outDir: receivedOutDir, chromePath, resolveChrome, browserFactory }) => {
@@ -189,10 +189,10 @@ test('finalize prestarts Chrome during deliver without inspecting it before the 
 
   assert.equal(finalized.exitCode, 0);
   assert.equal(finalized.receipt.stages['browser-check'].execution, 'in-process');
-  assert.deepEqual(events, ['create', 'run:deliver', 'run:check', 'inspect', 'close']);
+  assert.deepEqual(events, ['run:deliver', 'create', 'run:check', 'inspect', 'close']);
 });
 
-test('finalize closes a prestarted browser without navigation when deliver or check fails', async t => {
+test('finalize never starts a browser for a deliver-failed candidate and closes a started one when check fails', async t => {
   for (const failedStage of ['deliver', 'check']) {
     const { input, output, outDir, source } = inputs(t);
     const events = [];
@@ -212,13 +212,17 @@ test('finalize closes a prestarted browser without navigation when deliver or ch
     assert.equal(finalized.exitCode, 1, failedStage);
     assert.equal(finalized.receipt.failedStage, failedStage === 'deliver' ? 'deliver' : 'check', failedStage);
     assert.equal(events.includes('inspect'), false, failedStage);
-    assert.equal(events.filter((event) => event === 'close').length, 1, failedStage);
+    // A candidate rejected at deliver must not pay for a Chrome process; a
+    // browser started after deliver still closes when check fails.
+    assert.equal(events.includes('create'), failedStage === 'check', failedStage);
+    assert.equal(events.filter((event) => event === 'close').length, failedStage === 'check' ? 1 : 0, failedStage);
   }
 });
 
-test('a rejected Chrome attach does not replace a delivery failure or emit an unhandled rejection', async t => {
-  const { input, output, outDir } = inputs(t);
+test('a rejected Chrome attach does not replace a check failure or emit an unhandled rejection', async t => {
+  const { input, output, outDir, source } = inputs(t);
   const events = [];
+  let delivered;
   const unhandled = [];
   const onUnhandled = (reason) => unhandled.push(reason);
   process.on('unhandledRejection', onUnhandled);
@@ -228,11 +232,17 @@ test('a rejected Chrome attach does not replace a delivery failure or emit an un
       resolveChrome: () => '/fake/chrome',
       createBrowser: () => browser(events, Promise.reject(new Error('attach failed'))),
       runBrowserCheck: () => { throw new Error('browser gate must not run'); },
-      runCommand: () => stageResult({ ok: false, command: 'deliver', diagnostics: [] }, 1),
+      runCommand: ({ stage }) => {
+        if (stage === 'deliver') {
+          delivered = delivery({ input, output, source });
+          return stageResult(delivered);
+        }
+        return stageResult({ ok: false, command: 'check', diagnostics: [] }, 1);
+      },
     }));
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(finalized.exitCode, 1);
-    assert.equal(finalized.receipt.failedStage, 'deliver');
+    assert.equal(finalized.receipt.failedStage, 'check');
     assert.deepEqual(unhandled, []);
     assert.deepEqual(events, ['close']);
   } finally {

@@ -782,22 +782,25 @@ export async function runFinalize({
   // update check in parallel instead of timing out on every delivery.
   const updateCheck = startUpdateCheck({ env, deadlineMs: FINALIZE_UPDATE_DEADLINE_MS });
 
-  // Only launch/attach the blank browser here. The normal browser gate still
-  // verifies current delivery provenance before it consumes this one-shot factory.
+  // Attach the blank browser lazily: a candidate rejected at deliver never
+  // reaches the browser gate, so launching Chrome up front would waste a
+  // process (and crash inside restricted sandboxes). The launch happens once
+  // deliver passes so startup still overlaps the check stage.
   const chromePath = runBrowserCheck ? resolveChrome({ env }) : null;
   let browser;
   let browserStartupError;
   let browserTransferred = false;
-  if (chromePath) {
+  const ensureBrowser = () => {
+    if (browser || browserStartupError || !chromePath) return;
     try {
       browser = createBrowser(chromePath, { env });
-      // Deliver/check may fail before inspect() awaits startup. Handle the
-      // rejection now while retaining the same promise for the browser gate.
+      // Check may fail before inspect() awaits startup. Handle the rejection
+      // now while retaining the same promise for the browser gate.
       browser.sessionPromise.catch(() => {});
     } catch (error) {
       browserStartupError = error;
     }
-  }
+  };
   const browserFactory = () => {
     if (browserStartupError) throw browserStartupError;
     if (browserTransferred || !browser) throw new Error('The finalize browser is unavailable or already consumed.');
@@ -895,6 +898,9 @@ export async function runFinalize({
           },
         };
         receipt.stages.deliver = stageEntry;
+        // Deliver passed, so the browser gate is reachable; start Chrome now
+        // and let its startup overlap the check stage.
+        ensureBrowser();
       } else if (stage === 'deliver') {
         const validationFailed = stageDiagnostics?.some((diagnostic) => diagnostic.code === 'finalize/candidate-changed-during-delivery')
           || ['input', 'render', 'check'].includes(stageReceipt?.stage);
