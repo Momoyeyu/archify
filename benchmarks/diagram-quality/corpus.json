@@ -1,0 +1,3702 @@
+{
+  "schemaVersion": 2,
+  "publicPilot": true,
+  "goldStatus": "authored-provisional",
+  "description": "Public authored pilot corpus. All tasks and gold facts are provisional; no independent human confirmation, hidden holdout, formal ranking, or optimization authorization.",
+  "profile": {
+    "minFontPx": 12,
+    "epsilonPx": 0.5,
+    "calibrated": false
+  },
+  "tasks": [
+    {
+      "id": "architecture-01",
+      "type": "architecture",
+      "family": "ticket-gateway",
+      "complexity": "small",
+      "split": "development",
+      "prompt": "活动售票入口。用户通过浏览器预订座位；网关转发预订，服务读写座位库。座位库还把可用性返回服务。 节点名称必须完整保留：Browser、Gateway、Ticket API、Seat Store。必需有向关系：Browser → Gateway（HTTPS）；Gateway → Ticket API（reserve）；Ticket API → Seat Store（hold seat）；Seat Store → Ticket API（availability）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Browser"
+          },
+          {
+            "id": "n2",
+            "label": "Gateway"
+          },
+          {
+            "id": "n3",
+            "label": "Ticket API"
+          },
+          {
+            "id": "n4",
+            "label": "Seat Store"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "HTTPS"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "reserve"
+          },
+          {
+            "from": "n3",
+            "to": "n4",
+            "label": "hold seat"
+          },
+          {
+            "from": "n4",
+            "to": "n3",
+            "label": "availability"
+          }
+        ],
+        "requiredLabels": [
+          "Browser",
+          "Gateway",
+          "Ticket API",
+          "Seat Store",
+          "HTTPS",
+          "reserve",
+          "hold seat",
+          "availability"
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "architecture-02",
+      "type": "architecture",
+      "family": "weather-alert",
+      "complexity": "small",
+      "split": "holdout",
+      "prompt": "天气告警入口。天气源推送预报，告警接口查订阅者后向短信供应商发送告警。 节点名称必须完整保留：Weather Feed、Alert API、Subscriber Store、SMS Provider。必需有向关系：Weather Feed → Alert API（forecast）；Alert API → Subscriber Store（lookup subscribers）；Alert API → SMS Provider（send alert）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Weather Feed"
+          },
+          {
+            "id": "n2",
+            "label": "Alert API"
+          },
+          {
+            "id": "n3",
+            "label": "Subscriber Store"
+          },
+          {
+            "id": "n4",
+            "label": "SMS Provider"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "forecast"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "lookup subscribers"
+          },
+          {
+            "from": "n2",
+            "to": "n4",
+            "label": "send alert"
+          }
+        ],
+        "requiredLabels": [
+          "Weather Feed",
+          "Alert API",
+          "Subscriber Store",
+          "SMS Provider",
+          "forecast",
+          "lookup subscribers",
+          "send alert"
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "architecture-03",
+      "type": "architecture",
+      "family": "photo-ingest",
+      "complexity": "medium",
+      "split": "development",
+      "prompt": "照片接收系统。移动端上传照片。接口保存原图并投递任务；缩略图工作器消费队列，把缩略图写回对象存储，把尺寸写入元数据库。 节点名称必须完整保留：Mobile App、Upload API、Object Store、Event Queue、Thumbnail Worker、Metadata Store。必需有向关系：Mobile App → Upload API（upload）；Upload API → Object Store（original）；Upload API → Event Queue（job）；Event Queue → Thumbnail Worker（consume）；Thumbnail Worker → Object Store（thumbnail）；Thumbnail Worker → Metadata Store（dimensions）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Mobile App"
+          },
+          {
+            "id": "n2",
+            "label": "Upload API"
+          },
+          {
+            "id": "n3",
+            "label": "Object Store"
+          },
+          {
+            "id": "n4",
+            "label": "Event Queue"
+          },
+          {
+            "id": "n5",
+            "label": "Thumbnail Worker"
+          },
+          {
+            "id": "n6",
+            "label": "Metadata Store"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "upload"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "original"
+          },
+          {
+            "from": "n2",
+            "to": "n4",
+            "label": "job"
+          },
+          {
+            "from": "n4",
+            "to": "n5",
+            "label": "consume"
+          },
+          {
+            "from": "n5",
+            "to": "n3",
+            "label": "thumbnail"
+          },
+          {
+            "from": "n5",
+            "to": "n6",
+            "label": "dimensions"
+          }
+        ],
+        "requiredLabels": [
+          "Mobile App",
+          "Upload API",
+          "Object Store",
+          "Event Queue",
+          "Thumbnail Worker",
+          "Metadata Store",
+          "upload",
+          "original",
+          "job",
+          "consume",
+          "thumbnail",
+          "dimensions"
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "architecture-04",
+      "type": "architecture",
+      "family": "stock-reservation",
+      "complexity": "medium",
+      "split": "calibration",
+      "prompt": "库存预留系统。商店界面结算时，订单接口请求库存服务预留并收取支付；库存服务更新库存库，支付服务把结果返回订单接口，订单接口记录审计。 节点名称必须完整保留：Shop UI、Order API、Inventory Service、Inventory DB、Payment Service、Audit Log。必需有向关系：Shop UI → Order API（checkout）；Order API → Inventory Service（reserve）；Inventory Service → Inventory DB（update）；Order API → Payment Service（charge）；Payment Service → Order API（payment result）；Order API → Audit Log（record）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Shop UI"
+          },
+          {
+            "id": "n2",
+            "label": "Order API"
+          },
+          {
+            "id": "n3",
+            "label": "Inventory Service"
+          },
+          {
+            "id": "n4",
+            "label": "Inventory DB"
+          },
+          {
+            "id": "n5",
+            "label": "Payment Service"
+          },
+          {
+            "id": "n6",
+            "label": "Audit Log"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "checkout"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "reserve"
+          },
+          {
+            "from": "n3",
+            "to": "n4",
+            "label": "update"
+          },
+          {
+            "from": "n2",
+            "to": "n5",
+            "label": "charge"
+          },
+          {
+            "from": "n5",
+            "to": "n2",
+            "label": "payment result"
+          },
+          {
+            "from": "n2",
+            "to": "n6",
+            "label": "record"
+          }
+        ],
+        "requiredLabels": [
+          "Shop UI",
+          "Order API",
+          "Inventory Service",
+          "Inventory DB",
+          "Payment Service",
+          "Audit Log",
+          "checkout",
+          "reserve",
+          "update",
+          "charge",
+          "payment result",
+          "record"
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "architecture-05",
+      "type": "architecture",
+      "family": "analytics-query",
+      "complexity": "large",
+      "split": "development",
+      "prompt": "分析查询平台。分析师发起 SQL；网关鉴权并请求规划，规划器分派工作池。工作池扫描仓库并缓存结果；缓存把行返回网关，网关返回界面并审计。 节点名称必须完整保留：Analyst UI、Query Gateway、Auth Service、Query Planner、Worker Pool、Warehouse、Result Cache、Audit Sink。必需有向关系：Analyst UI → Query Gateway（SQL）；Query Gateway → Auth Service（authorize）；Query Gateway → Query Planner（plan）；Query Planner → Worker Pool（execute）；Worker Pool → Warehouse（scan）；Worker Pool → Result Cache（cache result）；Result Cache → Query Gateway（cached rows）；Query Gateway → Audit Sink（audit）；Query Gateway → Analyst UI（result）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Analyst UI"
+          },
+          {
+            "id": "n2",
+            "label": "Query Gateway"
+          },
+          {
+            "id": "n3",
+            "label": "Auth Service"
+          },
+          {
+            "id": "n4",
+            "label": "Query Planner"
+          },
+          {
+            "id": "n5",
+            "label": "Worker Pool"
+          },
+          {
+            "id": "n6",
+            "label": "Warehouse"
+          },
+          {
+            "id": "n7",
+            "label": "Result Cache"
+          },
+          {
+            "id": "n8",
+            "label": "Audit Sink"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "SQL"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "authorize"
+          },
+          {
+            "from": "n2",
+            "to": "n4",
+            "label": "plan"
+          },
+          {
+            "from": "n4",
+            "to": "n5",
+            "label": "execute"
+          },
+          {
+            "from": "n5",
+            "to": "n6",
+            "label": "scan"
+          },
+          {
+            "from": "n5",
+            "to": "n7",
+            "label": "cache result"
+          },
+          {
+            "from": "n7",
+            "to": "n2",
+            "label": "cached rows"
+          },
+          {
+            "from": "n2",
+            "to": "n8",
+            "label": "audit"
+          },
+          {
+            "from": "n2",
+            "to": "n1",
+            "label": "result"
+          }
+        ],
+        "requiredLabels": [
+          "Analyst UI",
+          "Query Gateway",
+          "Auth Service",
+          "Query Planner",
+          "Worker Pool",
+          "Warehouse",
+          "Result Cache",
+          "Audit Sink",
+          "SQL",
+          "authorize",
+          "plan",
+          "execute",
+          "scan",
+          "cache result",
+          "cached rows",
+          "audit",
+          "result"
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "architecture-06",
+      "type": "architecture",
+      "family": "fleet-telemetry",
+      "complexity": "large",
+      "split": "holdout",
+      "prompt": "车队遥测系统。车辆遥测经边缘网关批量进入接口和消息总线。总线同时送规则工作器和时序库；规则或操作界面都能触发命令接口，经边缘网关下发车辆。 节点名称必须完整保留：Vehicle、Edge Gateway、Ingest API、Message Bus、Rules Worker、Time Series DB、Command API、Operator UI。必需有向关系：Vehicle → Edge Gateway（telemetry）；Edge Gateway → Ingest API（batch）；Ingest API → Message Bus（publish）；Message Bus → Rules Worker（evaluate）；Message Bus → Time Series DB（persist）；Rules Worker → Command API（trigger command）；Operator UI → Command API（manual command）；Command API → Edge Gateway（dispatch）；Edge Gateway → Vehicle（command）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Vehicle"
+          },
+          {
+            "id": "n2",
+            "label": "Edge Gateway"
+          },
+          {
+            "id": "n3",
+            "label": "Ingest API"
+          },
+          {
+            "id": "n4",
+            "label": "Message Bus"
+          },
+          {
+            "id": "n5",
+            "label": "Rules Worker"
+          },
+          {
+            "id": "n6",
+            "label": "Time Series DB"
+          },
+          {
+            "id": "n7",
+            "label": "Command API"
+          },
+          {
+            "id": "n8",
+            "label": "Operator UI"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "telemetry"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "batch"
+          },
+          {
+            "from": "n3",
+            "to": "n4",
+            "label": "publish"
+          },
+          {
+            "from": "n4",
+            "to": "n5",
+            "label": "evaluate"
+          },
+          {
+            "from": "n4",
+            "to": "n6",
+            "label": "persist"
+          },
+          {
+            "from": "n5",
+            "to": "n7",
+            "label": "trigger command"
+          },
+          {
+            "from": "n8",
+            "to": "n7",
+            "label": "manual command"
+          },
+          {
+            "from": "n7",
+            "to": "n2",
+            "label": "dispatch"
+          },
+          {
+            "from": "n2",
+            "to": "n1",
+            "label": "command"
+          }
+        ],
+        "requiredLabels": [
+          "Vehicle",
+          "Edge Gateway",
+          "Ingest API",
+          "Message Bus",
+          "Rules Worker",
+          "Time Series DB",
+          "Command API",
+          "Operator UI",
+          "telemetry",
+          "batch",
+          "publish",
+          "evaluate",
+          "persist",
+          "trigger command",
+          "manual command",
+          "dispatch",
+          "command"
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "workflow-01",
+      "type": "workflow",
+      "family": "access-request",
+      "complexity": "small",
+      "split": "development",
+      "prompt": "权限申请。申请提交审核；批准后授权，拒绝后结束。保留批准与拒绝两条互斥条件。 节点名称必须完整保留：Request、Review、Grant、Reject。必需有向关系：Request → Review（submit）；Review → Grant（approved）；Review → Reject（denied）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Request"
+          },
+          {
+            "id": "n2",
+            "label": "Review"
+          },
+          {
+            "id": "n3",
+            "label": "Grant"
+          },
+          {
+            "id": "n4",
+            "label": "Reject"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "submit"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "approved"
+          },
+          {
+            "from": "n2",
+            "to": "n4",
+            "label": "denied"
+          }
+        ],
+        "requiredLabels": [
+          "Request",
+          "Review",
+          "Grant",
+          "Reject",
+          "submit",
+          "approved",
+          "denied"
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "workflow-02",
+      "type": "workflow",
+      "family": "invoice-retry",
+      "complexity": "small",
+      "split": "holdout",
+      "prompt": "发票检查。收到发票后校验；错误返回更正并重新校验，正确则归档。 节点名称必须完整保留：Receive、Validate、Correct、Archive。必需有向关系：Receive → Validate（received）；Validate → Correct（invalid）；Correct → Validate（resubmit）；Validate → Archive（valid）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Receive"
+          },
+          {
+            "id": "n2",
+            "label": "Validate"
+          },
+          {
+            "id": "n3",
+            "label": "Correct"
+          },
+          {
+            "id": "n4",
+            "label": "Archive"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "received"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "invalid"
+          },
+          {
+            "from": "n3",
+            "to": "n2",
+            "label": "resubmit"
+          },
+          {
+            "from": "n2",
+            "to": "n4",
+            "label": "valid"
+          }
+        ],
+        "requiredLabels": [
+          "Receive",
+          "Validate",
+          "Correct",
+          "Archive",
+          "received",
+          "invalid",
+          "resubmit",
+          "valid"
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "workflow-03",
+      "type": "workflow",
+      "family": "document-publish",
+      "complexity": "medium",
+      "split": "development",
+      "prompt": "文档发布。草稿经同事审阅，不通过时修订并回审；通过后法律审阅，获准发布或被阻止后取消。 节点名称必须完整保留：Draft、Peer Review、Revise、Legal Review、Publish、Cancel。必需有向关系：Draft → Peer Review（submit）；Peer Review → Revise（changes）；Revise → Peer Review（resubmit）；Peer Review → Legal Review（approved）；Legal Review → Publish（cleared）；Legal Review → Cancel（blocked）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Draft"
+          },
+          {
+            "id": "n2",
+            "label": "Peer Review"
+          },
+          {
+            "id": "n3",
+            "label": "Revise"
+          },
+          {
+            "id": "n4",
+            "label": "Legal Review"
+          },
+          {
+            "id": "n5",
+            "label": "Publish"
+          },
+          {
+            "id": "n6",
+            "label": "Cancel"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "submit"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "changes"
+          },
+          {
+            "from": "n3",
+            "to": "n2",
+            "label": "resubmit"
+          },
+          {
+            "from": "n2",
+            "to": "n4",
+            "label": "approved"
+          },
+          {
+            "from": "n4",
+            "to": "n5",
+            "label": "cleared"
+          },
+          {
+            "from": "n4",
+            "to": "n6",
+            "label": "blocked"
+          }
+        ],
+        "requiredLabels": [
+          "Draft",
+          "Peer Review",
+          "Revise",
+          "Legal Review",
+          "Publish",
+          "Cancel",
+          "submit",
+          "changes",
+          "resubmit",
+          "approved",
+          "cleared",
+          "blocked"
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "workflow-04",
+      "type": "workflow",
+      "family": "return-inspection",
+      "complexity": "medium",
+      "split": "calibration",
+      "prompt": "退货处理。退货申请先判断资格，无资格拒绝；有资格收包裹再检查，接受则退款，损坏则拒绝。 节点名称必须完整保留：Return Request、Eligibility Check、Reject、Receive Parcel、Inspect、Refund。必需有向关系：Return Request → Eligibility Check（submit）；Eligibility Check → Reject（ineligible）；Eligibility Check → Receive Parcel（eligible）；Receive Parcel → Inspect（arrived）；Inspect → Refund（accepted）；Inspect → Reject（damaged）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Return Request"
+          },
+          {
+            "id": "n2",
+            "label": "Eligibility Check"
+          },
+          {
+            "id": "n3",
+            "label": "Reject"
+          },
+          {
+            "id": "n4",
+            "label": "Receive Parcel"
+          },
+          {
+            "id": "n5",
+            "label": "Inspect"
+          },
+          {
+            "id": "n6",
+            "label": "Refund"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "submit"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "ineligible"
+          },
+          {
+            "from": "n2",
+            "to": "n4",
+            "label": "eligible"
+          },
+          {
+            "from": "n4",
+            "to": "n5",
+            "label": "arrived"
+          },
+          {
+            "from": "n5",
+            "to": "n6",
+            "label": "accepted"
+          },
+          {
+            "from": "n5",
+            "to": "n3",
+            "label": "damaged"
+          }
+        ],
+        "requiredLabels": [
+          "Return Request",
+          "Eligibility Check",
+          "Reject",
+          "Receive Parcel",
+          "Inspect",
+          "Refund",
+          "submit",
+          "ineligible",
+          "eligible",
+          "arrived",
+          "accepted",
+          "damaged"
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "workflow-05",
+      "type": "workflow",
+      "family": "release-control",
+      "complexity": "large",
+      "split": "development",
+      "prompt": "发布控制。提交触发构建和单测；失败修复并重新提交，成功继续安全扫描、预发布和金丝雀部署；不健康则回滚并交修复。 节点名称必须完整保留：Commit、Build、Unit Test、Fix、Security Scan、Stage、Canary、Roll Back。必需有向关系：Commit → Build（push）；Build → Unit Test（built）；Unit Test → Fix（failed）；Fix → Commit（patch）；Unit Test → Security Scan（passed）；Security Scan → Stage（clean）；Stage → Canary（deploy）；Canary → Roll Back（unhealthy）；Roll Back → Fix（investigate）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Commit"
+          },
+          {
+            "id": "n2",
+            "label": "Build"
+          },
+          {
+            "id": "n3",
+            "label": "Unit Test"
+          },
+          {
+            "id": "n4",
+            "label": "Fix"
+          },
+          {
+            "id": "n5",
+            "label": "Security Scan"
+          },
+          {
+            "id": "n6",
+            "label": "Stage"
+          },
+          {
+            "id": "n7",
+            "label": "Canary"
+          },
+          {
+            "id": "n8",
+            "label": "Roll Back"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "push"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "built"
+          },
+          {
+            "from": "n3",
+            "to": "n4",
+            "label": "failed"
+          },
+          {
+            "from": "n4",
+            "to": "n1",
+            "label": "patch"
+          },
+          {
+            "from": "n3",
+            "to": "n5",
+            "label": "passed"
+          },
+          {
+            "from": "n5",
+            "to": "n6",
+            "label": "clean"
+          },
+          {
+            "from": "n6",
+            "to": "n7",
+            "label": "deploy"
+          },
+          {
+            "from": "n7",
+            "to": "n8",
+            "label": "unhealthy"
+          },
+          {
+            "from": "n8",
+            "to": "n4",
+            "label": "investigate"
+          }
+        ],
+        "requiredLabels": [
+          "Commit",
+          "Build",
+          "Unit Test",
+          "Fix",
+          "Security Scan",
+          "Stage",
+          "Canary",
+          "Roll Back",
+          "push",
+          "built",
+          "failed",
+          "patch",
+          "passed",
+          "clean",
+          "deploy",
+          "unhealthy",
+          "investigate"
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "workflow-06",
+      "type": "workflow",
+      "family": "loan-decision",
+      "complexity": "large",
+      "split": "holdout",
+      "prompt": "贷款审批。申请先验身份，无效拒绝；有效进入风控。材料不足补件回风控，高风险转人工，低风险批准；人工可拒绝或批准，批准后放款。 节点名称必须完整保留：Application、Identity Check、Reject、Risk Review、Request Documents、Manual Review、Approve、Disburse。必需有向关系：Application → Identity Check（submit）；Identity Check → Reject（invalid）；Identity Check → Risk Review（valid）；Risk Review → Request Documents（incomplete）；Request Documents → Risk Review（documents received）；Risk Review → Manual Review（high risk）；Risk Review → Approve（low risk）；Manual Review → Reject（declined）；Manual Review → Approve（accepted）；Approve → Disburse（fund）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Application"
+          },
+          {
+            "id": "n2",
+            "label": "Identity Check"
+          },
+          {
+            "id": "n3",
+            "label": "Reject"
+          },
+          {
+            "id": "n4",
+            "label": "Risk Review"
+          },
+          {
+            "id": "n5",
+            "label": "Request Documents"
+          },
+          {
+            "id": "n6",
+            "label": "Manual Review"
+          },
+          {
+            "id": "n7",
+            "label": "Approve"
+          },
+          {
+            "id": "n8",
+            "label": "Disburse"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "submit"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "invalid"
+          },
+          {
+            "from": "n2",
+            "to": "n4",
+            "label": "valid"
+          },
+          {
+            "from": "n4",
+            "to": "n5",
+            "label": "incomplete"
+          },
+          {
+            "from": "n5",
+            "to": "n4",
+            "label": "documents received"
+          },
+          {
+            "from": "n4",
+            "to": "n6",
+            "label": "high risk"
+          },
+          {
+            "from": "n4",
+            "to": "n7",
+            "label": "low risk"
+          },
+          {
+            "from": "n6",
+            "to": "n3",
+            "label": "declined"
+          },
+          {
+            "from": "n6",
+            "to": "n7",
+            "label": "accepted"
+          },
+          {
+            "from": "n7",
+            "to": "n8",
+            "label": "fund"
+          }
+        ],
+        "requiredLabels": [
+          "Application",
+          "Identity Check",
+          "Reject",
+          "Risk Review",
+          "Request Documents",
+          "Manual Review",
+          "Approve",
+          "Disburse",
+          "submit",
+          "invalid",
+          "valid",
+          "incomplete",
+          "documents received",
+          "high risk",
+          "low risk",
+          "declined",
+          "accepted",
+          "fund"
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "dataflow-01",
+      "type": "dataflow",
+      "family": "sensor-cleaning",
+      "complexity": "small",
+      "split": "development",
+      "prompt": "传感器清洗。原始读数进入标准化器；有效读数保存，无效读数进入隔离队列。 节点名称必须完整保留：Sensor Feed、Normalizer、Metrics Store、Invalid Queue。必需有向关系：Sensor Feed → Normalizer（raw readings）；Normalizer → Metrics Store（valid readings）；Normalizer → Invalid Queue（invalid readings）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Sensor Feed"
+          },
+          {
+            "id": "n2",
+            "label": "Normalizer"
+          },
+          {
+            "id": "n3",
+            "label": "Metrics Store"
+          },
+          {
+            "id": "n4",
+            "label": "Invalid Queue"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "raw readings"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "valid readings"
+          },
+          {
+            "from": "n2",
+            "to": "n4",
+            "label": "invalid readings"
+          }
+        ],
+        "requiredLabels": [
+          "Sensor Feed",
+          "Normalizer",
+          "Metrics Store",
+          "Invalid Queue",
+          "raw readings",
+          "valid readings",
+          "invalid readings"
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "dataflow-02",
+      "type": "dataflow",
+      "family": "catalog-enrichment",
+      "complexity": "small",
+      "split": "holdout",
+      "prompt": "目录增强。商品流送增强器；分类库提供分类，增强后的商品进入检索索引。 节点名称必须完整保留：Product Feed、Enricher、Taxonomy Store、Search Index。必需有向关系：Product Feed → Enricher（products）；Taxonomy Store → Enricher（categories）；Enricher → Search Index（enriched products）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Product Feed"
+          },
+          {
+            "id": "n2",
+            "label": "Enricher"
+          },
+          {
+            "id": "n3",
+            "label": "Taxonomy Store"
+          },
+          {
+            "id": "n4",
+            "label": "Search Index"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "products"
+          },
+          {
+            "from": "n3",
+            "to": "n2",
+            "label": "categories"
+          },
+          {
+            "from": "n2",
+            "to": "n4",
+            "label": "enriched products"
+          }
+        ],
+        "requiredLabels": [
+          "Product Feed",
+          "Enricher",
+          "Taxonomy Store",
+          "Search Index",
+          "products",
+          "categories",
+          "enriched products"
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "dataflow-03",
+      "type": "dataflow",
+      "family": "payment-reconciliation",
+      "complexity": "medium",
+      "split": "development",
+      "prompt": "支付对账。银行文件解析为交易行，与账本库的行在连接器对账；匹配项保存，未匹配项进入异常队列。 节点名称必须完整保留：Bank File、Parser、Ledger Store、Joiner、Matched Store、Exception Queue。必需有向关系：Bank File → Parser（transactions）；Parser → Joiner（parsed rows）；Ledger Store → Joiner（ledger rows）；Joiner → Matched Store（matched）；Joiner → Exception Queue（unmatched）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Bank File"
+          },
+          {
+            "id": "n2",
+            "label": "Parser"
+          },
+          {
+            "id": "n3",
+            "label": "Ledger Store"
+          },
+          {
+            "id": "n4",
+            "label": "Joiner"
+          },
+          {
+            "id": "n5",
+            "label": "Matched Store"
+          },
+          {
+            "id": "n6",
+            "label": "Exception Queue"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "transactions"
+          },
+          {
+            "from": "n2",
+            "to": "n4",
+            "label": "parsed rows"
+          },
+          {
+            "from": "n3",
+            "to": "n4",
+            "label": "ledger rows"
+          },
+          {
+            "from": "n4",
+            "to": "n5",
+            "label": "matched"
+          },
+          {
+            "from": "n4",
+            "to": "n6",
+            "label": "unmatched"
+          }
+        ],
+        "requiredLabels": [
+          "Bank File",
+          "Parser",
+          "Ledger Store",
+          "Joiner",
+          "Matched Store",
+          "Exception Queue",
+          "transactions",
+          "parsed rows",
+          "ledger rows",
+          "matched",
+          "unmatched"
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "dataflow-04",
+      "type": "dataflow",
+      "family": "log-redaction",
+      "complexity": "medium",
+      "split": "calibration",
+      "prompt": "日志脱敏。应用日志先收集为批次，脱敏器读取策略规则；脱敏日志存档，策略违规发到告警流。 节点名称必须完整保留：App Logs、Collector、Redactor、Policy Store、Archive、Alert Stream。必需有向关系：App Logs → Collector（logs）；Collector → Redactor（batches）；Policy Store → Redactor（rules）；Redactor → Archive（redacted logs）；Redactor → Alert Stream（policy violations）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "App Logs"
+          },
+          {
+            "id": "n2",
+            "label": "Collector"
+          },
+          {
+            "id": "n3",
+            "label": "Redactor"
+          },
+          {
+            "id": "n4",
+            "label": "Policy Store"
+          },
+          {
+            "id": "n5",
+            "label": "Archive"
+          },
+          {
+            "id": "n6",
+            "label": "Alert Stream"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "logs"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "batches"
+          },
+          {
+            "from": "n4",
+            "to": "n3",
+            "label": "rules"
+          },
+          {
+            "from": "n3",
+            "to": "n5",
+            "label": "redacted logs"
+          },
+          {
+            "from": "n3",
+            "to": "n6",
+            "label": "policy violations"
+          }
+        ],
+        "requiredLabels": [
+          "App Logs",
+          "Collector",
+          "Redactor",
+          "Policy Store",
+          "Archive",
+          "Alert Stream",
+          "logs",
+          "batches",
+          "rules",
+          "redacted logs",
+          "policy violations"
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "dataflow-05",
+      "type": "dataflow",
+      "family": "fraud-features",
+      "complexity": "large",
+      "split": "development",
+      "prompt": "欺诈特征管道。交易事件校验后分出无效队列与有效流；有效流连接客户属性并写特征库，评分器读取向量输出风险分，决策流把历史回写客户库。 节点名称必须完整保留：Transaction Stream、Validator、Dead Letter Queue、Feature Joiner、Customer Store、Feature Store、Scorer、Decision Stream。必需有向关系：Transaction Stream → Validator（events）；Validator → Dead Letter Queue（invalid）；Validator → Feature Joiner（valid）；Customer Store → Feature Joiner（customer attributes）；Feature Joiner → Feature Store（features）；Feature Store → Scorer（feature vector）；Scorer → Decision Stream（risk score）；Decision Stream → Customer Store（decision history）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Transaction Stream"
+          },
+          {
+            "id": "n2",
+            "label": "Validator"
+          },
+          {
+            "id": "n3",
+            "label": "Dead Letter Queue"
+          },
+          {
+            "id": "n4",
+            "label": "Feature Joiner"
+          },
+          {
+            "id": "n5",
+            "label": "Customer Store"
+          },
+          {
+            "id": "n6",
+            "label": "Feature Store"
+          },
+          {
+            "id": "n7",
+            "label": "Scorer"
+          },
+          {
+            "id": "n8",
+            "label": "Decision Stream"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "events"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "invalid"
+          },
+          {
+            "from": "n2",
+            "to": "n4",
+            "label": "valid"
+          },
+          {
+            "from": "n5",
+            "to": "n4",
+            "label": "customer attributes"
+          },
+          {
+            "from": "n4",
+            "to": "n6",
+            "label": "features"
+          },
+          {
+            "from": "n6",
+            "to": "n7",
+            "label": "feature vector"
+          },
+          {
+            "from": "n7",
+            "to": "n8",
+            "label": "risk score"
+          },
+          {
+            "from": "n8",
+            "to": "n5",
+            "label": "decision history"
+          }
+        ],
+        "requiredLabels": [
+          "Transaction Stream",
+          "Validator",
+          "Dead Letter Queue",
+          "Feature Joiner",
+          "Customer Store",
+          "Feature Store",
+          "Scorer",
+          "Decision Stream",
+          "events",
+          "invalid",
+          "valid",
+          "customer attributes",
+          "features",
+          "feature vector",
+          "risk score",
+          "decision history"
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "dataflow-06",
+      "type": "dataflow",
+      "family": "document-search",
+      "complexity": "large",
+      "split": "holdout",
+      "prompt": "文档索引管道。文档提取器把扫描页送 OCR、数字文本直接送分块器；OCR 文本也进入分块。分块分别产生嵌入向量和关键词；不可读页与嵌入失败进入同一失败队列。 节点名称必须完整保留：Document Source、Extractor、OCR Worker、Chunker、Embedding Service、Vector Store、Keyword Index、Failure Queue。必需有向关系：Document Source → Extractor（documents）；Extractor → OCR Worker（scanned pages）；Extractor → Chunker（digital text）；OCR Worker → Chunker（recognized text）；Chunker → Embedding Service（chunks）；Embedding Service → Vector Store（vectors）；Chunker → Keyword Index（terms）；OCR Worker → Failure Queue（unreadable pages）；Embedding Service → Failure Queue（embedding failures）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Document Source"
+          },
+          {
+            "id": "n2",
+            "label": "Extractor"
+          },
+          {
+            "id": "n3",
+            "label": "OCR Worker"
+          },
+          {
+            "id": "n4",
+            "label": "Chunker"
+          },
+          {
+            "id": "n5",
+            "label": "Embedding Service"
+          },
+          {
+            "id": "n6",
+            "label": "Vector Store"
+          },
+          {
+            "id": "n7",
+            "label": "Keyword Index"
+          },
+          {
+            "id": "n8",
+            "label": "Failure Queue"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "documents"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "scanned pages"
+          },
+          {
+            "from": "n2",
+            "to": "n4",
+            "label": "digital text"
+          },
+          {
+            "from": "n3",
+            "to": "n4",
+            "label": "recognized text"
+          },
+          {
+            "from": "n4",
+            "to": "n5",
+            "label": "chunks"
+          },
+          {
+            "from": "n5",
+            "to": "n6",
+            "label": "vectors"
+          },
+          {
+            "from": "n4",
+            "to": "n7",
+            "label": "terms"
+          },
+          {
+            "from": "n3",
+            "to": "n8",
+            "label": "unreadable pages"
+          },
+          {
+            "from": "n5",
+            "to": "n8",
+            "label": "embedding failures"
+          }
+        ],
+        "requiredLabels": [
+          "Document Source",
+          "Extractor",
+          "OCR Worker",
+          "Chunker",
+          "Embedding Service",
+          "Vector Store",
+          "Keyword Index",
+          "Failure Queue",
+          "documents",
+          "scanned pages",
+          "digital text",
+          "recognized text",
+          "chunks",
+          "vectors",
+          "terms",
+          "unreadable pages",
+          "embedding failures"
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "lifecycle-01",
+      "type": "lifecycle",
+      "family": "subscription-state",
+      "complexity": "small",
+      "split": "development",
+      "prompt": "订阅状态。试用期间可订阅进入生效，试用结束进入过期；生效订阅可取消。 节点名称必须完整保留：Trial、Active、Expired、Cancelled。必需有向关系：Trial → Active（subscribe）；Trial → Expired（trial ended）；Active → Cancelled（cancel）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Trial"
+          },
+          {
+            "id": "n2",
+            "label": "Active"
+          },
+          {
+            "id": "n3",
+            "label": "Expired"
+          },
+          {
+            "id": "n4",
+            "label": "Cancelled"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "subscribe"
+          },
+          {
+            "from": "n1",
+            "to": "n3",
+            "label": "trial ended"
+          },
+          {
+            "from": "n2",
+            "to": "n4",
+            "label": "cancel"
+          }
+        ],
+        "requiredLabels": [
+          "Trial",
+          "Active",
+          "Expired",
+          "Cancelled",
+          "subscribe",
+          "trial ended",
+          "cancel"
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "lifecycle-02",
+      "type": "lifecycle",
+      "family": "job-state",
+      "complexity": "small",
+      "split": "holdout",
+      "prompt": "作业状态。队列作业启动运行；出错失败，可重试回队列；正常结束成功。 节点名称必须完整保留：Queued、Running、Failed、Succeeded。必需有向关系：Queued → Running（start）；Running → Failed（error）；Failed → Queued（retry）；Running → Succeeded（complete）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Queued"
+          },
+          {
+            "id": "n2",
+            "label": "Running"
+          },
+          {
+            "id": "n3",
+            "label": "Failed"
+          },
+          {
+            "id": "n4",
+            "label": "Succeeded"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "start"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "error"
+          },
+          {
+            "from": "n3",
+            "to": "n1",
+            "label": "retry"
+          },
+          {
+            "from": "n2",
+            "to": "n4",
+            "label": "complete"
+          }
+        ],
+        "requiredLabels": [
+          "Queued",
+          "Running",
+          "Failed",
+          "Succeeded",
+          "start",
+          "error",
+          "retry",
+          "complete"
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "lifecycle-03",
+      "type": "lifecycle",
+      "family": "reservation-state",
+      "complexity": "medium",
+      "split": "development",
+      "prompt": "座位预留状态。座位可用时能被暂留；暂留可付款、主动释放或超时过期。付款后可退款；释放和过期都使座位重新可用。 节点名称必须完整保留：Available、Held、Paid、Released、Expired、Refunded。必需有向关系：Available → Held（hold）；Held → Paid（pay）；Held → Expired（timeout）；Held → Released（release）；Paid → Refunded（refund）；Released → Available（restock）；Expired → Available（restock）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Available"
+          },
+          {
+            "id": "n2",
+            "label": "Held"
+          },
+          {
+            "id": "n3",
+            "label": "Paid"
+          },
+          {
+            "id": "n4",
+            "label": "Released"
+          },
+          {
+            "id": "n5",
+            "label": "Expired"
+          },
+          {
+            "id": "n6",
+            "label": "Refunded"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "hold"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "pay"
+          },
+          {
+            "from": "n2",
+            "to": "n5",
+            "label": "timeout"
+          },
+          {
+            "from": "n2",
+            "to": "n4",
+            "label": "release"
+          },
+          {
+            "from": "n3",
+            "to": "n6",
+            "label": "refund"
+          },
+          {
+            "from": "n4",
+            "to": "n1",
+            "label": "restock"
+          },
+          {
+            "from": "n5",
+            "to": "n1",
+            "label": "restock"
+          }
+        ],
+        "requiredLabels": [
+          "Available",
+          "Held",
+          "Paid",
+          "Released",
+          "Expired",
+          "Refunded",
+          "hold",
+          "pay",
+          "timeout",
+          "release",
+          "refund",
+          "restock"
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "lifecycle-04",
+      "type": "lifecycle",
+      "family": "support-case-state",
+      "complexity": "medium",
+      "split": "calibration",
+      "prompt": "工单状态。新工单分派后调查；提问则等待客户，回复后继续调查；修复后解决，可确认关闭或重新打开调查。 节点名称必须完整保留：New、Assigned、Investigating、Waiting Customer、Resolved、Closed。必需有向关系：New → Assigned（triage）；Assigned → Investigating（start）；Investigating → Waiting Customer（ask question）；Waiting Customer → Investigating（reply）；Investigating → Resolved（fix）；Resolved → Closed（confirm）；Resolved → Investigating（reopen）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "New"
+          },
+          {
+            "id": "n2",
+            "label": "Assigned"
+          },
+          {
+            "id": "n3",
+            "label": "Investigating"
+          },
+          {
+            "id": "n4",
+            "label": "Waiting Customer"
+          },
+          {
+            "id": "n5",
+            "label": "Resolved"
+          },
+          {
+            "id": "n6",
+            "label": "Closed"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "triage"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "start"
+          },
+          {
+            "from": "n3",
+            "to": "n4",
+            "label": "ask question"
+          },
+          {
+            "from": "n4",
+            "to": "n3",
+            "label": "reply"
+          },
+          {
+            "from": "n3",
+            "to": "n5",
+            "label": "fix"
+          },
+          {
+            "from": "n5",
+            "to": "n6",
+            "label": "confirm"
+          },
+          {
+            "from": "n5",
+            "to": "n3",
+            "label": "reopen"
+          }
+        ],
+        "requiredLabels": [
+          "New",
+          "Assigned",
+          "Investigating",
+          "Waiting Customer",
+          "Resolved",
+          "Closed",
+          "triage",
+          "start",
+          "ask question",
+          "reply",
+          "fix",
+          "confirm",
+          "reopen"
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "lifecycle-05",
+      "type": "lifecycle",
+      "family": "deployment-state",
+      "complexity": "large",
+      "split": "development",
+      "prompt": "部署状态。部署从计划到构建；构建失败可重试。制品就绪后部署，检查通过健康、失败降级；健康也可因事故降级。降级回滚后重新准备就绪。 节点名称必须完整保留：Planned、Building、Build Failed、Ready、Deploying、Healthy、Degraded、Rolled Back。必需有向关系：Planned → Building（start）；Building → Build Failed（error）；Build Failed → Building（retry）；Building → Ready（artifact ready）；Ready → Deploying（promote）；Deploying → Healthy（checks pass）；Deploying → Degraded（checks fail）；Healthy → Degraded（incident）；Degraded → Rolled Back（rollback）；Rolled Back → Ready（prepare again）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Planned"
+          },
+          {
+            "id": "n2",
+            "label": "Building"
+          },
+          {
+            "id": "n3",
+            "label": "Build Failed"
+          },
+          {
+            "id": "n4",
+            "label": "Ready"
+          },
+          {
+            "id": "n5",
+            "label": "Deploying"
+          },
+          {
+            "id": "n6",
+            "label": "Healthy"
+          },
+          {
+            "id": "n7",
+            "label": "Degraded"
+          },
+          {
+            "id": "n8",
+            "label": "Rolled Back"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "start"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "error"
+          },
+          {
+            "from": "n3",
+            "to": "n2",
+            "label": "retry"
+          },
+          {
+            "from": "n2",
+            "to": "n4",
+            "label": "artifact ready"
+          },
+          {
+            "from": "n4",
+            "to": "n5",
+            "label": "promote"
+          },
+          {
+            "from": "n5",
+            "to": "n6",
+            "label": "checks pass"
+          },
+          {
+            "from": "n5",
+            "to": "n7",
+            "label": "checks fail"
+          },
+          {
+            "from": "n6",
+            "to": "n7",
+            "label": "incident"
+          },
+          {
+            "from": "n7",
+            "to": "n8",
+            "label": "rollback"
+          },
+          {
+            "from": "n8",
+            "to": "n4",
+            "label": "prepare again"
+          }
+        ],
+        "requiredLabels": [
+          "Planned",
+          "Building",
+          "Build Failed",
+          "Ready",
+          "Deploying",
+          "Healthy",
+          "Degraded",
+          "Rolled Back",
+          "start",
+          "error",
+          "retry",
+          "artifact ready",
+          "promote",
+          "checks pass",
+          "checks fail",
+          "incident",
+          "rollback",
+          "prepare again"
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "lifecycle-06",
+      "type": "lifecycle",
+      "family": "device-state",
+      "complexity": "large",
+      "split": "holdout",
+      "prompt": "设备生命周期。设备制造后激活配置；配置失败可重试，注册成功上线。设备可断线重连或升级，升级成功回上线、签名无效则隔离；隔离或在线设备可退役。 节点名称必须完整保留：Manufactured、Provisioning、Provision Failed、Online、Offline、Updating、Quarantined、Retired。必需有向关系：Manufactured → Provisioning（activate）；Provisioning → Provision Failed（error）；Provision Failed → Provisioning（retry）；Provisioning → Online（registered）；Online → Offline（disconnect）；Offline → Online（reconnect）；Online → Updating（upgrade）；Updating → Online（success）；Updating → Quarantined（signature invalid）；Quarantined → Retired（decommission）；Online → Retired（decommission）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Manufactured"
+          },
+          {
+            "id": "n2",
+            "label": "Provisioning"
+          },
+          {
+            "id": "n3",
+            "label": "Provision Failed"
+          },
+          {
+            "id": "n4",
+            "label": "Online"
+          },
+          {
+            "id": "n5",
+            "label": "Offline"
+          },
+          {
+            "id": "n6",
+            "label": "Updating"
+          },
+          {
+            "id": "n7",
+            "label": "Quarantined"
+          },
+          {
+            "id": "n8",
+            "label": "Retired"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "activate"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "error"
+          },
+          {
+            "from": "n3",
+            "to": "n2",
+            "label": "retry"
+          },
+          {
+            "from": "n2",
+            "to": "n4",
+            "label": "registered"
+          },
+          {
+            "from": "n4",
+            "to": "n5",
+            "label": "disconnect"
+          },
+          {
+            "from": "n5",
+            "to": "n4",
+            "label": "reconnect"
+          },
+          {
+            "from": "n4",
+            "to": "n6",
+            "label": "upgrade"
+          },
+          {
+            "from": "n6",
+            "to": "n4",
+            "label": "success"
+          },
+          {
+            "from": "n6",
+            "to": "n7",
+            "label": "signature invalid"
+          },
+          {
+            "from": "n7",
+            "to": "n8",
+            "label": "decommission"
+          },
+          {
+            "from": "n4",
+            "to": "n8",
+            "label": "decommission"
+          }
+        ],
+        "requiredLabels": [
+          "Manufactured",
+          "Provisioning",
+          "Provision Failed",
+          "Online",
+          "Offline",
+          "Updating",
+          "Quarantined",
+          "Retired",
+          "activate",
+          "error",
+          "retry",
+          "registered",
+          "disconnect",
+          "reconnect",
+          "upgrade",
+          "success",
+          "signature invalid",
+          "decommission"
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "sequence-01",
+      "type": "sequence",
+      "family": "session-login",
+      "complexity": "small",
+      "split": "development",
+      "prompt": "登录交互。按给定顺序画出：浏览器登录，鉴权接口查用户，身份库返回记录，接口请求令牌，令牌服务返回令牌，接口把会话返回浏览器。 节点名称必须完整保留：Browser、Auth API、Identity Store、Token Service。必需有向关系：Browser → Auth API（login）；Auth API → Identity Store（lookup user）；Identity Store → Auth API（user record）；Auth API → Token Service（issue token）；Token Service → Auth API（token）；Auth API → Browser（session）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Browser"
+          },
+          {
+            "id": "n2",
+            "label": "Auth API"
+          },
+          {
+            "id": "n3",
+            "label": "Identity Store"
+          },
+          {
+            "id": "n4",
+            "label": "Token Service"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "login"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "lookup user"
+          },
+          {
+            "from": "n3",
+            "to": "n2",
+            "label": "user record"
+          },
+          {
+            "from": "n2",
+            "to": "n4",
+            "label": "issue token"
+          },
+          {
+            "from": "n4",
+            "to": "n2",
+            "label": "token"
+          },
+          {
+            "from": "n2",
+            "to": "n1",
+            "label": "session"
+          }
+        ],
+        "requiredLabels": [
+          "Browser",
+          "Auth API",
+          "Identity Store",
+          "Token Service",
+          "login",
+          "lookup user",
+          "user record",
+          "issue token",
+          "token",
+          "session"
+        ],
+        "orderedMessages": [
+          {
+            "order": 1,
+            "from": "n1",
+            "to": "n2",
+            "label": "login"
+          },
+          {
+            "order": 2,
+            "from": "n2",
+            "to": "n3",
+            "label": "lookup user"
+          },
+          {
+            "order": 3,
+            "from": "n3",
+            "to": "n2",
+            "label": "user record"
+          },
+          {
+            "order": 4,
+            "from": "n2",
+            "to": "n4",
+            "label": "issue token"
+          },
+          {
+            "order": 5,
+            "from": "n4",
+            "to": "n2",
+            "label": "token"
+          },
+          {
+            "order": 6,
+            "from": "n2",
+            "to": "n1",
+            "label": "session"
+          }
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "sequence-02",
+      "type": "sequence",
+      "family": "parcel-tracking",
+      "complexity": "small",
+      "split": "holdout",
+      "prompt": "包裹查询交互。依次展示客户查包裹、查询缓存、缓存未命中、查询承运商、返回状态、写缓存、返回客户；缓存与承运商是不同参与者。 节点名称必须完整保留：Customer App、Tracking API、Carrier API、Cache。必需有向关系：Customer App → Tracking API（track parcel）；Tracking API → Cache（lookup）；Cache → Tracking API（miss）；Tracking API → Carrier API（fetch status）；Carrier API → Tracking API（status）；Tracking API → Cache（store status）；Tracking API → Customer App（tracking result）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Customer App"
+          },
+          {
+            "id": "n2",
+            "label": "Tracking API"
+          },
+          {
+            "id": "n3",
+            "label": "Carrier API"
+          },
+          {
+            "id": "n4",
+            "label": "Cache"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "track parcel"
+          },
+          {
+            "from": "n2",
+            "to": "n4",
+            "label": "lookup"
+          },
+          {
+            "from": "n4",
+            "to": "n2",
+            "label": "miss"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "fetch status"
+          },
+          {
+            "from": "n3",
+            "to": "n2",
+            "label": "status"
+          },
+          {
+            "from": "n2",
+            "to": "n4",
+            "label": "store status"
+          },
+          {
+            "from": "n2",
+            "to": "n1",
+            "label": "tracking result"
+          }
+        ],
+        "requiredLabels": [
+          "Customer App",
+          "Tracking API",
+          "Carrier API",
+          "Cache",
+          "track parcel",
+          "lookup",
+          "miss",
+          "fetch status",
+          "status",
+          "store status",
+          "tracking result"
+        ],
+        "orderedMessages": [
+          {
+            "order": 1,
+            "from": "n1",
+            "to": "n2",
+            "label": "track parcel"
+          },
+          {
+            "order": 2,
+            "from": "n2",
+            "to": "n4",
+            "label": "lookup"
+          },
+          {
+            "order": 3,
+            "from": "n4",
+            "to": "n2",
+            "label": "miss"
+          },
+          {
+            "order": 4,
+            "from": "n2",
+            "to": "n3",
+            "label": "fetch status"
+          },
+          {
+            "order": 5,
+            "from": "n3",
+            "to": "n2",
+            "label": "status"
+          },
+          {
+            "order": 6,
+            "from": "n2",
+            "to": "n4",
+            "label": "store status"
+          },
+          {
+            "order": 7,
+            "from": "n2",
+            "to": "n1",
+            "label": "tracking result"
+          }
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "sequence-03",
+      "type": "sequence",
+      "family": "checkout-saga",
+      "complexity": "medium",
+      "split": "development",
+      "prompt": "结算交互。严格按顺序展示：结算、预留库存、确认预留、扣款、确认付款、保存订单、保存确认、发送收据、返回结算确认。 节点名称必须完整保留：Shop UI、Order API、Inventory API、Payment API、Order DB、Notifier。必需有向关系：Shop UI → Order API（checkout）；Order API → Inventory API（reserve）；Inventory API → Order API（reserved）；Order API → Payment API（charge）；Payment API → Order API（paid）；Order API → Order DB（save order）；Order DB → Order API（saved）；Order API → Notifier（send receipt）；Order API → Shop UI（confirmed）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Shop UI"
+          },
+          {
+            "id": "n2",
+            "label": "Order API"
+          },
+          {
+            "id": "n3",
+            "label": "Inventory API"
+          },
+          {
+            "id": "n4",
+            "label": "Payment API"
+          },
+          {
+            "id": "n5",
+            "label": "Order DB"
+          },
+          {
+            "id": "n6",
+            "label": "Notifier"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "checkout"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "reserve"
+          },
+          {
+            "from": "n3",
+            "to": "n2",
+            "label": "reserved"
+          },
+          {
+            "from": "n2",
+            "to": "n4",
+            "label": "charge"
+          },
+          {
+            "from": "n4",
+            "to": "n2",
+            "label": "paid"
+          },
+          {
+            "from": "n2",
+            "to": "n5",
+            "label": "save order"
+          },
+          {
+            "from": "n5",
+            "to": "n2",
+            "label": "saved"
+          },
+          {
+            "from": "n2",
+            "to": "n6",
+            "label": "send receipt"
+          },
+          {
+            "from": "n2",
+            "to": "n1",
+            "label": "confirmed"
+          }
+        ],
+        "requiredLabels": [
+          "Shop UI",
+          "Order API",
+          "Inventory API",
+          "Payment API",
+          "Order DB",
+          "Notifier",
+          "checkout",
+          "reserve",
+          "reserved",
+          "charge",
+          "paid",
+          "save order",
+          "saved",
+          "send receipt",
+          "confirmed"
+        ],
+        "orderedMessages": [
+          {
+            "order": 1,
+            "from": "n1",
+            "to": "n2",
+            "label": "checkout"
+          },
+          {
+            "order": 2,
+            "from": "n2",
+            "to": "n3",
+            "label": "reserve"
+          },
+          {
+            "order": 3,
+            "from": "n3",
+            "to": "n2",
+            "label": "reserved"
+          },
+          {
+            "order": 4,
+            "from": "n2",
+            "to": "n4",
+            "label": "charge"
+          },
+          {
+            "order": 5,
+            "from": "n4",
+            "to": "n2",
+            "label": "paid"
+          },
+          {
+            "order": 6,
+            "from": "n2",
+            "to": "n5",
+            "label": "save order"
+          },
+          {
+            "order": 7,
+            "from": "n5",
+            "to": "n2",
+            "label": "saved"
+          },
+          {
+            "order": 8,
+            "from": "n2",
+            "to": "n6",
+            "label": "send receipt"
+          },
+          {
+            "order": 9,
+            "from": "n2",
+            "to": "n1",
+            "label": "confirmed"
+          }
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "sequence-04",
+      "type": "sequence",
+      "family": "report-job",
+      "complexity": "medium",
+      "split": "calibration",
+      "prompt": "报告生成交互。按消息列表顺序展示异步报告：请求、排队、返回任务号、工作器执行查询与写文件、通知接口完成，最后界面轮询得到链接。 节点名称必须完整保留：Analyst UI、Report API、Job Queue、Worker、Warehouse、Object Store。必需有向关系：Analyst UI → Report API（request report）；Report API → Job Queue（enqueue）；Report API → Analyst UI（job id）；Job Queue → Worker（dispatch）；Worker → Warehouse（query）；Warehouse → Worker（rows）；Worker → Object Store（write report）；Object Store → Worker（report URL）；Worker → Report API（complete）；Analyst UI → Report API（poll）；Report API → Analyst UI（report URL）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Analyst UI"
+          },
+          {
+            "id": "n2",
+            "label": "Report API"
+          },
+          {
+            "id": "n3",
+            "label": "Job Queue"
+          },
+          {
+            "id": "n4",
+            "label": "Worker"
+          },
+          {
+            "id": "n5",
+            "label": "Warehouse"
+          },
+          {
+            "id": "n6",
+            "label": "Object Store"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "request report"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "enqueue"
+          },
+          {
+            "from": "n2",
+            "to": "n1",
+            "label": "job id"
+          },
+          {
+            "from": "n3",
+            "to": "n4",
+            "label": "dispatch"
+          },
+          {
+            "from": "n4",
+            "to": "n5",
+            "label": "query"
+          },
+          {
+            "from": "n5",
+            "to": "n4",
+            "label": "rows"
+          },
+          {
+            "from": "n4",
+            "to": "n6",
+            "label": "write report"
+          },
+          {
+            "from": "n6",
+            "to": "n4",
+            "label": "report URL"
+          },
+          {
+            "from": "n4",
+            "to": "n2",
+            "label": "complete"
+          },
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "poll"
+          },
+          {
+            "from": "n2",
+            "to": "n1",
+            "label": "report URL"
+          }
+        ],
+        "requiredLabels": [
+          "Analyst UI",
+          "Report API",
+          "Job Queue",
+          "Worker",
+          "Warehouse",
+          "Object Store",
+          "request report",
+          "enqueue",
+          "job id",
+          "dispatch",
+          "query",
+          "rows",
+          "write report",
+          "report URL",
+          "complete",
+          "poll"
+        ],
+        "orderedMessages": [
+          {
+            "order": 1,
+            "from": "n1",
+            "to": "n2",
+            "label": "request report"
+          },
+          {
+            "order": 2,
+            "from": "n2",
+            "to": "n3",
+            "label": "enqueue"
+          },
+          {
+            "order": 3,
+            "from": "n2",
+            "to": "n1",
+            "label": "job id"
+          },
+          {
+            "order": 4,
+            "from": "n3",
+            "to": "n4",
+            "label": "dispatch"
+          },
+          {
+            "order": 5,
+            "from": "n4",
+            "to": "n5",
+            "label": "query"
+          },
+          {
+            "order": 6,
+            "from": "n5",
+            "to": "n4",
+            "label": "rows"
+          },
+          {
+            "order": 7,
+            "from": "n4",
+            "to": "n6",
+            "label": "write report"
+          },
+          {
+            "order": 8,
+            "from": "n6",
+            "to": "n4",
+            "label": "report URL"
+          },
+          {
+            "order": 9,
+            "from": "n4",
+            "to": "n2",
+            "label": "complete"
+          },
+          {
+            "order": 10,
+            "from": "n1",
+            "to": "n2",
+            "label": "poll"
+          },
+          {
+            "order": 11,
+            "from": "n2",
+            "to": "n1",
+            "label": "report URL"
+          }
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "sequence-05",
+      "type": "sequence",
+      "family": "refund-saga",
+      "complexity": "large",
+      "split": "development",
+      "prompt": "退款交互。退款先加载订单并检查政策，再调用支付退款、记账冲销并发布完成事件；通知器消费事件发收据，退款接口最后返回已受理。保持列表消息先后顺序。 节点名称必须完整保留：Customer UI、Refund API、Order DB、Policy Service、Payment Gateway、Ledger、Event Bus、Notifier。必需有向关系：Customer UI → Refund API（refund request）；Refund API → Order DB（load order）；Order DB → Refund API（order）；Refund API → Policy Service（check policy）；Policy Service → Refund API（eligible）；Refund API → Payment Gateway（refund）；Payment Gateway → Refund API（refund id）；Refund API → Ledger（post reversal）；Ledger → Refund API（posted）；Refund API → Event Bus（refund completed）；Event Bus → Notifier（notify）；Notifier → Customer UI（refund receipt）；Refund API → Customer UI（accepted）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Customer UI"
+          },
+          {
+            "id": "n2",
+            "label": "Refund API"
+          },
+          {
+            "id": "n3",
+            "label": "Order DB"
+          },
+          {
+            "id": "n4",
+            "label": "Policy Service"
+          },
+          {
+            "id": "n5",
+            "label": "Payment Gateway"
+          },
+          {
+            "id": "n6",
+            "label": "Ledger"
+          },
+          {
+            "id": "n7",
+            "label": "Event Bus"
+          },
+          {
+            "id": "n8",
+            "label": "Notifier"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "refund request"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "load order"
+          },
+          {
+            "from": "n3",
+            "to": "n2",
+            "label": "order"
+          },
+          {
+            "from": "n2",
+            "to": "n4",
+            "label": "check policy"
+          },
+          {
+            "from": "n4",
+            "to": "n2",
+            "label": "eligible"
+          },
+          {
+            "from": "n2",
+            "to": "n5",
+            "label": "refund"
+          },
+          {
+            "from": "n5",
+            "to": "n2",
+            "label": "refund id"
+          },
+          {
+            "from": "n2",
+            "to": "n6",
+            "label": "post reversal"
+          },
+          {
+            "from": "n6",
+            "to": "n2",
+            "label": "posted"
+          },
+          {
+            "from": "n2",
+            "to": "n7",
+            "label": "refund completed"
+          },
+          {
+            "from": "n7",
+            "to": "n8",
+            "label": "notify"
+          },
+          {
+            "from": "n8",
+            "to": "n1",
+            "label": "refund receipt"
+          },
+          {
+            "from": "n2",
+            "to": "n1",
+            "label": "accepted"
+          }
+        ],
+        "requiredLabels": [
+          "Customer UI",
+          "Refund API",
+          "Order DB",
+          "Policy Service",
+          "Payment Gateway",
+          "Ledger",
+          "Event Bus",
+          "Notifier",
+          "refund request",
+          "load order",
+          "order",
+          "check policy",
+          "eligible",
+          "refund",
+          "refund id",
+          "post reversal",
+          "posted",
+          "refund completed",
+          "notify",
+          "refund receipt",
+          "accepted"
+        ],
+        "orderedMessages": [
+          {
+            "order": 1,
+            "from": "n1",
+            "to": "n2",
+            "label": "refund request"
+          },
+          {
+            "order": 2,
+            "from": "n2",
+            "to": "n3",
+            "label": "load order"
+          },
+          {
+            "order": 3,
+            "from": "n3",
+            "to": "n2",
+            "label": "order"
+          },
+          {
+            "order": 4,
+            "from": "n2",
+            "to": "n4",
+            "label": "check policy"
+          },
+          {
+            "order": 5,
+            "from": "n4",
+            "to": "n2",
+            "label": "eligible"
+          },
+          {
+            "order": 6,
+            "from": "n2",
+            "to": "n5",
+            "label": "refund"
+          },
+          {
+            "order": 7,
+            "from": "n5",
+            "to": "n2",
+            "label": "refund id"
+          },
+          {
+            "order": 8,
+            "from": "n2",
+            "to": "n6",
+            "label": "post reversal"
+          },
+          {
+            "order": 9,
+            "from": "n6",
+            "to": "n2",
+            "label": "posted"
+          },
+          {
+            "order": 10,
+            "from": "n2",
+            "to": "n7",
+            "label": "refund completed"
+          },
+          {
+            "order": 11,
+            "from": "n7",
+            "to": "n8",
+            "label": "notify"
+          },
+          {
+            "order": 12,
+            "from": "n8",
+            "to": "n1",
+            "label": "refund receipt"
+          },
+          {
+            "order": 13,
+            "from": "n2",
+            "to": "n1",
+            "label": "accepted"
+          }
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "sequence-06",
+      "type": "sequence",
+      "family": "credential-rotation",
+      "complexity": "large",
+      "split": "holdout",
+      "prompt": "凭据轮换交互。按列表消息顺序展示凭据轮换：生成、数据库安装、发布版本、应用重载并连接、应用确认就绪后撤销旧凭据，最后审计并通知操作员。 节点名称必须完整保留：Scheduler、Rotation API、Secret Store、Database、Service Registry、App Worker、Audit Service、Operator。必需有向关系：Scheduler → Rotation API（rotate）；Rotation API → Secret Store（create credential）；Secret Store → Rotation API（new credential）；Rotation API → Database（install credential）；Database → Rotation API（installed）；Rotation API → Service Registry（publish version）；Service Registry → App Worker（reload）；App Worker → Database（connect with new credential）；Database → App Worker（connected）；App Worker → Rotation API（ready）；Rotation API → Secret Store（revoke old credential）；Rotation API → Audit Service（record rotation）；Audit Service → Operator（rotation complete）。所有节点和关系条件都应可见，交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Scheduler"
+          },
+          {
+            "id": "n2",
+            "label": "Rotation API"
+          },
+          {
+            "id": "n3",
+            "label": "Secret Store"
+          },
+          {
+            "id": "n4",
+            "label": "Database"
+          },
+          {
+            "id": "n5",
+            "label": "Service Registry"
+          },
+          {
+            "id": "n6",
+            "label": "App Worker"
+          },
+          {
+            "id": "n7",
+            "label": "Audit Service"
+          },
+          {
+            "id": "n8",
+            "label": "Operator"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "rotate"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "create credential"
+          },
+          {
+            "from": "n3",
+            "to": "n2",
+            "label": "new credential"
+          },
+          {
+            "from": "n2",
+            "to": "n4",
+            "label": "install credential"
+          },
+          {
+            "from": "n4",
+            "to": "n2",
+            "label": "installed"
+          },
+          {
+            "from": "n2",
+            "to": "n5",
+            "label": "publish version"
+          },
+          {
+            "from": "n5",
+            "to": "n6",
+            "label": "reload"
+          },
+          {
+            "from": "n6",
+            "to": "n4",
+            "label": "connect with new credential"
+          },
+          {
+            "from": "n4",
+            "to": "n6",
+            "label": "connected"
+          },
+          {
+            "from": "n6",
+            "to": "n2",
+            "label": "ready"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "revoke old credential"
+          },
+          {
+            "from": "n2",
+            "to": "n7",
+            "label": "record rotation"
+          },
+          {
+            "from": "n7",
+            "to": "n8",
+            "label": "rotation complete"
+          }
+        ],
+        "requiredLabels": [
+          "Scheduler",
+          "Rotation API",
+          "Secret Store",
+          "Database",
+          "Service Registry",
+          "App Worker",
+          "Audit Service",
+          "Operator",
+          "rotate",
+          "create credential",
+          "new credential",
+          "install credential",
+          "installed",
+          "publish version",
+          "reload",
+          "connect with new credential",
+          "connected",
+          "ready",
+          "revoke old credential",
+          "record rotation",
+          "rotation complete"
+        ],
+        "orderedMessages": [
+          {
+            "order": 1,
+            "from": "n1",
+            "to": "n2",
+            "label": "rotate"
+          },
+          {
+            "order": 2,
+            "from": "n2",
+            "to": "n3",
+            "label": "create credential"
+          },
+          {
+            "order": 3,
+            "from": "n3",
+            "to": "n2",
+            "label": "new credential"
+          },
+          {
+            "order": 4,
+            "from": "n2",
+            "to": "n4",
+            "label": "install credential"
+          },
+          {
+            "order": 5,
+            "from": "n4",
+            "to": "n2",
+            "label": "installed"
+          },
+          {
+            "order": 6,
+            "from": "n2",
+            "to": "n5",
+            "label": "publish version"
+          },
+          {
+            "order": 7,
+            "from": "n5",
+            "to": "n6",
+            "label": "reload"
+          },
+          {
+            "order": 8,
+            "from": "n6",
+            "to": "n4",
+            "label": "connect with new credential"
+          },
+          {
+            "order": 9,
+            "from": "n4",
+            "to": "n6",
+            "label": "connected"
+          },
+          {
+            "order": 10,
+            "from": "n6",
+            "to": "n2",
+            "label": "ready"
+          },
+          {
+            "order": 11,
+            "from": "n2",
+            "to": "n3",
+            "label": "revoke old credential"
+          },
+          {
+            "order": 12,
+            "from": "n2",
+            "to": "n7",
+            "label": "record rotation"
+          },
+          {
+            "order": 13,
+            "from": "n7",
+            "to": "n8",
+            "label": "rotation complete"
+          }
+        ]
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "erd-ext-01",
+      "type": "erd",
+      "family": "orders-schema",
+      "complexity": "small",
+      "split": "extension",
+      "prompt": "建立客户、订单与明细数据模型；主键、外键与基数必须保留。 节点：Customer、Order、Order Line。有向关系：Customer → Order（places）；Order → Order Line（contains）。必须展示并保留这些类型事实：{\"columns\": {\"Customer\": [\"id PK\", \"email\"], \"Order\": [\"id PK\", \"customer_id FK\"], \"Order Line\": [\"id PK\", \"order_id FK\", \"quantity\"]}, \"cardinalities\": [\"Customer 1:N Order\", \"Order 1:N Order Line\"]}。交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Customer"
+          },
+          {
+            "id": "n2",
+            "label": "Order"
+          },
+          {
+            "id": "n3",
+            "label": "Order Line"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "places"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "contains"
+          }
+        ],
+        "requiredLabels": [
+          "Customer",
+          "Order",
+          "Order Line",
+          "places",
+          "contains"
+        ],
+        "typedFacts": {
+          "columns": {
+            "Customer": [
+              "id PK",
+              "email"
+            ],
+            "Order": [
+              "id PK",
+              "customer_id FK"
+            ],
+            "Order Line": [
+              "id PK",
+              "order_id FK",
+              "quantity"
+            ]
+          },
+          "cardinalities": [
+            "Customer 1:N Order",
+            "Order 1:N Order Line"
+          ]
+        }
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "erd-ext-02",
+      "type": "erd",
+      "family": "library-schema",
+      "complexity": "medium",
+      "split": "extension",
+      "prompt": "建立借阅模型：会员和书籍分别拥有多条借阅记录，借阅含到期日。 节点：Member、Loan、Book。有向关系：Member → Loan（borrows）；Book → Loan（loaned in）。必须展示并保留这些类型事实：{\"columns\": {\"Member\": [\"id PK\", \"name\"], \"Loan\": [\"id PK\", \"member_id FK\", \"book_id FK\", \"due_date\"], \"Book\": [\"id PK\", \"isbn\"]}, \"cardinalities\": [\"Member 1:N Loan\", \"Book 1:N Loan\"]}。交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Member"
+          },
+          {
+            "id": "n2",
+            "label": "Loan"
+          },
+          {
+            "id": "n3",
+            "label": "Book"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "borrows"
+          },
+          {
+            "from": "n3",
+            "to": "n2",
+            "label": "loaned in"
+          }
+        ],
+        "requiredLabels": [
+          "Member",
+          "Loan",
+          "Book",
+          "borrows",
+          "loaned in"
+        ],
+        "typedFacts": {
+          "columns": {
+            "Member": [
+              "id PK",
+              "name"
+            ],
+            "Loan": [
+              "id PK",
+              "member_id FK",
+              "book_id FK",
+              "due_date"
+            ],
+            "Book": [
+              "id PK",
+              "isbn"
+            ]
+          },
+          "cardinalities": [
+            "Member 1:N Loan",
+            "Book 1:N Loan"
+          ]
+        }
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "class-ext-01",
+      "type": "class",
+      "family": "notifier-classes",
+      "complexity": "small",
+      "split": "extension",
+      "prompt": "定义通知接口与两种实现，明确方法签名与实现关系。 节点：Notifier、Email Notifier、SMS Notifier。有向关系：Email Notifier → Notifier（implements）；SMS Notifier → Notifier（implements）。必须展示并保留这些类型事实：{\"members\": {\"Notifier\": [\"send(message): void\"], \"Email Notifier\": [\"smtpHost: string\", \"send(message): void\"], \"SMS Notifier\": [\"provider: string\", \"send(message): void\"]}, \"relationshipKinds\": [\"realization\", \"realization\"]}。交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Notifier"
+          },
+          {
+            "id": "n2",
+            "label": "Email Notifier"
+          },
+          {
+            "id": "n3",
+            "label": "SMS Notifier"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n2",
+            "to": "n1",
+            "label": "implements"
+          },
+          {
+            "from": "n3",
+            "to": "n1",
+            "label": "implements"
+          }
+        ],
+        "requiredLabels": [
+          "Notifier",
+          "Email Notifier",
+          "SMS Notifier",
+          "implements"
+        ],
+        "typedFacts": {
+          "members": {
+            "Notifier": [
+              "send(message): void"
+            ],
+            "Email Notifier": [
+              "smtpHost: string",
+              "send(message): void"
+            ],
+            "SMS Notifier": [
+              "provider: string",
+              "send(message): void"
+            ]
+          },
+          "relationshipKinds": [
+            "realization",
+            "realization"
+          ]
+        }
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "class-ext-02",
+      "type": "class",
+      "family": "order-domain",
+      "complexity": "medium",
+      "split": "extension",
+      "prompt": "订单组合多条明细，明细使用金额值对象；属性、方法和多重性完整可见。 节点：Order、Line Item、Money。有向关系：Order → Line Item（composition）；Line Item → Money（uses）。必须展示并保留这些类型事实：{\"members\": {\"Order\": [\"id: string\", \"total(): Money\"], \"Line Item\": [\"quantity: int\", \"price: Money\"], \"Money\": [\"amount: decimal\", \"currency: string\"]}, \"multiplicities\": [\"Order 1 : 1..* Line Item\"]}。交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Order"
+          },
+          {
+            "id": "n2",
+            "label": "Line Item"
+          },
+          {
+            "id": "n3",
+            "label": "Money"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "composition"
+          },
+          {
+            "from": "n2",
+            "to": "n3",
+            "label": "uses"
+          }
+        ],
+        "requiredLabels": [
+          "Order",
+          "Line Item",
+          "Money",
+          "composition",
+          "uses"
+        ],
+        "typedFacts": {
+          "members": {
+            "Order": [
+              "id: string",
+              "total(): Money"
+            ],
+            "Line Item": [
+              "quantity: int",
+              "price: Money"
+            ],
+            "Money": [
+              "amount: decimal",
+              "currency: string"
+            ]
+          },
+          "multiplicities": [
+            "Order 1 : 1..* Line Item"
+          ]
+        }
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "tree-ext-01",
+      "type": "tree",
+      "family": "team-hierarchy",
+      "complexity": "small",
+      "split": "extension",
+      "prompt": "展示产品团队层级：工程与设计并列，工程下分 API 与 Web。 节点：Product Team、Engineering、Design、API Team、Web Team。有向关系：Product Team → Engineering（contains）；Product Team → Design（contains）；Engineering → API Team（contains）；Engineering → Web Team（contains）。必须展示并保留这些类型事实：{\"hierarchy\": {\"root\": \"n1\", \"parentOf\": {\"n2\": \"n1\", \"n3\": \"n1\", \"n4\": \"n2\", \"n5\": \"n2\"}}}。交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Product Team"
+          },
+          {
+            "id": "n2",
+            "label": "Engineering"
+          },
+          {
+            "id": "n3",
+            "label": "Design"
+          },
+          {
+            "id": "n4",
+            "label": "API Team"
+          },
+          {
+            "id": "n5",
+            "label": "Web Team"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "contains"
+          },
+          {
+            "from": "n1",
+            "to": "n3",
+            "label": "contains"
+          },
+          {
+            "from": "n2",
+            "to": "n4",
+            "label": "contains"
+          },
+          {
+            "from": "n2",
+            "to": "n5",
+            "label": "contains"
+          }
+        ],
+        "requiredLabels": [
+          "Product Team",
+          "Engineering",
+          "Design",
+          "API Team",
+          "Web Team",
+          "contains"
+        ],
+        "typedFacts": {
+          "hierarchy": {
+            "root": "n1",
+            "parentOf": {
+              "n2": "n1",
+              "n3": "n1",
+              "n4": "n2",
+              "n5": "n2"
+            }
+          }
+        }
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "tree-ext-02",
+      "type": "tree",
+      "family": "docs-navigation",
+      "complexity": "medium",
+      "split": "extension",
+      "prompt": "展示指南导航层级，安装与配置属于 Setup，示例属于 Usage。 节点：Guide、Setup、Usage、Install、Configure、Examples。有向关系：Guide → Setup（contains）；Guide → Usage（contains）；Setup → Install（contains）；Setup → Configure（contains）；Usage → Examples（contains）。必须展示并保留这些类型事实：{\"hierarchy\": {\"root\": \"n1\", \"parentOf\": {\"n2\": \"n1\", \"n3\": \"n1\", \"n4\": \"n2\", \"n5\": \"n2\", \"n6\": \"n3\"}}}。交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Guide"
+          },
+          {
+            "id": "n2",
+            "label": "Setup"
+          },
+          {
+            "id": "n3",
+            "label": "Usage"
+          },
+          {
+            "id": "n4",
+            "label": "Install"
+          },
+          {
+            "id": "n5",
+            "label": "Configure"
+          },
+          {
+            "id": "n6",
+            "label": "Examples"
+          }
+        ],
+        "edges": [
+          {
+            "from": "n1",
+            "to": "n2",
+            "label": "contains"
+          },
+          {
+            "from": "n1",
+            "to": "n3",
+            "label": "contains"
+          },
+          {
+            "from": "n2",
+            "to": "n4",
+            "label": "contains"
+          },
+          {
+            "from": "n2",
+            "to": "n5",
+            "label": "contains"
+          },
+          {
+            "from": "n3",
+            "to": "n6",
+            "label": "contains"
+          }
+        ],
+        "requiredLabels": [
+          "Guide",
+          "Setup",
+          "Usage",
+          "Install",
+          "Configure",
+          "Examples",
+          "contains"
+        ],
+        "typedFacts": {
+          "hierarchy": {
+            "root": "n1",
+            "parentOf": {
+              "n2": "n1",
+              "n3": "n1",
+              "n4": "n2",
+              "n5": "n2",
+              "n6": "n3"
+            }
+          }
+        }
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "timeline-ext-01",
+      "type": "timeline",
+      "family": "launch-milestones",
+      "complexity": "small",
+      "split": "extension",
+      "prompt": "展示发布里程碑；Beta 与安全审查日期区间有重叠，保留日期和阶段区间。 节点：Kickoff、Beta、Security Review、Launch。必须展示并保留这些类型事实：{\"temporalFacts\": [{\"node\": \"n1\", \"date\": \"2026-01-05\"}, {\"node\": \"n2\", \"start\": \"2026-02-01\", \"end\": \"2026-02-14\"}, {\"node\": \"n3\", \"start\": \"2026-02-08\", \"end\": \"2026-02-20\"}, {\"node\": \"n4\", \"date\": \"2026-03-01\"}], \"unit\": \"calendar day\"}。交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Kickoff"
+          },
+          {
+            "id": "n2",
+            "label": "Beta"
+          },
+          {
+            "id": "n3",
+            "label": "Security Review"
+          },
+          {
+            "id": "n4",
+            "label": "Launch"
+          }
+        ],
+        "edges": [],
+        "requiredLabels": [
+          "Kickoff",
+          "Beta",
+          "Security Review",
+          "Launch"
+        ],
+        "typedFacts": {
+          "temporalFacts": [
+            {
+              "node": "n1",
+              "date": "2026-01-05"
+            },
+            {
+              "node": "n2",
+              "start": "2026-02-01",
+              "end": "2026-02-14"
+            },
+            {
+              "node": "n3",
+              "start": "2026-02-08",
+              "end": "2026-02-20"
+            },
+            {
+              "node": "n4",
+              "date": "2026-03-01"
+            }
+          ],
+          "unit": "calendar day"
+        }
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "timeline-ext-02",
+      "type": "timeline",
+      "family": "incident-timeline",
+      "complexity": "medium",
+      "split": "extension",
+      "prompt": "展示事故时间线；分诊和缓解有时间重叠，保留分钟与 UTC 时区。 节点：Alert、Triage、Mitigation、Recovery。必须展示并保留这些类型事实：{\"temporalFacts\": [{\"node\": \"n1\", \"time\": \"09:00\"}, {\"node\": \"n2\", \"start\": \"09:03\", \"end\": \"09:12\"}, {\"node\": \"n3\", \"start\": \"09:08\", \"end\": \"09:25\"}, {\"node\": \"n4\", \"time\": \"09:30\"}], \"unit\": \"minute\", \"timezone\": \"UTC\"}。交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Alert"
+          },
+          {
+            "id": "n2",
+            "label": "Triage"
+          },
+          {
+            "id": "n3",
+            "label": "Mitigation"
+          },
+          {
+            "id": "n4",
+            "label": "Recovery"
+          }
+        ],
+        "edges": [],
+        "requiredLabels": [
+          "Alert",
+          "Triage",
+          "Mitigation",
+          "Recovery"
+        ],
+        "typedFacts": {
+          "temporalFacts": [
+            {
+              "node": "n1",
+              "time": "09:00"
+            },
+            {
+              "node": "n2",
+              "start": "09:03",
+              "end": "09:12"
+            },
+            {
+              "node": "n3",
+              "start": "09:08",
+              "end": "09:25"
+            },
+            {
+              "node": "n4",
+              "time": "09:30"
+            }
+          ],
+          "unit": "minute",
+          "timezone": "UTC"
+        }
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "waterfall-ext-01",
+      "type": "waterfall",
+      "family": "request-spans",
+      "complexity": "small",
+      "split": "extension",
+      "prompt": "展示请求耗时瀑布图：总请求包含鉴权、数据库和缓存子区间；数据库与缓存并行开始。 节点：Request、Auth、Database、Cache。必须展示并保留这些类型事实：{\"spanFacts\": [{\"node\": \"n1\", \"start\": 0, \"duration\": 180}, {\"node\": \"n2\", \"start\": 10, \"duration\": 35, \"parent\": \"n1\"}, {\"node\": \"n3\", \"start\": 50, \"duration\": 110, \"parent\": \"n1\"}, {\"node\": \"n4\", \"start\": 50, \"duration\": 20, \"parent\": \"n1\"}], \"unit\": \"ms\"}。交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Request"
+          },
+          {
+            "id": "n2",
+            "label": "Auth"
+          },
+          {
+            "id": "n3",
+            "label": "Database"
+          },
+          {
+            "id": "n4",
+            "label": "Cache"
+          }
+        ],
+        "edges": [],
+        "requiredLabels": [
+          "Request",
+          "Auth",
+          "Database",
+          "Cache"
+        ],
+        "typedFacts": {
+          "spanFacts": [
+            {
+              "node": "n1",
+              "start": 0,
+              "duration": 180
+            },
+            {
+              "node": "n2",
+              "start": 10,
+              "duration": 35,
+              "parent": "n1"
+            },
+            {
+              "node": "n3",
+              "start": 50,
+              "duration": 110,
+              "parent": "n1"
+            },
+            {
+              "node": "n4",
+              "start": 50,
+              "duration": 20,
+              "parent": "n1"
+            }
+          ],
+          "unit": "ms"
+        }
+      },
+      "goldStatus": "authored-provisional"
+    },
+    {
+      "id": "waterfall-ext-02",
+      "type": "waterfall",
+      "family": "build-spans",
+      "complexity": "medium",
+      "split": "extension",
+      "prompt": "展示构建耗时瀑布图：编译与单测重叠，打包从 75 秒开始，保留秒单位和父子区间。 节点：Build、Compile、Unit Tests、Package。必须展示并保留这些类型事实：{\"spanFacts\": [{\"node\": \"n1\", \"start\": 0, \"duration\": 95}, {\"node\": \"n2\", \"start\": 0, \"duration\": 45, \"parent\": \"n1\"}, {\"node\": \"n3\", \"start\": 20, \"duration\": 55, \"parent\": \"n1\"}, {\"node\": \"n4\", \"start\": 75, \"duration\": 20, \"parent\": \"n1\"}], \"unit\": \"s\"}。交付可重新加载并局部编辑的结构化源与可读图。",
+      "expected": {
+        "nodes": [
+          {
+            "id": "n1",
+            "label": "Build"
+          },
+          {
+            "id": "n2",
+            "label": "Compile"
+          },
+          {
+            "id": "n3",
+            "label": "Unit Tests"
+          },
+          {
+            "id": "n4",
+            "label": "Package"
+          }
+        ],
+        "edges": [],
+        "requiredLabels": [
+          "Build",
+          "Compile",
+          "Unit Tests",
+          "Package"
+        ],
+        "typedFacts": {
+          "spanFacts": [
+            {
+              "node": "n1",
+              "start": 0,
+              "duration": 95
+            },
+            {
+              "node": "n2",
+              "start": 0,
+              "duration": 45,
+              "parent": "n1"
+            },
+            {
+              "node": "n3",
+              "start": 20,
+              "duration": 55,
+              "parent": "n1"
+            },
+            {
+              "node": "n4",
+              "start": 75,
+              "duration": 20,
+              "parent": "n1"
+            }
+          ],
+          "unit": "s"
+        }
+      },
+      "goldStatus": "authored-provisional"
+    }
+  ]
+}
