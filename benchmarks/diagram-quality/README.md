@@ -4,6 +4,8 @@
 
 ## 先看效果
 
+已有一轮真实 API 首稿对比：[两题 × 四种方式的结果与限制](../../docs/benchmarks/2026-10-21-real-pilot.md)。同一个 `deepseek-flash`、相同题目，每格只生成一次，保留失败；自动分为 Archify **49.4**、直接 Mermaid **100.0**、直接 SVG **82.6**、直接 HTML **100.0**。这不是正式工具排名，人评尚未进行。
+
 在仓库根目录安装贡献指南中的测试依赖后，运行：
 
 ```sh
@@ -126,12 +128,14 @@ node benchmarks/diagram-quality/benchmark.mjs score \
 | 格式 | 已有能力 | 当前边界 |
 | --- | --- | --- |
 | Archify | 原生节点/边提取、浏览器观测、独立 reload/edit/render | sequence 顺序及扩展类型事实尚无完整验收，保持 unverified |
-| Mermaid | 简单 flowchart/graph 的明确节点与单条有向边 | subgraph、连续边、复杂语法未支持；无独立编辑验收 |
+| Mermaid | 简单 flowchart/graph 的明确节点与单条有向边；受限 pilot 支持实际渲染、可见拓扑和独立编辑验收 | subgraph、连续边、复杂语法未支持；通用 CLI 尚未接入 pilot 验收路径 |
 | draw.io | 单页未压缩 mxGraphModel 的节点与有向边 | 压缩/多页/不明确方向及独立编辑验收未支持 |
 | Excalidraw | 支持形状、绑定文字、单向绑定箭头 | 自由线等未支持；无独立编辑验收 |
-| SVG / HTML | 可见浏览器几何 | 自由源码无法仅凭生成者 metadata 验证拓扑，保持 unverified |
+| SVG / HTML | 通用验收提供可见几何；受限 pilot 从实际矩形、文字、箭头路线独立提取拓扑并编辑重载 | 只支持静态矩形节点、明示标签和局部三角箭头；自由源码或歧义保持 unverified，通用 CLI 不猜拓扑 |
 
 第三方源码能提取不代表已经具备跨工具完整评测。正式比较应先冻结共同支持题集、模型/推理配置、Agent、工具/文档版本、预算与环境；实际编译、诊断、预览和等待都属于工作流。CLI 会拒绝混合身份、重复矩阵格和不一致配置。
+
+受限实跑入口是 [pilot.mjs](pilot.mjs) 的 `executePilot`，固定 `architecture-01/workflow-01` 与四种格式，调用前保存计划。调用者在内存提供凭据、全新输出目录、Chrome 路径和外部 Mermaid runtime 根目录；runtime 使用精确 `mermaid@12.2.0`，不安装到用户的 Archify。该入口只允许本次选定的 DeepSeek 官方源及模型，计费表冻结于 2026-10-21 非高峰窗口，过期费率需要先重新核实。无须重新调用模型即可用已保存回执重算分数。
 
 文献及方法溯源见[完整 v2 设计](../../docs/superpowers/specs/2026-10-21-benchmark-v2-design.md)与[研究核对](../../docs/benchmarks/2026-10-21-benchmark-audit.md)。论文启发、已有通行指标和本项目自行选择的公式/权重应分别披露。`ablate` 的删节点、反向边、遮挡、字号干预是评估器敏感性回放；`weight-sensitivity.json` 是评分权重分析，都不能冒充关闭工具组件后重跑模型的因果消融。真实组件消融与人评相关性仍需新实验。
 
@@ -149,3 +153,5 @@ npm test
 ```
 
 E2E 使用手写样图，只检验本地链路；不是模型完成任务的实验。测试自动清理临时产物、编辑副本和 Chrome profile。保留新版 demo 可设 `ARCHIFY_SCORE_EXPORT=/absolute/path/review-demo`；这些静态样本不会变成真实模型实验结果。
+
+受限 pilot 另有 `test/diagram-quality-{portable,pilot-render,pilot}.test.mjs`。真实 Mermaid 集成测试需要外部 runtime；用 `ARCHIFY_PILOT_RUNTIME_ROOT=/absolute/path/runtime` 指定，默认使用仓库旁交付目录。本次验收实际运行了 Chrome 和 Mermaid；测试不会调用模型。

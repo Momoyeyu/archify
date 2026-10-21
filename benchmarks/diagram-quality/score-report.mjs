@@ -70,7 +70,8 @@ function scoreBars(methods,{track,title='总分对比',id='score-chart'}) {
 function headline(methods,track) {
  const {key,label}=trackInfo(track),measured=methods.filter(method=>score(method[key]));
  if(!measured.length) return {main:`尚无完整${label}`,detail:track==='full'?'人评或测量待完成；已有自动分会在表中单独显示。':'内容与布局的已测分项保留；补齐生成时间和实际费用后可得到自动分。'};
- const winner=measured[0],main=measured.length>1?`${winner.arm} 领先 ${number(winner[key]-measured[1][key])} 分`:`${winner.arm} · ${number(winner[key])} 分`;
+ const winner=measured[0],tied=measured.filter(method=>Math.abs(method[key]-winner[key])<1e-9);
+ const main=tied.length>1?`${tied.map(method=>method.arm).join(' / ')} 并列 ${number(winner[key])} 分`:measured.length>1?`${winner.arm} 领先 ${number(winner[key]-measured[1][key])} 分`:`${winner.arm} · ${number(winner[key])} 分`;
  return {main,detail:`${measured.length} / ${methods.length} 个方法已获得${label}；${methods.length-measured.length} 个待完成。`};
 }
 function totalCell(method,track) {

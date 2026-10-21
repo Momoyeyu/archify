@@ -188,3 +188,8 @@ test('blind review rejects non-PNG and noncanonical image paths rather than fall
   {hash:'not-a-sha256',path:'artifacts/not-a-sha256.png'},
  ]) assert.throws(()=>renderReviewForm({...input,receipts:[{...receipt,reviewImage}]}),/reviewImage|image|PNG/i);
 });
+
+test('equal leaders are labelled tied rather than claiming a zero-point lead',()=>{
+ const card=fixture();card.methods[1].automatic=card.methods[0].automatic;
+ const body=bodyText(renderScoreReport(card));assert.ok(body.includes('并列'));assert.ok(!body.includes('领先 0.0'));
+});
