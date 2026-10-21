@@ -82,7 +82,7 @@
         "durationMs": 1464,
         "deliveryDurationMs": 1464,
         "totalTokens": 327,
-        "costUsd": 0.00007335
+        "costUsd": 7.335e-05
       },
       "tasks": [
         {
@@ -215,5 +215,13 @@
     "Two public provisional development tasks; one first candidate per cell",
     "No human ratings, repair rounds, significance or general ranking claim",
     "Correct outputs saturate frozen small-task speed/cost anchors"
-  ]
+  ],
+  "interpretationReview": {
+    "status": "configuration-defect",
+    "reviewedOn": "2026-10-22",
+    "reason": "Archify prompt forced schema_version:1, selecting legacy fixed-v1 workflow instead of current recommended readable-v2/schema v2; complete Skill and diagnostic repair were not exercised.",
+    "scope": "Real scores for the original legacy first-candidate protocol only; not evidence of current recommended Archify performance.",
+    "dataPreserved": true,
+    "replacementExperimentRun": false
+  }
 }
