@@ -121,7 +121,7 @@ export function attachHumanReview(receipt,review) {
  if(review.status==='completed') {
   requireValue(receipt.delivery.status==='delivered','human completion requires delivered artifact');
   requireValue(fields.every(field=>Number.isInteger(review.ratings?.[field])),'completed review needs all five ratings');
-  requireValue(['correct','incorrect','unverified'].includes(review.semantic?.judgement),'completed review needs semantic judgement');
+  if(review.semantic != null) requireValue(['correct','incorrect','unverified'].includes(review.semantic.judgement),'invalid optional semantic judgement');
  }
  const result=clone(receipt); const reviews=(result.human?.reviews??[]).filter(old=>old.reviewerId!==review.reviewerId || old.rubricVersion!==review.rubricVersion);
  reviews.push(clone(review)); result.human={status:reviews.some(item=>item.status==='completed')?'completed':review.status,reviews};return result;

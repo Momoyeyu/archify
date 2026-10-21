@@ -1,5 +1,7 @@
 # Benchmark v2 implementation validation — 2026-10-21
 
+> Historical validation of the first v2 slice. The implemented 0–100 scorecard and numerical human-review workflow supersede its scoring/presentation limits; see [scorecard validation](2026-10-21-scorecard-validation.md).
+
 This is engineering validation of the first implementation slice in the approved [design](../superpowers/specs/2026-10-21-benchmark-v2-design.md), not evidence of an Archify advantage over another tool.
 
 ## Executed checks

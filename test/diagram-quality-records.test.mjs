@@ -40,12 +40,12 @@ test('self-reported passing candidate cannot establish earlier success',()=>{
  assert.equal(r.objective.firstSuccessRound,null); assert.equal(r.objective.timeToSuccessMs,null); assert.equal(r.objective.reciprocalRank,null); assert.equal(r.objective.finalCandidateLatencyMs,2000);
  assert.equal(r.objective.score,1); assert.equal(r.objective.scoreMeaning,'binary objective pass');
 });
-test('human completion requires bound artifact, identity, all ratings and semantic judgement',()=>{
+test('human completion requires bound artifact, identity and all ratings; semantic judgement is optional',()=>{
  const r=receipt(); const review={status:'completed',taskId:'one',artifactHash:'abc',rubricVersion:'v1',reviewerId:'reviewer-7',ratings:{readability:4,hierarchy:3,layout:4,style:4,aesthetics:5},semantic:{judgement:'correct'}};
  assert.throws(()=>attachHumanReview(r,{...review,artifactHash:'changed'}),/artifact/i);
  assert.throws(()=>attachHumanReview(r,{...review,ratings:{readability:4}}),/rating/i);
  assert.throws(()=>attachHumanReview(r,{...review,reviewerId:''}),/reviewer/i);
- assert.throws(()=>attachHumanReview(r,{...review,semantic:null}),/semantic/i);
+ assert.throws(()=>attachHumanReview(r,{...review,semantic:{judgement:'invalid'}}),/semantic/i);
  const reviewed=attachHumanReview(r,review); assert.deepEqual(reviewed.objective,r.objective); assert.equal(r.human.status,'not_requested'); assert.equal(reviewed.human.status,'completed');
 });
 test('static report escapes malicious data and permits only digest-bound safe local links',()=>{

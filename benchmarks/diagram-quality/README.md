@@ -1,136 +1,151 @@
-# Diagram quality benchmark v2：公开试点
+# 绘图 Benchmark：一张 0–100 分成绩单
 
-这是离线验收工具和公开试点语料。它检查结构化源、实际浏览器观测、运行账目及可选人评之间的一致性。设计依据见[完整设计](../../docs/superpowers/specs/2026-10-21-benchmark-v2-design.md)和[实现计划](../../docs/superpowers/plans/2026-10-21-benchmark-v2.md)。现有 v1 suite 与历史分数保持原口径。
+每个方法最终输出 **内容、布局、速度、成本、人评五个分数，以及加权总分**。所有分数都是 0–100，越高越好。中文成绩单、柱状图、CSV 和 JSON 使用同一份计算结果。
 
-**当前所有 40 题均为 `authored-provisional`，几何 profile 为 `calibrated:false`。** 事实由本实现阶段编写，尚未经独立人工核定；这些任务没有真实模型对照结果。该公开语料和当前阈值不能支撑正式工具排名、泛化结论或 autodev keep/rollback。名为 `holdout` 的公开分组只是预留的工作流分层，不能声称题目对优化 Agent 保密。
+## 先看效果
 
-## 四个互补轨道
-
-| 轨道 | 问题 | 本切片的边界 |
-| --- | --- | --- |
-| diagnostic-replay | 缺陷反馈是否正确、可执行，合法输入是否误拒 | 可复用既有诊断 suite；v2 控制性事实干预检验评估器敏感性，不代表完成反馈机制实验 |
-| frozen-render | 冻结内容在给定显示条件下是否有已定义几何缺陷 | 浏览器观测实际文本、节点和路径，语义与几何分别出结果 |
-| agent-generation | 同一模型和预算下，工具是否影响成功、时间和成本 | 接收外部 runner 保存的产物与账目；CLI 不调度模型、不调用 provider、不自动产生 usage |
-| human-review | 读者理解、层级、风格和偏好如何 | 导入绑定 artifact hash 的可选评分；没有评分就保持缺失，不代填、不进入自动分数 |
-
-正式对照需要预先固定共同支持子集、模型与推理配置、Agent、工具/文档版本、任务、预算及环境。工具原生编译、诊断和预览属于真实工作流，所有调用及等待均应记录。论文方法的自行重实现必须标明来源与实现边界。单个成功 demo 不代表完成跨工具实验。
-
-## 语料及事实
-
-[corpus.json](corpus.json) 的 `schemaVersion` 为 2，`publicPilot` 为 true。
-
-| 类型 | small | medium | large | 总数 |
-| --- | --- | --- | --- | --- |
-| architecture | 2 | 2 | 2 | 6 |
-| workflow | 2 | 2 | 2 | 6 |
-| sequence | 2 | 2 | 2 | 6 |
-| dataflow | 2 | 2 | 2 | 6 |
-| lifecycle | 2 | 2 | 2 | 6 |
-| erd / class / tree / timeline / waterfall | 每型两个扩展用例 | | | 10 |
-
-30 个核心用例分为 development 15、calibration 5、holdout 10；另外 10 个用例使用 extension split。每题有独立 `family`，当前没有同一基础图改写跨 split 的安排。复杂度是作者暂定分层，包含节点/关系规模、分叉、反馈、长标签或往返消息，尚未经任务难度校准。
-
-每题保存 `id/type/family/complexity/split/prompt/expected/goldStatus`。`expected.nodes` 使用稳定 id 和完整标签，关系明确方向与条件，`requiredLabels` 逐项保存必需可见文字。提示含具体场景和必需关系；金标准不给参考坐标。题目包括审批分支、重试循环、异步处理、数据汇合、状态回退及多参与者消息。
-
-sequence 的 `orderedMessages` 记录逐项消息顺序。扩展用例的 `typedFacts` 分别保留列/PK/FK/基数、类成员/关系/多重性、树层级、日期/时间区间、跨度/数量/单位。当前语义评估器对这些额外要求返回 `unverified`。不能去掉这些事实后把普通图匹配分数当作该题完整正确性。
-
-独立人工核定事实、校准 profile 和完善 adapter 后，应生成新版本及新 hash；不要在同一实验中悄悄改题或阈值。另建真正隔离的保留集，才可评估针对开发集优化后的泛化。
-
-## 实际支持范围
-
-| 输入格式 | 已实现的源提取 | 仍需保留未知的情形 |
-| --- | --- | --- |
-| Archify | architecture components/connections；workflow nodes/edges；dataflow nodes/flows；lifecycle states/transitions；sequence participants/messages；提取扩展集合 | 序列顺序和扩展类型事实尚无完整自动语义验收；不支持的要求不会得到完整通过 |
-| Mermaid | 明确 `flowchart` 或 `graph` 方向；单个节点声明；单条 `-->`，可带 `\|label\|`；简单方形/圆角/菱形节点标签 | subgraph、多端点、连续边、其他图型、样式指令及复杂语法会标为 unverified |
-| draw.io | 一个未压缩 mxGraphModel 的 mxCell 节点与有向边；XML 实体及 HTML 标签文字提取 | 压缩图、多页图、方向无法确定或无法绑定的端点 |
-| Excalidraw | rectangle/ellipse/diamond、绑定文字及有绑定端点的单向 arrow | 自由线条、未绑定端点、双向/无向箭头、其他未支持元素 |
-| SVG / HTML | 浏览器可以观测可见几何；自由源不建立可信拓扑 | 不能用隐藏 metadata 或生成者的声明补出已验证的源语义 |
-
-解析成功只证明该源的受支持事实可提取。客观通过还需要最终实际可见事实、几何和可编辑交付的独立证据。浏览器当前主要绑定原生 SVG 的节点、文字和路径；它不是任意第三方网页/渲染器的通用识图器。第三方源 adapter 可提取并不意味着已完成该工具的渲染及编辑性验收。
-
-可编辑性最低要求是结构化源能重新加载、局部修改标签并重新渲染，保留其他必需事实。当前独立 reload/edit/render probe 仅实现 Archify；其他格式缺少该证据时保持 unverified。位图或整图路径不能冒充可编辑结构源。
-
-## CLI
-
-从仓库根目录运行，Node 要求以仓库 package manifest 为准；先按根目录贡献指南安装测试依赖。浏览器验收需要本机 Chrome，可通过 `--chrome` 指定可执行文件。所有输出使用新文件路径，已有文件不会被覆盖。
+在仓库根目录安装贡献指南中的测试依赖后，运行：
 
 ```sh
-node benchmarks/diagram-quality/benchmark.mjs check \
-  --manifest benchmarks/diagram-quality/corpus.json
-
-node benchmarks/diagram-quality/benchmark.mjs verify \
-  --manifest benchmarks/diagram-quality/corpus.json \
-  --task architecture-01 \
-  --source /absolute/path/source.json \
-  --format archify \
-  --artifact /absolute/path/rendered.html \
-  --run /absolute/path/run.json \
-  --output /absolute/path/receipt.json \
-  --chrome /absolute/path/chrome \
-  --screenshot /absolute/path/screenshot.png
-
-node benchmarks/diagram-quality/benchmark.mjs report \
-  --manifest /absolute/path/experiment-plan.json \
-  --results /absolute/path/receipts.jsonl \
-  --output /absolute/path/report.html
-
-node benchmarks/diagram-quality/benchmark.mjs review \
-  --receipt /absolute/path/receipt.json \
-  --review /absolute/path/review.json \
-  --output /absolute/path/reviewed-receipt.json
-
-node benchmarks/diagram-quality/benchmark.mjs ablate \
-  --manifest benchmarks/diagram-quality/corpus.json \
-  --receipt /absolute/path/receipt.json \
-  --source /absolute/path/source.json \
-  --format archify \
-  --output /absolute/path/sensitivity.json
+node benchmarks/diagram-quality/benchmark.mjs demo --output /tmp/archify-benchmark-demo
 ```
 
-`check` 检查语料结构与覆盖，报告 pilot/optimization eligibility；它不渲染 40 题，也不代表确认金标准。`verify --task` 取语料中的任务 id。`--observation` 可以导入外部测量用于检查，但 CLI 将它标为 `external-unattested` 和 unverified，不能替代独立浏览器验收。最终产物/source hash 实际计算，若运行文件提供了不符 hash 则拒绝。
+打开输出目录的 `index.html`。浏览器验收需要本机 Chrome，可加 `--chrome /absolute/path/chrome`。输出目录必须新建或为空。
 
-`run.json` 至少需包含真实的 `runId/taskId/arm/model/repeat`、ISO `startedAt/completedAt`、运行 `status`、有序 `candidates`；每个候选有 `submittedAt/artifactHash`，最后一个 hash 必须与实际产物匹配。`identity.budget` 保存预先约定预算，manifest/evaluator/profile hash 可由 verify 填入；显式提供不匹配的身份会被拒绝。完整使用量由 runner 填入 `usage.calls`。不能把示例时间或估计费用伪装成真实记录。详尽接收规则以 [records.mjs](records.mjs) 为准。
+这个命令包含两个明确分开的部分：
 
-`report` 的 experiment-plan 与 corpus 是两个用途不同的文件。实验计划含 `identity`（manifestHash/evaluatorHash/profileHash/budget）和预声明 `plannedRuns`，每个矩阵格含 `taskId/arm/model/repeat`。results 是 JSONL，每行一个验收 receipt；没有回执的计划运行仍留在分母。不要直接把没有计划矩阵的 corpus 当 report manifest。
+- **计分演示**：虚构 A/B 分项，演示综合分 90.2 / 82.5、表格和柱状图。这不是 Archify 的实测成绩。
+- **真实离线样图**：实际渲染 architecture-02 和 workflow-01，独立检查内容与布局。不调用模型，所以生成时间、实际模型费用、人评及总分保持未测。可以打开匿名评分表体验五项打分。
 
-`ablate` 对已保存的源事实和实际观测作内存控制干预，包括删节点、反转边、隐藏、截字、缩字、重叠、等价平移与 10/12/14px 敏感性。它不会生成新的真实渲染产物或调用模型；配色控制保留相同几何。这是评估器敏感性回放，不能称为关闭工具反馈组件的因果实验或人类偏好实验。
+## 总分怎么算
 
-## 语义与几何如何解释
+当前评分版本为 `diagram-quality-score-v1-pilot-20261021`，权重和阈值冻结在 [scoring.mjs](scoring.mjs)。它们是公开的试点政策，不是论文证明的最优权重。
 
-节点按稳定语义 key、冻结别名及可选类型作一对一最大匹配。直接关系按有向端点和标签匹配，一条实际关系最多命中一次。重复标签、重复边不会重复获得语义 credit；反向、漏条件、必需文字截断和隐藏节点会失败。源中存在但最终不可见的事实不能通过。无法确定提取或出现尚不支持的要求时记 unverified。
+| 分项 | 综合权重 | 含义与计算 |
+| --- | ---: | --- |
+| 内容 C | 45% | `100 × (0.4 × 节点 F1 + 0.6 × 有向关系 F1)`；没有关系的题只用节点分。名称、方向、条件及最终可见事实都参与匹配 |
+| 布局 L | 20% | 遮挡、裁切、字号、路径四项等权平均；按必需节点、标签和边测量，连续扣分，避免细微字号问题清空整题 |
+| 速度 T | 10% | 从 dispatch 到交付最终候选的实际生成耗时，按复杂度固定锚点线性缩放 |
+| 成本 K | 10% | 实际模型调用费用 USD，按复杂度固定锚点线性缩放；同时保留原始 tokens |
+| 人评 H | 15% | 可读性、层级、排版、风格、美观五项各打 1–5 分；`H = 25 × (平均分 − 1)` |
 
-geometry 独立接收真实节点/文本矩形、有效字号和实际路径采样点。试点 profile 为 1440×900 CSS viewport、DPR 1，将图按相同比例 contain 到 1280×720 区域。记录节点意外重叠、文字重叠、文字超出所属节点、无关边穿节点和裁切；字号候选阈值是 12 CSS px，两轴侵入容差是 0.5 CSS px。明确合法父子包含必须有独立显式关系，单纯矩形包住另一个矩形不会自动免责。
+**综合分 = 0.45 C + 0.20 L + 0.10 T + 0.10 K + 0.15 H。**
 
-这些是可版本化的试点护栏，不等于通用美观标准。`calibrated:false` 仍可给出几何 pilot 结果，但不授权正式排名或自动优化。字形矩形与路径观测也不代表完成感知性审美、所有遮挡/对比度问题或任意 CSS clip/mask 的完备判断。边交叉或拐弯数量本身不构成审美优劣结论。
+无人参与的自动优化使用另一条固定轨道：**自动分 = (45 C + 20 L + 10 T + 10 K) / 85**。人工评分不会改变自动分。两种总分分别比较，不混排。
 
-## 运行、时间与成本
+布局的字号分为 `100 × min(1, 有效字号 / 12px)`；遮挡按相交区域的并集占比扣分，裁切按可见比例扣分，路径按侵入无关节点或越界的长度占比扣分。必需对象缺失贡献零，分母由题目冻结；额外空白、删除难画节点或堆叠装饰节点不能稀释惩罚。明确声明且实际包含端点的合法父容器不作为路径障碍。逐对象扣分可在成绩单展开查看。
 
-预算内 objective success 需要通过语义、几何和可编辑交付证据；解释分量分别保留，不使用“漂亮但漏事实”的加权补偿。计划分母保留缺失运行、timeout 和 provider error。报告区分覆盖、客观已验证与人工已评，拒绝重复 runId、重复矩阵格、混合 manifest/evaluator/profile/budget 或不兼容模型配置。
+速度、费用的分数均为 `100 × clamp((bad − 实测值) / (bad − good), 0, 1)`：
 
-首稿也是候选检查的一轮。timeToObjectiveSuccess 使用首个后来获得独立验收的候选提交时间，dispatch 起算；最终候选就绪、验收完成和最终响应不是同一时间。更早候选需要独立绑定的 receipt；自报 objectivePassed 不算成功，缺少早期证据时不能虚构 first-success 轮次/时刻。MRR 是全计划题的 success/k，未成功贡献 0；证据不足的修复效率必须披露。
+| 复杂度 | 速度 good / bad | 费用 good / bad（USD） |
+| --- | --- | --- |
+| small | 10 / 60 秒 | 0.01 / 0.25 |
+| medium | 30 / 180 秒 | 0.03 / 0.75 |
+| large | 60 / 360 秒 | 0.06 / 1.50 |
 
-usage 记录每次模型调用、失败重试和子 Agent，区分 input、output、cached input、reasoning 及其包含关系。缓存已经包含在输入、推理已经包含在输出时不能再相加。没有拿到账单或某字段时保留 null/partial，报告可观测量；不把词数、词法单位或工具运行时间称为 provider token/真实生成速度。成本需要对应 provider 定价快照与计费口径，setup/cold start 与正式运行另记。CLI 不会填造这些记录。
+只有内容完全正确、交付可编辑且预算合规的结果才能获得效率分。内容有错但已测量完整，T/K 为零；缺少实际账目则是未测，不能虚构费用或把验收器的运行时间算作生成时间。详细契约见[评分设计](../../docs/superpowers/specs/2026-10-21-benchmark-scorecard-redesign.md)。
 
-## 可选人工评估
+## 跑自己的实验
 
-默认 `human.status=not_requested`。导入 review 绑定 `artifactHash/taskId/reviewerId/rubricVersion`；更换产物后不能沿用旧评分。状态可为 requested、in_progress、completed、partial、skipped。completed 要求可交付产物、五个整数 1–5 分以及独立 `semantic.judgement=correct/incorrect/unverified`。
+CLI 接收外部 runner 保存的源码、产物和真实账目；它负责渲染/验收/计分，不调度模型，也不产生 provider usage。
 
-五项 ratings 字段是 `readability/hierarchy/layout/style/aesthetics`，分别评价阅读追踪、层级分组、排版平衡、风格区分和整体偏好。缺评不记零，部分评不伪装完成，人评分数始终不改变 objective score。当前工具保存并展示原始评分，不宣称已实施完整盲评、评审间一致性或统计功效充分。
+实验配置示例（路径相对这个文件解析）：
 
-正式人评应隐藏工具与模型名称、成本和自动分数；随机 A/B 顺序并保留 seed，允许平局和“两者都不可用”。风格可能泄露工具，需披露。建议至少两名独立评审，关键分歧引入第三名，保存分项原始评分与语义证据；作者自评只能作为非独立记录。样本足够后再做任务级配对汇总、一致性和聚类区间估计。
-
-## 验证与后续工作
+```json
+{
+  "corpus": "/absolute/path/corpus.json",
+  "entries": [
+    {
+      "taskId": "architecture-02",
+      "source": "outputs/weather.json",
+      "format": "archify",
+      "run": "runs/weather.json"
+    }
+  ],
+  "plannedRuns": [
+    {"taskId":"architecture-02","arm":"Archify","model":"your-model","repeat":1}
+  ]
+}
+```
 
 ```sh
-npm run test:focus -- test/diagram-quality-metrics.test.mjs \
-  test/diagram-quality-records.test.mjs test/diagram-quality-cli.test.mjs
-ARCHIFY_CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-  npm run test:focus -- test/diagram-quality-cli.test.mjs test/diagram-quality-e2e.test.mjs
+node benchmarks/diagram-quality/benchmark.mjs run \
+  --experiment /absolute/path/experiment.json \
+  --output /absolute/path/results
+```
+
+Archify 可以省略 `artifact`，由本机 CLI 渲染；其他格式必须提供外部渲染后的 `artifact`。重新渲染保留原始源码 hash 和生成完成时间。`run` 也可直接填写记录对象。运行记录至少包含 `runId/taskId/arm/model/repeat/status/startedAt/completedAt`，以及预先约定的 `identity.budget`、真实 `usage`；候选历史使用有序 `candidates:[{submittedAt,artifactHash}]`。只记录最终候选时可由 `completedAt` 补建该候选，不会猜测更早的成功时间。
+
+`usage` 可保存输入/输出 tokens 和实际 `costUsd`；多次调用应提供 `usage.calls`，包括失败重试、子 Agent 与缓存/推理 token 的包含关系。详尽校验规则见 [records.mjs](records.mjs)。不能把词数或估算费用当成真实计费。`timeout/no_candidate/provider_error` 可没有源码和产物，但仍须有有效的运行身份与时间记录。
+
+每次运行输出：
+
+| 文件 | 用途 |
+| --- | --- |
+| `index.html` | 中文总分、柱状图、五项分数、原始单位、逐题扣分及产物 |
+| `scores.png` | 可直接放进对比图的静态柱状图（有 Chrome 时导出） |
+| `scores.csv` | 与页面相同的显示数值，支持表格和绘图 |
+| `scorecard.json` | 未舍入分数、固定权重、缺失原因和逐题数据 |
+| `review.html` | 隐藏方法/模型/费用/自动分的数值评分表 |
+| `receipts.jsonl`、`experiment-plan.json` | hash 绑定的验收证据与计划分母 |
+| `weight-sensitivity.json` | 去掉一个分项及权重 ±20% 时的描述性敏感性 |
+
+交付秒数、tokens、USD 的方法级汇总都是**先平均同题重复、再平均各题的每题均值**，不是总消耗；原始运行账目保留在回执中。`raw.deliveryDurationMs` 是速度分采用的最终候选提交耗时；`raw.durationMs` 是完整运行至结束的耗时，独立保留，避免把末尾的等待或离线验收误算进交付速度。已知失败留在分母，交付无效或内容完全未命中贡献零。计划内缺回执、几何未知或真实费用缺失会使相应总分显示“待完成”，不会悄悄重新分配权重。各方法必须使用相同题目集合；不同重复次数先在题内平均，不能通过多跑容易题提高排名。
+
+有回执后可重新计分，无须重新渲染：
+
+```sh
+node benchmarks/diagram-quality/benchmark.mjs score \
+  --results /absolute/path/results/receipts.jsonl \
+  --manifest /absolute/path/results/experiment-plan.json \
+  --output /absolute/path/rescored --track auto
+```
+
+自定义语料加 `--corpus`。`--machine true` 输出 JSON；`--score-only true` 只向 stdout 输出一个自动分，供 autodev 读取。后者要求一个完整方法、内容全对且无已知失败；使用 `--baseline /absolute/path/scorecard.json` 时还要保持同一工作负载、身份、已有内容分和已正确事实。不能用缺测或丢事实换取 keep。
+
+## 人只需打分，不必写报告
+
+打开 `review.html`，填写稳定的评审标识，确认独立评审，对五项选择 1–5 分，下载 JSON。文字意见和语义判断均为可选。页面以固定 seed 随机排列样图，预览只显示裁剪后的图，不显示工具页头；图本身的风格仍可能透露工具。
+
+每个可交付产物至少需要两名不同的独立评审，并使用相同 rubric。合并下载文件中的 `reviews` 数组后导入：
+
+```sh
+node benchmarks/diagram-quality/benchmark.mjs score \
+  --results /absolute/path/results/receipts.jsonl \
+  --manifest /absolute/path/results/experiment-plan.json \
+  --reviews /absolute/path/combined-reviews.json \
+  --track full --output /absolute/path/reviewed-results
+```
+
+评分绑定 `taskId/artifactHash/reviewerId/rubricVersion`；更换图片不能沿用旧评分。缺评不是零，单人评分不会被当作完整综合分。已知未交付任务贡献零，无须让人对空图打分。合成评审只能用于测试，不能作为真实人评结论。
+
+## 语料、参考与支持边界
+
+[corpus.json](corpus.json) 有 40 个公开试点任务：architecture/workflow/sequence/dataflow/lifecycle 各 6 题，以及 erd/class/tree/timeline/waterfall 各 2 题。它们均为 `authored-provisional`，独立人工金标准核定和阈值校准尚未完成；公开 `holdout` 已用于开发，不能声称对优化 Agent 隔离。计分可以展示，正式泛化/领先结论仍需真实共同题集实验。
+
+| 格式 | 已有能力 | 当前边界 |
+| --- | --- | --- |
+| Archify | 原生节点/边提取、浏览器观测、独立 reload/edit/render | sequence 顺序及扩展类型事实尚无完整验收，保持 unverified |
+| Mermaid | 简单 flowchart/graph 的明确节点与单条有向边 | subgraph、连续边、复杂语法未支持；无独立编辑验收 |
+| draw.io | 单页未压缩 mxGraphModel 的节点与有向边 | 压缩/多页/不明确方向及独立编辑验收未支持 |
+| Excalidraw | 支持形状、绑定文字、单向绑定箭头 | 自由线等未支持；无独立编辑验收 |
+| SVG / HTML | 可见浏览器几何 | 自由源码无法仅凭生成者 metadata 验证拓扑，保持 unverified |
+
+第三方源码能提取不代表已经具备跨工具完整评测。正式比较应先冻结共同支持题集、模型/推理配置、Agent、工具/文档版本、预算与环境；实际编译、诊断、预览和等待都属于工作流。CLI 会拒绝混合身份、重复矩阵格和不一致配置。
+
+文献及方法溯源见[完整 v2 设计](../../docs/superpowers/specs/2026-10-21-benchmark-v2-design.md)与[研究核对](../../docs/benchmarks/2026-10-21-benchmark-audit.md)。论文启发、已有通行指标和本项目自行选择的公式/权重应分别披露。`ablate` 的删节点、反向边、遮挡、字号干预是评估器敏感性回放；`weight-sensitivity.json` 是评分权重分析，都不能冒充关闭工具组件后重跑模型的因果消融。真实组件消融与人评相关性仍需新实验。
+
+## 兼容与验证
+
+旧 `check/verify/review/ablate` 命令继续可用。`report --manifest PLAN --results JSONL --output FILE` 默认生成中文成绩单；加 `--legacy true` 可查看原 v2 证据报告。v1 suite 和历史分数保持原口径。回执 hash 用于检查一致性，不等于签名认证，应由受信 runner 保存并独立验收。
+
+```sh
+ARCHIFY_CHROME='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' \
+  npm run test:focus -- test/diagram-quality-metrics.test.mjs \
+  test/diagram-quality-records.test.mjs test/diagram-quality-cli.test.mjs \
+  test/diagram-quality-e2e.test.mjs test/diagram-quality-scoring.test.mjs \
+  test/diagram-quality-score-report.test.mjs test/diagram-quality-score-cli.test.mjs
 npm test
 ```
 
-这些检查保护已实现的契约；browser 路径的证据以实际 Chrome 执行为准。未运行、跳过或 unverified 不应写成通过。后续需独立核定全部事实、用合法和缺陷样本校准几何阈值、实现类型专属及第三方端点/可编辑性验收、固定真实实验环境，才适合扩大模型对照。当前语料与离线 demo 不构成真实 Agent 胜率、成本优势或审美优势证据。
-
-E2E 使用手写 architecture-02 与 workflow-01 fixture 检验整个本地链路；不是模型完成题目的实验。默认删除全部测试目录、编辑副本和临时 Chrome profile。需要保留审阅样本时，可另设 `ARCHIFY_E2E_EXPORT=/absolute/path/review-demo`；它只保留静态报告、源、产物、截图和离线回执。公开 pilot 的 holdout 已用于开发检查，不能声称正式隔离评估。
-
-报告按 arm/model 单独汇总；图型与复杂度分桶的分母来自 experiment-plan 每格的 `taskType/complexity`。缺 metadata 标为 unknown，不从成功回执猜测遗漏题的归属。必需 guard 失败时 optimization 返回 invalid（`eligible:false,score:null`）；objective 原始失败仍留在计划分母。v2 是离线证据契约，JSON 哈希绑定不等于签名认证；报告应来自受信 runner 和独立重新验收，不应把任意导入 JSON 当作防伪证明。
+E2E 使用手写样图，只检验本地链路；不是模型完成任务的实验。测试自动清理临时产物、编辑副本和 Chrome profile。保留新版 demo 可设 `ARCHIFY_SCORE_EXPORT=/absolute/path/review-demo`；这些静态样本不会变成真实模型实验结果。

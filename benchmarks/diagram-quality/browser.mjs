@@ -165,6 +165,8 @@ async function inspect(graph) {
   // Only diagram text, not viewer navigation, is part of the geometric workload.
   const texts = [...svg.querySelectorAll('text')].filter(t => !t.closest('defs')).map(t => ({
     text: normalizeText(t.textContent), rect: rect(t), fontSize: fontSize(t), visible: textVisible(t), nodeId: t.closest('[data-node-id]')?.getAttribute('data-node-id') || null,
+    edgeFrom: t.closest('g[data-edge-from]')?.getAttribute('data-edge-from') || null,
+    edgeTo: t.closest('g[data-edge-to]')?.getAttribute('data-edge-to') || null,
   }));
   return { status: unknownReasons.length ? 'unverified' : 'verified', unknownReasons: [...new Set(unknownReasons)], nodes, edges, texts, bounds: { x: 80, y: 90, width: 1280, height: 720 }, profile: 'desktop-single-page-v1', scale };
 }
