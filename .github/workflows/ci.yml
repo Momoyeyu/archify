@@ -219,7 +219,9 @@ jobs:
   webm-decode:
     needs: scope
     if: always() && !cancelled()
-    runs-on: ubuntu-latest
+    # FFmpeg 8.0.1 on Ubuntu 26.04 misparses the Opus parser EOF flush.
+    # Keep the decoder baseline until that upstream regression is fixed.
+    runs-on: ubuntu-24.04
     steps:
       # Keep every required matrix check present; fail closed if classification/checks fail.
       - name: Require successful scope checks
