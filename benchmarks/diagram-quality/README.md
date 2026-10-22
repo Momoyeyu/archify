@@ -159,14 +159,13 @@ node benchmarks/diagram-quality/benchmark.mjs score \
 旧 `check/verify/review/ablate` 命令继续可用。`report --manifest PLAN --results JSONL --output FILE` 默认生成中文成绩单；加 `--legacy true` 可查看原 v2 证据报告。v1 suite 和历史分数保持原口径。回执 hash 用于检查一致性，不等于签名认证，应由受信 runner 保存并独立验收。
 
 ```sh
+# Node 规则与命令检查；真实浏览器用例在下面的独立任务中执行。
+ARCHIFY_CHROME='' node --test test/diagram-quality-*.test.mjs
 ARCHIFY_CHROME='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' \
-  npm run test:focus -- test/diagram-quality-metrics.test.mjs \
-  test/diagram-quality-records.test.mjs test/diagram-quality-cli.test.mjs \
-  test/diagram-quality-e2e.test.mjs test/diagram-quality-scoring.test.mjs \
-  test/diagram-quality-score-report.test.mjs test/diagram-quality-score-cli.test.mjs
+  npm run test:browser -- test/diagram-quality-*browser.test.mjs
 npm test
 ```
 
 E2E 使用手写样图，只检验本地链路；不是模型完成任务的实验。测试自动清理临时产物、编辑副本和 Chrome profile。保留新版 demo 可设 `ARCHIFY_SCORE_EXPORT=/absolute/path/review-demo`；这些静态样本不会变成真实模型实验结果。
 
-受限 pilot 另有 `test/diagram-quality-{portable,pilot-render,pilot}.test.mjs`。真实 Mermaid 集成测试需要外部 runtime；用 `ARCHIFY_PILOT_RUNTIME_ROOT=/absolute/path/runtime` 指定，默认使用仓库旁交付目录。本次验收实际运行了 Chrome 和 Mermaid；测试不会调用模型。
+受限 pilot 另有 `test/diagram-quality-{pilot-render,pilot}.test.mjs`。真实 Mermaid 集成测试需要外部 runtime；用 `ARCHIFY_PILOT_RUNTIME_ROOT=/absolute/path/runtime` 指定，默认使用仓库旁交付目录。本次验收实际运行了 Chrome 和 Mermaid；测试不会调用模型。

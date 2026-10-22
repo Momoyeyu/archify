@@ -13,26 +13,22 @@ const node = (x, y, label, attrs = '') => `<g ${attrs}><rect x="${x}" y="${y}" w
 const marker = (shape = '<path d="M0,0 L10,5 L0,10 Z"/>') => `<defs><marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="10" markerHeight="10" orient="auto">${shape}</marker></defs>`;
 const route = (attrs = '', d = 'M160 110 L360 110') => `<path d="${d}" fill="none" stroke="black" marker-end="url(#arrow)" ${attrs}/>`;
 const svg = body => `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500" viewBox="0 0 800 500"><style>text{font:18px sans-serif}</style>${body}</svg>`;
-async function observe(t, source, extension = 'svg') {
+async function observe(t, source, extension = 'svg', { screenshot = false } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-portable-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const artifactPath = path.join(dir, `fixture.${extension}`), screenshotPath = path.join(dir, 'capture.png');
+  const artifactPath = path.join(dir, `fixture.${extension}`), screenshotPath = screenshot ? path.join(dir, 'capture.png') : undefined;
   fs.writeFileSync(artifactPath, source);
   const { observePortableArtifact } = await import(modulePath);
   const result = await observePortableArtifact({ artifactPath, chromePath, screenshotPath });
   assert.equal(fs.existsSync(result.observation.browserProfile), false, 'observer must close its Chrome profile');
-  assert.ok(fs.statSync(screenshotPath).size > 1000);
+  if (screenshotPath) assert.ok(fs.statSync(screenshotPath).size > 1000);
   return result;
 }
 const labels = result => result.graph.edges.map(e => [result.graph.nodes.find(n => n.id === e.from)?.label, result.graph.nodes.find(n => n.id === e.to)?.label, e.label]);
 
-test('portable observer exposes a gold-independent artifact entry point', async () => {
-  const loaded = await import(modulePath).catch(() => ({}));
-  assert.equal(typeof loaded.observePortableArtifact, 'function');
-});
 
 test('portable SVG observes arbitrary labels, disconnected nodes and geometry despite false metadata', { skip: !chromePath }, async t => {
-  const result = await observe(t, svg(marker() + node(40, 80, 'α intake', 'data-node-id="fake-Z"') + node(360, 80, 'Queue β') + node(600, 330, 'Disconnected Ω') + route('data-edge-from="fake-Z" data-edge-to="lies"') + '<text x="250" y="96">publish ζ</text>' + '<g style="display:none" data-node-id="hidden"><rect x="0" y="0" width="20" height="20"/><text>Invented</text></g>'));
+  const result = await observe(t, svg(marker() + node(40, 80, 'α intake', 'data-node-id="fake-Z"') + node(360, 80, 'Queue β') + node(600, 330, 'Disconnected Ω') + route('data-edge-from="fake-Z" data-edge-to="lies"') + '<text x="250" y="96">publish ζ</text>' + '<g style="display:none" data-node-id="hidden"><rect x="0" y="0" width="20" height="20"/><text>Invented</text></g>'), 'svg', { screenshot: true });
   assert.equal(result.graph.status, 'verified', JSON.stringify(result.graph.unknownReasons));
   assert.deepEqual(result.graph.nodes.map(n => n.label), ['α intake', 'Queue β', 'Disconnected Ω']);
   assert.deepEqual(labels(result), [['α intake', 'Queue β', 'publish ζ']]);

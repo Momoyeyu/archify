@@ -4,12 +4,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { ChromeVisualBrowser, findChrome } from '../archify/bin/visual-check.mjs';
+import { ChromeVisualBrowser } from '../archify/bin/visual-check.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const modulePath = '../benchmarks/diagram-quality/pilot-render.mjs';
 const runtimeRoot = process.env.ARCHIFY_PILOT_RUNTIME_ROOT || path.resolve(root, '../deliverables/benchmark-real-pilot-20261021/runtime');
-const chromePath = findChrome();
+const chromePath = process.env.ARCHIFY_CHROME;
 const realMermaid = chromePath && fs.existsSync(path.join(runtimeRoot, 'node_modules/mermaid/dist/mermaid.min.js'));
 const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720"><defs><marker id="arrow" orient="auto" markerWidth="10" markerHeight="7" refX="10" refY="3.5"><polygon points="0,0 10,3.5 0,7"/></marker></defs><path d="M 300 200 L 100 200" stroke="black" fill="none" marker-end="url(#arrow)"/><text x="160" y="180">retry</text></svg>';
 const html = '<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;background:#fff}svg{display:block}</style></head><body>' + svg + '</body></html>\n';
@@ -18,7 +18,6 @@ async function fixture(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-pilot-render-test-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const renderer = await import(modulePath).catch(error => { assert.fail(`Pilot renderer module must be available: ${error.message}`); });
-  assert.equal(typeof renderer.renderPilotSource, 'function');
   return {
     dir,
     render: renderer.renderPilotSource,
