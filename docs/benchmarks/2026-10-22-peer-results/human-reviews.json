@@ -1,0 +1,395 @@
+{
+  "reviews": [
+    {
+      "taskId": "architecture-04",
+      "artifactHash": "2e6404d4f68da543567ef3ca173683221bcb9eba48714e46181e5d4ceb16d07c",
+      "reviewImageHash": "493a22a4b715fcb42f1eef01ce3621e998c85365b6af364b828bf69c77435db7",
+      "reviewerId": "owner",
+      "ratings": {
+        "readability": 3,
+        "hierarchy": 2,
+        "layout": 4,
+        "style": 4,
+        "aesthetics": 3
+      },
+      "independent": true,
+      "rubricVersion": "diagram-quality-human-v1",
+      "status": "completed",
+      "savedAt": "2026-10-22T04:38:01.566Z"
+    },
+    {
+      "taskId": "architecture-04",
+      "artifactHash": "f71ae0562ab5fa583f7771c960e1fed3c6d3d6c862f954440ad8fda8a8aa76ca",
+      "reviewImageHash": "1ef249267a67baff9915c1b755660dacff183bd1571bfa170b5a47517601a7dc",
+      "reviewerId": "owner",
+      "ratings": {
+        "readability": 5,
+        "hierarchy": 5,
+        "layout": 5,
+        "style": 5,
+        "aesthetics": 3
+      },
+      "independent": true,
+      "rubricVersion": "diagram-quality-human-v1",
+      "status": "completed",
+      "savedAt": "2026-10-22T04:42:59.091Z"
+    },
+    {
+      "taskId": "workflow-01",
+      "artifactHash": "bfef8edca39e705ebc1335b0af7d57310f08273571062354e4b658f294c60f12",
+      "reviewImageHash": "1c038e37b3f68c57ec2918d375cf501f84ab22c50c21e36a01b695ac07342d02",
+      "reviewerId": "owner",
+      "ratings": {
+        "readability": 5,
+        "hierarchy": 5,
+        "layout": 5,
+        "style": 5,
+        "aesthetics": 3
+      },
+      "independent": true,
+      "rubricVersion": "diagram-quality-human-v1",
+      "status": "completed",
+      "savedAt": "2026-10-22T04:43:00.818Z"
+    },
+    {
+      "taskId": "architecture-04",
+      "artifactHash": "5e718d74765c4f33a99e3309eddc8cae10732b059fcc6fef3772bb2ac96f0bbf",
+      "reviewImageHash": "7f09e096aff8020ec542138ccf0036480d3c2f73e1c27e358fb78d25655b50d7",
+      "reviewerId": "owner",
+      "ratings": {
+        "readability": 3,
+        "hierarchy": 4,
+        "layout": 3,
+        "style": 5,
+        "aesthetics": 2
+      },
+      "independent": true,
+      "rubricVersion": "diagram-quality-human-v1",
+      "status": "completed",
+      "savedAt": "2026-10-22T04:43:35.754Z"
+    },
+    {
+      "taskId": "architecture-01",
+      "artifactHash": "094dabe4bd7d9622e0dca6d58820e8fa446fc01abb4c7bd4d911506b90d8625f",
+      "reviewImageHash": "ca8a73fb86e3ae08852dbee47c0ea75167dfa81ac8e2ffe308ea17e4225162aa",
+      "reviewerId": "owner",
+      "ratings": {
+        "readability": 3,
+        "hierarchy": 3,
+        "layout": 5,
+        "style": 5,
+        "aesthetics": 3
+      },
+      "independent": true,
+      "rubricVersion": "diagram-quality-human-v1",
+      "status": "completed",
+      "savedAt": "2026-10-22T04:43:04.101Z"
+    },
+    {
+      "taskId": "architecture-01",
+      "artifactHash": "50742a0ae6cc8b7d01f7a8511d5581ccc1d34d3c108c6f56a935f1d5a30998e7",
+      "reviewImageHash": "db98abe5cfeb37d783b15f16b3fbbb1c952839e2e1d74f7cf06e8eefb0318688",
+      "reviewerId": "owner",
+      "ratings": {
+        "readability": 5,
+        "hierarchy": 5,
+        "layout": 5,
+        "style": 5,
+        "aesthetics": 5
+      },
+      "independent": true,
+      "rubricVersion": "diagram-quality-human-v1",
+      "status": "completed",
+      "savedAt": "2026-10-22T04:43:05.829Z"
+    },
+    {
+      "taskId": "workflow-04",
+      "artifactHash": "5af0cb49ca702cea78606ebb66075d454332b6c14329ee27bf4c7b556ef97a9c",
+      "reviewImageHash": "c9c495c431af3ebcf9050b7f04709a0ce70be825c04012667805052765857edb",
+      "reviewerId": "owner",
+      "ratings": {
+        "readability": 4,
+        "hierarchy": 4,
+        "layout": 4,
+        "style": 5,
+        "aesthetics": 3
+      },
+      "independent": true,
+      "rubricVersion": "diagram-quality-human-v1",
+      "status": "completed",
+      "savedAt": "2026-10-22T04:43:07.527Z"
+    },
+    {
+      "taskId": "architecture-01",
+      "artifactHash": "d747982e88b16a663b842a5d352d94ace2ec56fc9c02f624ca582f7b80d25280",
+      "reviewImageHash": "e33128a3337b00b858c29fc0d7a26ce1c9d5b0d3d2517edcbe086f61d03f9171",
+      "reviewerId": "owner",
+      "ratings": {
+        "readability": 3,
+        "hierarchy": 4,
+        "layout": 3,
+        "style": 4,
+        "aesthetics": 3
+      },
+      "independent": true,
+      "rubricVersion": "diagram-quality-human-v1",
+      "status": "completed",
+      "savedAt": "2026-10-22T04:43:09.629Z"
+    },
+    {
+      "taskId": "workflow-01",
+      "artifactHash": "d06a52e5c2575adc9a08cc70c97ffcdd1506fd09a384b96d06c1fe523f620e0d",
+      "reviewImageHash": "819d6ed3120b00beab57a4b35c0ed145548b589934da667dab42120c6c98e470",
+      "reviewerId": "owner",
+      "ratings": {
+        "readability": 2,
+        "hierarchy": 4,
+        "layout": 4,
+        "style": 4,
+        "aesthetics": 3
+      },
+      "independent": true,
+      "rubricVersion": "diagram-quality-human-v1",
+      "status": "completed",
+      "savedAt": "2026-10-22T04:43:11.435Z"
+    },
+    {
+      "taskId": "architecture-04",
+      "artifactHash": "6d135310078b774e8f4397c5ca6277690f9f95821d4d865accceded86af9968c",
+      "reviewImageHash": "9199d3563248d7e51e650d1570a8cbcfa15a17eec7e27e139c1fcccb6e213cc0",
+      "reviewerId": "owner",
+      "ratings": {
+        "readability": 3,
+        "hierarchy": 5,
+        "layout": 4,
+        "style": 4,
+        "aesthetics": 3
+      },
+      "independent": true,
+      "rubricVersion": "diagram-quality-human-v1",
+      "status": "completed",
+      "savedAt": "2026-10-22T04:43:13.701Z"
+    },
+    {
+      "taskId": "workflow-04",
+      "artifactHash": "657078471d01eb903838e5b4355912ba48916dba005133b036886b83884a003b",
+      "reviewImageHash": "c505757655791543e9a25c6971f2a36752e2e17cea2913d033ab208884c340a5",
+      "reviewerId": "owner",
+      "ratings": {
+        "readability": 4,
+        "hierarchy": 4,
+        "layout": 4,
+        "style": 5,
+        "aesthetics": 4
+      },
+      "independent": true,
+      "rubricVersion": "diagram-quality-human-v1",
+      "status": "completed",
+      "savedAt": "2026-10-22T04:43:15.153Z"
+    },
+    {
+      "taskId": "workflow-01",
+      "artifactHash": "92e83ff635ec3eff40d90dbd982610265431af55e10b3d59e3582c4f321184be",
+      "reviewImageHash": "f0a158123d56e72dbcbaf5ec768ab2de21a74285ecd9aa8bf718c1ed750412d5",
+      "reviewerId": "owner",
+      "ratings": {
+        "readability": 4,
+        "hierarchy": 4,
+        "layout": 5,
+        "style": 5,
+        "aesthetics": 5
+      },
+      "independent": true,
+      "rubricVersion": "diagram-quality-human-v1",
+      "status": "completed",
+      "savedAt": "2026-10-22T04:43:16.759Z"
+    },
+    {
+      "taskId": "workflow-01",
+      "artifactHash": "de84dfbc7e70ae5133e723d38755d70aca3392ca5885eebe1fb38c21a3056110",
+      "reviewImageHash": "07fc223a5a9e592a445013d4631ff678bd49e1be57e7448830f3ad7e818f0ab0",
+      "reviewerId": "owner",
+      "ratings": {
+        "readability": 4,
+        "hierarchy": 4,
+        "layout": 4,
+        "style": 5,
+        "aesthetics": 4
+      },
+      "independent": true,
+      "rubricVersion": "diagram-quality-human-v1",
+      "status": "completed",
+      "savedAt": "2026-10-22T04:43:18.833Z"
+    },
+    {
+      "taskId": "workflow-04",
+      "artifactHash": "04053783d806ed2207613f056888d4bec2b3b7038045c7aaf8451a1782310827",
+      "reviewImageHash": "72dd083018f6e705afd51aec8034c9caa5b74d1d2c828bee5d129a226f3774b0",
+      "reviewerId": "owner",
+      "ratings": {
+        "readability": 3,
+        "hierarchy": 3,
+        "layout": 3,
+        "style": 4,
+        "aesthetics": 4
+      },
+      "independent": true,
+      "rubricVersion": "diagram-quality-human-v1",
+      "status": "completed",
+      "savedAt": "2026-10-22T04:43:21.084Z"
+    },
+    {
+      "taskId": "architecture-04",
+      "artifactHash": "5e86d92f5edaf001a707eadd5a74482725f0fe30c0768337b051f9da4fc3e880",
+      "reviewImageHash": "6413305bb68c99cc45c2db96a5543d22fdd863cedcc8e531e9326027829a8008",
+      "reviewerId": "owner",
+      "ratings": {
+        "readability": 5,
+        "hierarchy": 5,
+        "layout": 5,
+        "style": 5,
+        "aesthetics": 5
+      },
+      "independent": true,
+      "rubricVersion": "diagram-quality-human-v1",
+      "status": "completed",
+      "savedAt": "2026-10-22T04:43:23.467Z"
+    },
+    {
+      "taskId": "workflow-04",
+      "artifactHash": "dbb2df98f0be5e98a78c6cf3485ecc21853a1fa1b42c4dbe7699dfb38c7c6d93",
+      "reviewImageHash": "28018478d06e8ea345c663aa45b5fdcb02f3c79f194bc63ae7f7607af08b7d2e",
+      "reviewerId": "owner",
+      "ratings": {
+        "readability": 3,
+        "hierarchy": 4,
+        "layout": 4,
+        "style": 4,
+        "aesthetics": 3
+      },
+      "independent": true,
+      "rubricVersion": "diagram-quality-human-v1",
+      "status": "completed",
+      "savedAt": "2026-10-22T04:43:25.351Z"
+    },
+    {
+      "taskId": "architecture-01",
+      "artifactHash": "b65bd939224a40400e30b3f0071696a4009d2931e1ff9724c0537e4de95930ab",
+      "reviewImageHash": "63f5a36743db8e920e8eded78f1edc3d749b1b1fe5279d2ddd77cc33146b513d",
+      "reviewerId": "owner",
+      "ratings": {
+        "readability": 4,
+        "hierarchy": 4,
+        "layout": 5,
+        "style": 5,
+        "aesthetics": 3
+      },
+      "independent": true,
+      "rubricVersion": "diagram-quality-human-v1",
+      "status": "completed",
+      "savedAt": "2026-10-22T04:43:27.558Z"
+    },
+    {
+      "taskId": "architecture-01",
+      "artifactHash": "934042f6ddef27553bb17cd9f8c2974f5611590a026204c3957ea4e4920ae62c",
+      "reviewImageHash": "a52328c31e2a390bdb317407a67e2871a33308522d94b52e7d2d5d8588ad83a5",
+      "reviewerId": "owner",
+      "ratings": {
+        "readability": 3,
+        "hierarchy": 3,
+        "layout": 4,
+        "style": 4,
+        "aesthetics": 3
+      },
+      "independent": true,
+      "rubricVersion": "diagram-quality-human-v1",
+      "status": "completed",
+      "savedAt": "2026-10-22T04:43:29.652Z"
+    },
+    {
+      "taskId": "workflow-04",
+      "artifactHash": "76314933eca60e47300cd3e5548dcd405a5b44825150e7c5a72d1974cdc5b588",
+      "reviewImageHash": "fb34cc4a921a2587c915e797a4cc25040bd8866dffdcbdb7f196c913cfbd98f4",
+      "reviewerId": "owner",
+      "ratings": {
+        "readability": 5,
+        "hierarchy": 4,
+        "layout": 4,
+        "style": 5,
+        "aesthetics": 3
+      },
+      "independent": true,
+      "rubricVersion": "diagram-quality-human-v1",
+      "status": "completed",
+      "savedAt": "2026-10-22T04:43:30.791Z"
+    },
+    {
+      "taskId": "architecture-01",
+      "artifactHash": "37bfbc17d3c5c17f6a63927adbbb46e8885a12562f14c6036b0ad032a74822e9",
+      "reviewImageHash": "7a3ee440c47d20dac3e39e4ea72232b3e8e9e337679dcb0db881c279c6cb4b1f",
+      "reviewerId": "owner",
+      "ratings": {
+        "readability": 4,
+        "hierarchy": 4,
+        "layout": 4,
+        "style": 5,
+        "aesthetics": 3
+      },
+      "independent": true,
+      "rubricVersion": "diagram-quality-human-v1",
+      "status": "completed",
+      "savedAt": "2026-10-22T04:43:32.639Z"
+    },
+    {
+      "taskId": "architecture-04",
+      "artifactHash": "bfe821b6b61324ee69a09752d942a4e97a4dfa5c7ad4b33cef9ca356adbba77e",
+      "reviewImageHash": "81c5a725e97809dc61783b3ce5b91c0e7c82f740f30b7f8a550758e90aa1067c",
+      "reviewerId": "owner",
+      "ratings": {
+        "readability": 3,
+        "hierarchy": 4,
+        "layout": 4,
+        "style": 5,
+        "aesthetics": 4
+      },
+      "independent": true,
+      "rubricVersion": "diagram-quality-human-v1",
+      "status": "completed",
+      "savedAt": "2026-10-22T04:43:34.174Z"
+    },
+    {
+      "taskId": "workflow-01",
+      "artifactHash": "f8dc903f9bd13a59478cfc98ce0edf553bd2d5901d6b8e67066c6628d303790e",
+      "reviewImageHash": "04c5b05210ecdf5f3229ef04a0a88b43022b0aae7a05ca98341d330fafe68871",
+      "reviewerId": "owner",
+      "ratings": {
+        "readability": 4,
+        "hierarchy": 4,
+        "layout": 4,
+        "style": 4,
+        "aesthetics": 3
+      },
+      "independent": true,
+      "rubricVersion": "diagram-quality-human-v1",
+      "status": "completed",
+      "savedAt": "2026-10-22T04:42:38.150Z"
+    },
+    {
+      "taskId": "workflow-01",
+      "artifactHash": "58fca3288c76018ab7358297fad7bd55b9c9d39193e85f3db9524e0b5b36e666",
+      "reviewImageHash": "26d597f8f92de4aaeba0f6b771ba79d3cf7b206e1128a28ec2c7cc897c0a41ac",
+      "reviewerId": "owner",
+      "ratings": {
+        "readability": 4,
+        "hierarchy": 4,
+        "layout": 4,
+        "style": 4,
+        "aesthetics": 3
+      },
+      "independent": true,
+      "rubricVersion": "diagram-quality-human-v1",
+      "status": "completed",
+      "savedAt": "2026-10-22T04:42:49.807Z"
+    }
+  ]
+}

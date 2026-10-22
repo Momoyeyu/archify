@@ -1,0 +1,6231 @@
+[
+  {
+    "runId": "01-architecture-01-archify",
+    "taskId": "architecture-01",
+    "arm": "Archify Skill",
+    "format": "archify",
+    "selectedSubmission": 3,
+    "status": "delivered",
+    "source": "cases/architecture-01/archify/candidate-3.json",
+    "preview": "cases/architecture-01/archify/diagram.png",
+    "nativeFile": null,
+    "artifactSha256": "50742a0ae6cc8b7d01f7a8511d5581ccc1d34d3c108c6f56a935f1d5a30998e7",
+    "previewSha256": "db98abe5cfeb37d783b15f16b3fbbb1c952839e2e1d74f7cf06e8eefb0318688",
+    "startedAt": "2026-10-22T04:09:28.348Z",
+    "completedAt": "2026-10-22T04:09:43.039Z",
+    "usage": {
+      "inputTokens": 109149,
+      "outputTokens": 1037,
+      "cachedInputTokens": 103296,
+      "reasoningTokens": null,
+      "costUsd": 0.001810038,
+      "totalTokens": 110186,
+      "observed": {
+        "inputTokens": 109149,
+        "outputTokens": 1037,
+        "cachedInputTokens": 103296,
+        "reasoningTokens": 0,
+        "costUsd": 0.001810038,
+        "totalTokens": 110186
+      },
+      "complete": true,
+      "status": "complete",
+      "calls": [
+        {
+          "callId": "candidate-1",
+          "inputTokens": 33234,
+          "outputTokens": 327,
+          "cachedInputTokens": 33024,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.00032677199999999997,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 210,
+            "providerUsage": {
+              "prompt_tokens": 33234,
+              "completion_tokens": 327,
+              "total_tokens": 33561,
+              "prompt_tokens_details": {
+                "cached_tokens": 33024
+              },
+              "prompt_cache_hit_tokens": 33024,
+              "prompt_cache_miss_tokens": 210
+            }
+          },
+          "totalTokens": 33561,
+          "status": "complete"
+        },
+        {
+          "callId": "candidate-2",
+          "inputTokens": 36434,
+          "outputTokens": 327,
+          "cachedInputTokens": 33536,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.0007315080000000001,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 2898,
+            "providerUsage": {
+              "prompt_tokens": 36434,
+              "completion_tokens": 327,
+              "total_tokens": 36761,
+              "prompt_tokens_details": {
+                "cached_tokens": 33536
+              },
+              "prompt_cache_hit_tokens": 33536,
+              "prompt_cache_miss_tokens": 2898
+            }
+          },
+          "totalTokens": 36761,
+          "status": "complete"
+        },
+        {
+          "callId": "candidate-3",
+          "inputTokens": 39481,
+          "outputTokens": 383,
+          "cachedInputTokens": 36736,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.0007517579999999999,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 2745,
+            "providerUsage": {
+              "prompt_tokens": 39481,
+              "completion_tokens": 383,
+              "total_tokens": 39864,
+              "prompt_tokens_details": {
+                "cached_tokens": 36736
+              },
+              "prompt_cache_hit_tokens": 36736,
+              "prompt_cache_miss_tokens": 2745
+            }
+          },
+          "totalTokens": 39864,
+          "status": "complete"
+        }
+      ]
+    },
+    "semantic": {
+      "status": "verified",
+      "passed": true,
+      "nodes": {
+        "matched": 4,
+        "expected": 4,
+        "actual": 4,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "edges": {
+        "matched": 4,
+        "expected": 4,
+        "actual": 4,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "violations": []
+    },
+    "geometry": {
+      "status": "verified",
+      "passed": false,
+      "violations": [
+        {
+          "code": "tiny_font",
+          "text": "HTTPS",
+          "fontSize": 11.130230551694387
+        },
+        {
+          "code": "tiny_font",
+          "text": "reserve",
+          "fontSize": 11.130230551694387
+        },
+        {
+          "code": "tiny_font",
+          "text": "hold seat",
+          "fontSize": 11.130230551694387
+        },
+        {
+          "code": "tiny_font",
+          "text": "availability",
+          "fontSize": 11.130230551694387
+        }
+      ],
+      "metrics": {
+        "nodes": 4,
+        "texts": 17,
+        "edges": 4,
+        "defects": 4,
+        "defectsPerNode": 1,
+        "counts": {
+          "tiny_font": 4
+        },
+        "minFontPx": 12,
+        "epsilonPx": 0.5,
+        "calibrated": false,
+        "pilot": true
+      }
+    },
+    "editability": {
+      "status": "verified",
+      "passed": true,
+      "method": "archify-reload-rename-render"
+    },
+    "attempts": [
+      {
+        "submission": 1,
+        "source": "cases/architecture-01/archify/candidate-1.json",
+        "sourceSha256": "21ca6fc93567754c4033fd2e7cf169b13db3fc1904755fc6f70afe3e0c19698e",
+        "responseId": "30bc0b50-d99a-4532-bd69-383e35a3d578",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 33234,
+          "completion_tokens": 327,
+          "total_tokens": 33561,
+          "prompt_tokens_details": {
+            "cached_tokens": 33024
+          },
+          "prompt_cache_hit_tokens": 33024,
+          "prompt_cache_miss_tokens": 210
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.00032677199999999997,
+        "startedAt": "2026-10-22T04:09:28.348Z",
+        "modelCompletedAt": "2026-10-22T04:09:30.252Z",
+        "readyAt": "2026-10-22T04:09:32.022Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      },
+      {
+        "submission": 2,
+        "source": "cases/architecture-01/archify/candidate-2.json",
+        "sourceSha256": "25a6e7b579eb0783c5a62e6d6fbfba2105de867cc0305b6bb3e7713cd9dc7dc8",
+        "responseId": "6cc132f6-c7fb-4123-9000-8b8ca62b9736",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 36434,
+          "completion_tokens": 327,
+          "total_tokens": 36761,
+          "prompt_tokens_details": {
+            "cached_tokens": 33536
+          },
+          "prompt_cache_hit_tokens": 33536,
+          "prompt_cache_miss_tokens": 2898
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.0007315080000000001,
+        "startedAt": "2026-10-22T04:09:33.544Z",
+        "modelCompletedAt": "2026-10-22T04:09:35.311Z",
+        "readyAt": "2026-10-22T04:09:37.081Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      },
+      {
+        "submission": 3,
+        "source": "cases/architecture-01/archify/candidate-3.json",
+        "sourceSha256": "c7e50a60fef99ed702c8ff8607bc6d263e4571babfddc53af0e5f3546b676110",
+        "responseId": "b6ab9b9b-a975-44d0-8943-707d0f9ba77a",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 39481,
+          "completion_tokens": 383,
+          "total_tokens": 39864,
+          "prompt_tokens_details": {
+            "cached_tokens": 36736
+          },
+          "prompt_cache_hit_tokens": 36736,
+          "prompt_cache_miss_tokens": 2745
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.0007517579999999999,
+        "startedAt": "2026-10-22T04:09:38.654Z",
+        "modelCompletedAt": "2026-10-22T04:09:41.277Z",
+        "readyAt": "2026-10-22T04:09:43.039Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      }
+    ]
+  },
+  {
+    "runId": "02-architecture-01-mermaid",
+    "taskId": "architecture-01",
+    "arm": "直接 Mermaid",
+    "format": "mermaid",
+    "selectedSubmission": 1,
+    "status": "delivered",
+    "source": "cases/architecture-01/mermaid/candidate-1.mmd",
+    "preview": "cases/architecture-01/mermaid/diagram.png",
+    "nativeFile": null,
+    "artifactSha256": "094dabe4bd7d9622e0dca6d58820e8fa446fc01abb4c7bd4d911506b90d8625f",
+    "previewSha256": "ca8a73fb86e3ae08852dbee47c0ea75167dfa81ac8e2ffe308ea17e4225162aa",
+    "startedAt": "2026-10-22T04:09:44.459Z",
+    "completedAt": "2026-10-22T04:09:49.541Z",
+    "usage": {
+      "inputTokens": 360,
+      "outputTokens": 68,
+      "cachedInputTokens": 128,
+      "reasoningTokens": null,
+      "costUsd": 0.000075984,
+      "totalTokens": 428,
+      "observed": {
+        "inputTokens": 360,
+        "outputTokens": 68,
+        "cachedInputTokens": 128,
+        "reasoningTokens": 0,
+        "costUsd": 0.000075984,
+        "totalTokens": 428
+      },
+      "complete": true,
+      "status": "complete",
+      "calls": [
+        {
+          "callId": "candidate-1",
+          "inputTokens": 360,
+          "outputTokens": 68,
+          "cachedInputTokens": 128,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.000075984,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 232,
+            "providerUsage": {
+              "prompt_tokens": 360,
+              "completion_tokens": 68,
+              "total_tokens": 428,
+              "prompt_tokens_details": {
+                "cached_tokens": 128
+              },
+              "prompt_cache_hit_tokens": 128,
+              "prompt_cache_miss_tokens": 232
+            }
+          },
+          "totalTokens": 428,
+          "status": "complete"
+        }
+      ]
+    },
+    "semantic": {
+      "status": "verified",
+      "passed": true,
+      "nodes": {
+        "matched": 4,
+        "expected": 4,
+        "actual": 4,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "edges": {
+        "matched": 4,
+        "expected": 4,
+        "actual": 4,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "violations": []
+    },
+    "geometry": {
+      "status": "verified",
+      "passed": true,
+      "violations": [],
+      "metrics": {
+        "nodes": 4,
+        "texts": 8,
+        "edges": 4,
+        "defects": 0,
+        "defectsPerNode": 0,
+        "counts": {},
+        "minFontPx": 12,
+        "epsilonPx": 0.5,
+        "calibrated": false,
+        "pilot": true
+      }
+    },
+    "editability": {
+      "status": "verified",
+      "passed": true,
+      "method": "actual-native-reload-label-edit"
+    },
+    "attempts": [
+      {
+        "submission": 1,
+        "source": "cases/architecture-01/mermaid/candidate-1.mmd",
+        "sourceSha256": "5e84eb8ac7cd5927f4b4ca7d9ac0d81cc536cf428c063968497925add7ef4bb0",
+        "responseId": "fd655abe-3af3-400d-a535-6221f887ad5a",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 360,
+          "completion_tokens": 68,
+          "total_tokens": 428,
+          "prompt_tokens_details": {
+            "cached_tokens": 128
+          },
+          "prompt_cache_hit_tokens": 128,
+          "prompt_cache_miss_tokens": 232
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.000075984,
+        "startedAt": "2026-10-22T04:09:44.459Z",
+        "modelCompletedAt": "2026-10-22T04:09:48.733Z",
+        "readyAt": "2026-10-22T04:09:49.541Z",
+        "accepted": true,
+        "verifiedDuringGeneration": true,
+        "nativeDiagnostics": []
+      }
+    ]
+  },
+  {
+    "runId": "03-architecture-01-svg",
+    "taskId": "architecture-01",
+    "arm": "直接 SVG",
+    "format": "svg",
+    "selectedSubmission": 1,
+    "status": "delivered",
+    "source": "cases/architecture-01/svg/candidate-1.svg",
+    "preview": "cases/architecture-01/svg/diagram.png",
+    "nativeFile": null,
+    "artifactSha256": "934042f6ddef27553bb17cd9f8c2974f5611590a026204c3957ea4e4920ae62c",
+    "previewSha256": "a52328c31e2a390bdb317407a67e2871a33308522d94b52e7d2d5d8588ad83a5",
+    "startedAt": "2026-10-22T04:09:51.224Z",
+    "completedAt": "2026-10-22T04:09:53.923Z",
+    "usage": {
+      "inputTokens": 411,
+      "outputTokens": 877,
+      "cachedInputTokens": 256,
+      "reasoningTokens": null,
+      "costUsd": 0.000550218,
+      "totalTokens": 1288,
+      "observed": {
+        "inputTokens": 411,
+        "outputTokens": 877,
+        "cachedInputTokens": 256,
+        "reasoningTokens": 0,
+        "costUsd": 0.000550218,
+        "totalTokens": 1288
+      },
+      "complete": true,
+      "status": "complete",
+      "calls": [
+        {
+          "callId": "candidate-1",
+          "inputTokens": 411,
+          "outputTokens": 877,
+          "cachedInputTokens": 256,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.000550218,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 155,
+            "providerUsage": {
+              "prompt_tokens": 411,
+              "completion_tokens": 877,
+              "total_tokens": 1288,
+              "prompt_tokens_details": {
+                "cached_tokens": 256
+              },
+              "prompt_cache_hit_tokens": 256,
+              "prompt_cache_miss_tokens": 155
+            }
+          },
+          "totalTokens": 1288,
+          "status": "complete"
+        }
+      ]
+    },
+    "semantic": {
+      "status": "verified",
+      "passed": true,
+      "nodes": {
+        "matched": 4,
+        "expected": 4,
+        "actual": 4,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "edges": {
+        "matched": 4,
+        "expected": 4,
+        "actual": 4,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "violations": []
+    },
+    "geometry": {
+      "status": "verified",
+      "passed": true,
+      "violations": [],
+      "metrics": {
+        "nodes": 4,
+        "texts": 8,
+        "edges": 4,
+        "defects": 0,
+        "defectsPerNode": 0,
+        "counts": {},
+        "minFontPx": 12,
+        "epsilonPx": 0.5,
+        "calibrated": false,
+        "pilot": true
+      }
+    },
+    "editability": {
+      "status": "verified",
+      "passed": true,
+      "method": "actual-native-reload-label-edit"
+    },
+    "attempts": [
+      {
+        "submission": 1,
+        "source": "cases/architecture-01/svg/candidate-1.svg",
+        "sourceSha256": "9e92db65e6a24c67e6428b00b291df26ec4593f682770cbd0133b8158eba28b0",
+        "responseId": "04d1079e-004b-439e-976f-eeea9c25e95f",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 411,
+          "completion_tokens": 877,
+          "total_tokens": 1288,
+          "prompt_tokens_details": {
+            "cached_tokens": 256
+          },
+          "prompt_cache_hit_tokens": 256,
+          "prompt_cache_miss_tokens": 155
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.000550218,
+        "startedAt": "2026-10-22T04:09:51.224Z",
+        "modelCompletedAt": "2026-10-22T04:09:53.918Z",
+        "readyAt": "2026-10-22T04:09:53.923Z",
+        "accepted": true,
+        "verifiedDuringGeneration": true,
+        "nativeDiagnostics": []
+      }
+    ]
+  },
+  {
+    "runId": "04-architecture-01-html",
+    "taskId": "architecture-01",
+    "arm": "直接 HTML",
+    "format": "html",
+    "selectedSubmission": 1,
+    "status": "delivered",
+    "source": "cases/architecture-01/html/candidate-1.html",
+    "preview": "cases/architecture-01/html/diagram.png",
+    "nativeFile": null,
+    "artifactSha256": "b65bd939224a40400e30b3f0071696a4009d2931e1ff9724c0537e4de95930ab",
+    "previewSha256": "63f5a36743db8e920e8eded78f1edc3d749b1b1fe5279d2ddd77cc33146b513d",
+    "startedAt": "2026-10-22T04:09:54.862Z",
+    "completedAt": "2026-10-22T04:09:57.370Z",
+    "usage": {
+      "inputTokens": 404,
+      "outputTokens": 815,
+      "cachedInputTokens": 256,
+      "reasoningTokens": null,
+      "costUsd": 0.000511968,
+      "totalTokens": 1219,
+      "observed": {
+        "inputTokens": 404,
+        "outputTokens": 815,
+        "cachedInputTokens": 256,
+        "reasoningTokens": 0,
+        "costUsd": 0.000511968,
+        "totalTokens": 1219
+      },
+      "complete": true,
+      "status": "complete",
+      "calls": [
+        {
+          "callId": "candidate-1",
+          "inputTokens": 404,
+          "outputTokens": 815,
+          "cachedInputTokens": 256,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.000511968,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 148,
+            "providerUsage": {
+              "prompt_tokens": 404,
+              "completion_tokens": 815,
+              "total_tokens": 1219,
+              "prompt_tokens_details": {
+                "cached_tokens": 256
+              },
+              "prompt_cache_hit_tokens": 256,
+              "prompt_cache_miss_tokens": 148
+            }
+          },
+          "totalTokens": 1219,
+          "status": "complete"
+        }
+      ]
+    },
+    "semantic": {
+      "status": "verified",
+      "passed": true,
+      "nodes": {
+        "matched": 4,
+        "expected": 4,
+        "actual": 4,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "edges": {
+        "matched": 4,
+        "expected": 4,
+        "actual": 4,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "violations": []
+    },
+    "geometry": {
+      "status": "verified",
+      "passed": true,
+      "violations": [],
+      "metrics": {
+        "nodes": 4,
+        "texts": 8,
+        "edges": 4,
+        "defects": 0,
+        "defectsPerNode": 0,
+        "counts": {},
+        "minFontPx": 12,
+        "epsilonPx": 0.5,
+        "calibrated": false,
+        "pilot": true
+      }
+    },
+    "editability": {
+      "status": "verified",
+      "passed": true,
+      "method": "actual-native-reload-label-edit"
+    },
+    "attempts": [
+      {
+        "submission": 1,
+        "source": "cases/architecture-01/html/candidate-1.html",
+        "sourceSha256": "b65bd939224a40400e30b3f0071696a4009d2931e1ff9724c0537e4de95930ab",
+        "responseId": "dc57e381-2929-4d67-bba3-6a9e5a13cfb1",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 404,
+          "completion_tokens": 815,
+          "total_tokens": 1219,
+          "prompt_tokens_details": {
+            "cached_tokens": 256
+          },
+          "prompt_cache_hit_tokens": 256,
+          "prompt_cache_miss_tokens": 148
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.000511968,
+        "startedAt": "2026-10-22T04:09:54.862Z",
+        "modelCompletedAt": "2026-10-22T04:09:57.358Z",
+        "readyAt": "2026-10-22T04:09:57.370Z",
+        "accepted": true,
+        "verifiedDuringGeneration": true,
+        "nativeDiagnostics": []
+      }
+    ]
+  },
+  {
+    "runId": "05-architecture-01-drawio",
+    "taskId": "architecture-01",
+    "arm": "Next AI Draw.io MCP",
+    "format": "drawio",
+    "selectedSubmission": 1,
+    "status": "delivered",
+    "source": "cases/architecture-01/drawio/candidate-1.xml",
+    "preview": "cases/architecture-01/drawio/diagram.png",
+    "nativeFile": "cases/architecture-01/drawio/diagram.drawio",
+    "artifactSha256": "37bfbc17d3c5c17f6a63927adbbb46e8885a12562f14c6036b0ad032a74822e9",
+    "previewSha256": "7a3ee440c47d20dac3e39e4ea72232b3e8e9e337679dcb0db881c279c6cb4b1f",
+    "startedAt": "2026-10-22T04:09:58.329Z",
+    "completedAt": "2026-10-22T04:10:04.664Z",
+    "usage": {
+      "inputTokens": 4681,
+      "outputTokens": 401,
+      "cachedInputTokens": 256,
+      "reasoningTokens": null,
+      "costUsd": 0.000905118,
+      "totalTokens": 5082,
+      "observed": {
+        "inputTokens": 4681,
+        "outputTokens": 401,
+        "cachedInputTokens": 256,
+        "reasoningTokens": 0,
+        "costUsd": 0.000905118,
+        "totalTokens": 5082
+      },
+      "complete": true,
+      "status": "complete",
+      "calls": [
+        {
+          "callId": "candidate-1",
+          "inputTokens": 4681,
+          "outputTokens": 401,
+          "cachedInputTokens": 256,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.000905118,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 4425,
+            "providerUsage": {
+              "prompt_tokens": 4681,
+              "completion_tokens": 401,
+              "total_tokens": 5082,
+              "prompt_tokens_details": {
+                "cached_tokens": 256
+              },
+              "prompt_cache_hit_tokens": 256,
+              "prompt_cache_miss_tokens": 4425
+            }
+          },
+          "totalTokens": 5082,
+          "status": "complete"
+        }
+      ]
+    },
+    "semantic": {
+      "status": "verified",
+      "passed": true,
+      "nodes": {
+        "matched": 4,
+        "expected": 4,
+        "actual": 4,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "edges": {
+        "matched": 4,
+        "expected": 4,
+        "actual": 4,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "violations": []
+    },
+    "geometry": {
+      "status": "verified",
+      "passed": true,
+      "violations": [],
+      "metrics": {
+        "nodes": 4,
+        "texts": 8,
+        "edges": 4,
+        "defects": 0,
+        "defectsPerNode": 0,
+        "counts": {},
+        "minFontPx": 12,
+        "epsilonPx": 0.5,
+        "calibrated": false,
+        "pilot": true
+      }
+    },
+    "editability": {
+      "status": "verified",
+      "passed": true,
+      "method": "actual-native-reload-label-edit"
+    },
+    "attempts": [
+      {
+        "submission": 1,
+        "source": "cases/architecture-01/drawio/candidate-1.xml",
+        "sourceSha256": "c2be8d1b0838630eb79b21bd668ccdaf94bb409ecb47b3ba9a7ce5277096ec8b",
+        "responseId": "67cc0420-1029-4cd6-8360-52f7e16a5d9d",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 4681,
+          "completion_tokens": 401,
+          "total_tokens": 5082,
+          "prompt_tokens_details": {
+            "cached_tokens": 256
+          },
+          "prompt_cache_hit_tokens": 256,
+          "prompt_cache_miss_tokens": 4425
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.000905118,
+        "startedAt": "2026-10-22T04:09:58.329Z",
+        "modelCompletedAt": "2026-10-22T04:10:01.230Z",
+        "readyAt": "2026-10-22T04:10:04.664Z",
+        "accepted": true,
+        "verifiedDuringGeneration": true,
+        "nativeDiagnostics": []
+      }
+    ]
+  },
+  {
+    "runId": "06-architecture-01-excalidraw",
+    "taskId": "architecture-01",
+    "arm": "Excalidraw MCP",
+    "format": "excalidraw",
+    "selectedSubmission": 3,
+    "status": "delivered",
+    "source": "cases/architecture-01/excalidraw/candidate-3.json",
+    "preview": "cases/architecture-01/excalidraw/diagram.png",
+    "nativeFile": "cases/architecture-01/excalidraw/diagram.excalidraw",
+    "artifactSha256": "d747982e88b16a663b842a5d352d94ace2ec56fc9c02f624ca582f7b80d25280",
+    "previewSha256": "e33128a3337b00b858c29fc0d7a26ce1c9d5b0d3d2517edcbe086f61d03f9171",
+    "startedAt": "2026-10-22T04:10:09.338Z",
+    "completedAt": "2026-10-22T04:10:38.959Z",
+    "usage": {
+      "inputTokens": 34170,
+      "outputTokens": 2448,
+      "cachedInputTokens": 30720,
+      "reasoningTokens": null,
+      "costUsd": 0.00207846,
+      "totalTokens": 36618,
+      "observed": {
+        "inputTokens": 34170,
+        "outputTokens": 2448,
+        "cachedInputTokens": 30720,
+        "reasoningTokens": 0,
+        "costUsd": 0.00207846,
+        "totalTokens": 36618
+      },
+      "complete": true,
+      "status": "complete",
+      "calls": [
+        {
+          "callId": "candidate-1",
+          "inputTokens": 9003,
+          "outputTokens": 816,
+          "cachedInputTokens": 8832,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.000541746,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 171,
+            "providerUsage": {
+              "prompt_tokens": 9003,
+              "completion_tokens": 816,
+              "total_tokens": 9819,
+              "prompt_tokens_details": {
+                "cached_tokens": 8832
+              },
+              "prompt_cache_hit_tokens": 8832,
+              "prompt_cache_miss_tokens": 171
+            }
+          },
+          "totalTokens": 9819,
+          "status": "complete"
+        },
+        {
+          "callId": "candidate-2",
+          "inputTokens": 11390,
+          "outputTokens": 816,
+          "cachedInputTokens": 9728,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.0007680839999999999,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 1662,
+            "providerUsage": {
+              "prompt_tokens": 11390,
+              "completion_tokens": 816,
+              "total_tokens": 12206,
+              "prompt_tokens_details": {
+                "cached_tokens": 9728
+              },
+              "prompt_cache_hit_tokens": 9728,
+              "prompt_cache_miss_tokens": 1662
+            }
+          },
+          "totalTokens": 12206,
+          "status": "complete"
+        },
+        {
+          "callId": "candidate-3",
+          "inputTokens": 13777,
+          "outputTokens": 816,
+          "cachedInputTokens": 12160,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.0007686299999999999,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 1617,
+            "providerUsage": {
+              "prompt_tokens": 13777,
+              "completion_tokens": 816,
+              "total_tokens": 14593,
+              "prompt_tokens_details": {
+                "cached_tokens": 12160
+              },
+              "prompt_cache_hit_tokens": 12160,
+              "prompt_cache_miss_tokens": 1617
+            }
+          },
+          "totalTokens": 14593,
+          "status": "complete"
+        }
+      ]
+    },
+    "semantic": {
+      "status": "verified",
+      "passed": false,
+      "nodes": {
+        "matched": 4,
+        "expected": 4,
+        "actual": 4,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "edges": {
+        "matched": 3,
+        "expected": 4,
+        "actual": 3,
+        "precision": 1,
+        "recall": 0.75,
+        "f1": 0.8571428571428571
+      },
+      "violations": [
+        {
+          "code": "missing_edge",
+          "from": "n4",
+          "to": "n3",
+          "label": "availability"
+        }
+      ]
+    },
+    "geometry": {
+      "status": "verified",
+      "passed": true,
+      "violations": [],
+      "metrics": {
+        "nodes": 4,
+        "texts": 8,
+        "edges": 3,
+        "defects": 0,
+        "defectsPerNode": 0,
+        "counts": {},
+        "minFontPx": 12,
+        "epsilonPx": 0.5,
+        "calibrated": false,
+        "pilot": true
+      }
+    },
+    "editability": {
+      "status": "verified",
+      "passed": true,
+      "method": "actual-native-reload-label-edit"
+    },
+    "attempts": [
+      {
+        "submission": 1,
+        "source": "cases/architecture-01/excalidraw/candidate-1.json",
+        "sourceSha256": "c22383e314084fbf94bf5d331d921875a1f4ee0bb9f46114ab575302dc0e10c7",
+        "responseId": "7aa72d46-e60f-4c33-bf00-fd8eb486e596",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 9003,
+          "completion_tokens": 816,
+          "total_tokens": 9819,
+          "prompt_tokens_details": {
+            "cached_tokens": 8832
+          },
+          "prompt_cache_hit_tokens": 8832,
+          "prompt_cache_miss_tokens": 171
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.000541746,
+        "startedAt": "2026-10-22T04:10:09.338Z",
+        "modelCompletedAt": "2026-10-22T04:10:12.098Z",
+        "readyAt": "2026-10-22T04:10:15.933Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      },
+      {
+        "submission": 2,
+        "source": "cases/architecture-01/excalidraw/candidate-2.json",
+        "sourceSha256": "c22383e314084fbf94bf5d331d921875a1f4ee0bb9f46114ab575302dc0e10c7",
+        "responseId": "b46c57ed-e964-4706-84c7-a3a9c33f7788",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 11390,
+          "completion_tokens": 816,
+          "total_tokens": 12206,
+          "prompt_tokens_details": {
+            "cached_tokens": 9728
+          },
+          "prompt_cache_hit_tokens": 9728,
+          "prompt_cache_miss_tokens": 1662
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.0007680839999999999,
+        "startedAt": "2026-10-22T04:10:20.696Z",
+        "modelCompletedAt": "2026-10-22T04:10:23.670Z",
+        "readyAt": "2026-10-22T04:10:27.569Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      },
+      {
+        "submission": 3,
+        "source": "cases/architecture-01/excalidraw/candidate-3.json",
+        "sourceSha256": "c22383e314084fbf94bf5d331d921875a1f4ee0bb9f46114ab575302dc0e10c7",
+        "responseId": "3f026f56-5d52-4a41-9370-037f06f89cbe",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 13777,
+          "completion_tokens": 816,
+          "total_tokens": 14593,
+          "prompt_tokens_details": {
+            "cached_tokens": 12160
+          },
+          "prompt_cache_hit_tokens": 12160,
+          "prompt_cache_miss_tokens": 1617
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.0007686299999999999,
+        "startedAt": "2026-10-22T04:10:32.273Z",
+        "modelCompletedAt": "2026-10-22T04:10:35.096Z",
+        "readyAt": "2026-10-22T04:10:38.959Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      }
+    ]
+  },
+  {
+    "runId": "07-workflow-01-mermaid",
+    "taskId": "workflow-01",
+    "arm": "直接 Mermaid",
+    "format": "mermaid",
+    "selectedSubmission": 1,
+    "status": "delivered",
+    "source": "cases/workflow-01/mermaid/candidate-1.mmd",
+    "preview": "cases/workflow-01/mermaid/diagram.png",
+    "nativeFile": null,
+    "artifactSha256": "f8dc903f9bd13a59478cfc98ce0edf553bd2d5901d6b8e67066c6628d303790e",
+    "previewSha256": "04c5b05210ecdf5f3229ef04a0a88b43022b0aae7a05ca98341d330fafe68871",
+    "startedAt": "2026-10-22T04:10:43.687Z",
+    "completedAt": "2026-10-22T04:10:45.300Z",
+    "usage": {
+      "inputTokens": 342,
+      "outputTokens": 40,
+      "cachedInputTokens": 128,
+      "reasoningTokens": null,
+      "costUsd": 0.000056484,
+      "totalTokens": 382,
+      "observed": {
+        "inputTokens": 342,
+        "outputTokens": 40,
+        "cachedInputTokens": 128,
+        "reasoningTokens": 0,
+        "costUsd": 0.000056484,
+        "totalTokens": 382
+      },
+      "complete": true,
+      "status": "complete",
+      "calls": [
+        {
+          "callId": "candidate-1",
+          "inputTokens": 342,
+          "outputTokens": 40,
+          "cachedInputTokens": 128,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.000056484,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 214,
+            "providerUsage": {
+              "prompt_tokens": 342,
+              "completion_tokens": 40,
+              "total_tokens": 382,
+              "prompt_tokens_details": {
+                "cached_tokens": 128
+              },
+              "prompt_cache_hit_tokens": 128,
+              "prompt_cache_miss_tokens": 214
+            }
+          },
+          "totalTokens": 382,
+          "status": "complete"
+        }
+      ]
+    },
+    "semantic": {
+      "status": "verified",
+      "passed": true,
+      "nodes": {
+        "matched": 4,
+        "expected": 4,
+        "actual": 4,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "edges": {
+        "matched": 3,
+        "expected": 3,
+        "actual": 3,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "violations": []
+    },
+    "geometry": {
+      "status": "verified",
+      "passed": true,
+      "violations": [],
+      "metrics": {
+        "nodes": 4,
+        "texts": 7,
+        "edges": 3,
+        "defects": 0,
+        "defectsPerNode": 0,
+        "counts": {},
+        "minFontPx": 12,
+        "epsilonPx": 0.5,
+        "calibrated": false,
+        "pilot": true
+      }
+    },
+    "editability": {
+      "status": "verified",
+      "passed": true,
+      "method": "actual-native-reload-label-edit"
+    },
+    "attempts": [
+      {
+        "submission": 1,
+        "source": "cases/workflow-01/mermaid/candidate-1.mmd",
+        "sourceSha256": "186929d2fa63ca9d89c70f49a17c0e961958b83ef97a7c4a0e1ba3601b5e447f",
+        "responseId": "aa70de00-8500-4174-a77d-349c6a952cea",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 342,
+          "completion_tokens": 40,
+          "total_tokens": 382,
+          "prompt_tokens_details": {
+            "cached_tokens": 128
+          },
+          "prompt_cache_hit_tokens": 128,
+          "prompt_cache_miss_tokens": 214
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.000056484,
+        "startedAt": "2026-10-22T04:10:43.687Z",
+        "modelCompletedAt": "2026-10-22T04:10:44.497Z",
+        "readyAt": "2026-10-22T04:10:45.300Z",
+        "accepted": true,
+        "verifiedDuringGeneration": true,
+        "nativeDiagnostics": []
+      }
+    ]
+  },
+  {
+    "runId": "08-workflow-01-svg",
+    "taskId": "workflow-01",
+    "arm": "直接 SVG",
+    "format": "svg",
+    "selectedSubmission": 1,
+    "status": "delivered",
+    "source": "cases/workflow-01/svg/candidate-1.svg",
+    "preview": "cases/workflow-01/svg/diagram.png",
+    "nativeFile": null,
+    "artifactSha256": "bfef8edca39e705ebc1335b0af7d57310f08273571062354e4b658f294c60f12",
+    "previewSha256": "1c038e37b3f68c57ec2918d375cf501f84ab22c50c21e36a01b695ac07342d02",
+    "startedAt": "2026-10-22T04:10:46.973Z",
+    "completedAt": "2026-10-22T04:10:49.686Z",
+    "usage": {
+      "inputTokens": 393,
+      "outputTokens": 786,
+      "cachedInputTokens": 256,
+      "reasoningTokens": null,
+      "costUsd": 0.000492918,
+      "totalTokens": 1179,
+      "observed": {
+        "inputTokens": 393,
+        "outputTokens": 786,
+        "cachedInputTokens": 256,
+        "reasoningTokens": 0,
+        "costUsd": 0.000492918,
+        "totalTokens": 1179
+      },
+      "complete": true,
+      "status": "complete",
+      "calls": [
+        {
+          "callId": "candidate-1",
+          "inputTokens": 393,
+          "outputTokens": 786,
+          "cachedInputTokens": 256,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.000492918,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 137,
+            "providerUsage": {
+              "prompt_tokens": 393,
+              "completion_tokens": 786,
+              "total_tokens": 1179,
+              "prompt_tokens_details": {
+                "cached_tokens": 256
+              },
+              "prompt_cache_hit_tokens": 256,
+              "prompt_cache_miss_tokens": 137
+            }
+          },
+          "totalTokens": 1179,
+          "status": "complete"
+        }
+      ]
+    },
+    "semantic": {
+      "status": "verified",
+      "passed": true,
+      "nodes": {
+        "matched": 4,
+        "expected": 4,
+        "actual": 4,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "edges": {
+        "matched": 3,
+        "expected": 3,
+        "actual": 3,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "violations": []
+    },
+    "geometry": {
+      "status": "verified",
+      "passed": true,
+      "violations": [],
+      "metrics": {
+        "nodes": 4,
+        "texts": 7,
+        "edges": 3,
+        "defects": 0,
+        "defectsPerNode": 0,
+        "counts": {},
+        "minFontPx": 12,
+        "epsilonPx": 0.5,
+        "calibrated": false,
+        "pilot": true
+      }
+    },
+    "editability": {
+      "status": "verified",
+      "passed": true,
+      "method": "actual-native-reload-label-edit"
+    },
+    "attempts": [
+      {
+        "submission": 1,
+        "source": "cases/workflow-01/svg/candidate-1.svg",
+        "sourceSha256": "61b56cf66a86dda18dd907e9f235f2eb266086975c379c08a4117e00cdeae233",
+        "responseId": "2558df6a-bda9-48f3-bbed-498988252153",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 393,
+          "completion_tokens": 786,
+          "total_tokens": 1179,
+          "prompt_tokens_details": {
+            "cached_tokens": 256
+          },
+          "prompt_cache_hit_tokens": 256,
+          "prompt_cache_miss_tokens": 137
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.000492918,
+        "startedAt": "2026-10-22T04:10:46.973Z",
+        "modelCompletedAt": "2026-10-22T04:10:49.683Z",
+        "readyAt": "2026-10-22T04:10:49.686Z",
+        "accepted": true,
+        "verifiedDuringGeneration": true,
+        "nativeDiagnostics": []
+      }
+    ]
+  },
+  {
+    "runId": "09-workflow-01-html",
+    "taskId": "workflow-01",
+    "arm": "直接 HTML",
+    "format": "html",
+    "selectedSubmission": 1,
+    "status": "delivered",
+    "source": "cases/workflow-01/html/candidate-1.html",
+    "preview": "cases/workflow-01/html/diagram.png",
+    "nativeFile": null,
+    "artifactSha256": "58fca3288c76018ab7358297fad7bd55b9c9d39193e85f3db9524e0b5b36e666",
+    "previewSha256": "26d597f8f92de4aaeba0f6b771ba79d3cf7b206e1128a28ec2c7cc897c0a41ac",
+    "startedAt": "2026-10-22T04:10:50.640Z",
+    "completedAt": "2026-10-22T04:10:53.678Z",
+    "usage": {
+      "inputTokens": 386,
+      "outputTokens": 906,
+      "cachedInputTokens": 252,
+      "reasoningTokens": null,
+      "costUsd": 0.000564456,
+      "totalTokens": 1292,
+      "observed": {
+        "inputTokens": 386,
+        "outputTokens": 906,
+        "cachedInputTokens": 252,
+        "reasoningTokens": 0,
+        "costUsd": 0.000564456,
+        "totalTokens": 1292
+      },
+      "complete": true,
+      "status": "complete",
+      "calls": [
+        {
+          "callId": "candidate-1",
+          "inputTokens": 386,
+          "outputTokens": 906,
+          "cachedInputTokens": 252,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.000564456,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 134,
+            "providerUsage": {
+              "prompt_tokens": 386,
+              "completion_tokens": 906,
+              "total_tokens": 1292,
+              "prompt_tokens_details": {
+                "cached_tokens": 252
+              },
+              "prompt_cache_hit_tokens": 252,
+              "prompt_cache_miss_tokens": 134
+            }
+          },
+          "totalTokens": 1292,
+          "status": "complete"
+        }
+      ]
+    },
+    "semantic": {
+      "status": "verified",
+      "passed": true,
+      "nodes": {
+        "matched": 4,
+        "expected": 4,
+        "actual": 4,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "edges": {
+        "matched": 3,
+        "expected": 3,
+        "actual": 3,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "violations": []
+    },
+    "geometry": {
+      "status": "verified",
+      "passed": true,
+      "violations": [],
+      "metrics": {
+        "nodes": 4,
+        "texts": 7,
+        "edges": 3,
+        "defects": 0,
+        "defectsPerNode": 0,
+        "counts": {},
+        "minFontPx": 12,
+        "epsilonPx": 0.5,
+        "calibrated": false,
+        "pilot": true
+      }
+    },
+    "editability": {
+      "status": "verified",
+      "passed": true,
+      "method": "actual-native-reload-label-edit"
+    },
+    "attempts": [
+      {
+        "submission": 1,
+        "source": "cases/workflow-01/html/candidate-1.html",
+        "sourceSha256": "58fca3288c76018ab7358297fad7bd55b9c9d39193e85f3db9524e0b5b36e666",
+        "responseId": "42a01fd2-45a8-47a6-b6bf-3ffc0606dca1",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 386,
+          "completion_tokens": 906,
+          "total_tokens": 1292,
+          "prompt_tokens_details": {
+            "cached_tokens": 252
+          },
+          "prompt_cache_hit_tokens": 252,
+          "prompt_cache_miss_tokens": 134
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.000564456,
+        "startedAt": "2026-10-22T04:10:50.640Z",
+        "modelCompletedAt": "2026-10-22T04:10:53.670Z",
+        "readyAt": "2026-10-22T04:10:53.678Z",
+        "accepted": true,
+        "verifiedDuringGeneration": true,
+        "nativeDiagnostics": []
+      }
+    ]
+  },
+  {
+    "runId": "10-workflow-01-drawio",
+    "taskId": "workflow-01",
+    "arm": "Next AI Draw.io MCP",
+    "format": "drawio",
+    "selectedSubmission": 1,
+    "status": "delivered",
+    "source": "cases/workflow-01/drawio/candidate-1.xml",
+    "preview": "cases/workflow-01/drawio/diagram.png",
+    "nativeFile": "cases/workflow-01/drawio/diagram.drawio",
+    "artifactSha256": "de84dfbc7e70ae5133e723d38755d70aca3392ca5885eebe1fb38c21a3056110",
+    "previewSha256": "07fc223a5a9e592a445013d4631ff678bd49e1be57e7448830f3ad7e818f0ab0",
+    "startedAt": "2026-10-22T04:10:54.645Z",
+    "completedAt": "2026-10-22T04:10:58.625Z",
+    "usage": {
+      "inputTokens": 4663,
+      "outputTokens": 425,
+      "cachedInputTokens": 256,
+      "reasoningTokens": null,
+      "costUsd": 0.000916818,
+      "totalTokens": 5088,
+      "observed": {
+        "inputTokens": 4663,
+        "outputTokens": 425,
+        "cachedInputTokens": 256,
+        "reasoningTokens": 0,
+        "costUsd": 0.000916818,
+        "totalTokens": 5088
+      },
+      "complete": true,
+      "status": "complete",
+      "calls": [
+        {
+          "callId": "candidate-1",
+          "inputTokens": 4663,
+          "outputTokens": 425,
+          "cachedInputTokens": 256,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.000916818,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 4407,
+            "providerUsage": {
+              "prompt_tokens": 4663,
+              "completion_tokens": 425,
+              "total_tokens": 5088,
+              "prompt_tokens_details": {
+                "cached_tokens": 256
+              },
+              "prompt_cache_hit_tokens": 256,
+              "prompt_cache_miss_tokens": 4407
+            }
+          },
+          "totalTokens": 5088,
+          "status": "complete"
+        }
+      ]
+    },
+    "semantic": {
+      "status": "verified",
+      "passed": true,
+      "nodes": {
+        "matched": 4,
+        "expected": 4,
+        "actual": 4,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "edges": {
+        "matched": 3,
+        "expected": 3,
+        "actual": 3,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "violations": []
+    },
+    "geometry": {
+      "status": "verified",
+      "passed": true,
+      "violations": [],
+      "metrics": {
+        "nodes": 4,
+        "texts": 7,
+        "edges": 3,
+        "defects": 0,
+        "defectsPerNode": 0,
+        "counts": {},
+        "minFontPx": 12,
+        "epsilonPx": 0.5,
+        "calibrated": false,
+        "pilot": true
+      }
+    },
+    "editability": {
+      "status": "verified",
+      "passed": true,
+      "method": "actual-native-reload-label-edit"
+    },
+    "attempts": [
+      {
+        "submission": 1,
+        "source": "cases/workflow-01/drawio/candidate-1.xml",
+        "sourceSha256": "e58129e5ebbfe7c81daa22ae1346a563b9004e634da2eab946f44d0f0c8996ff",
+        "responseId": "376564f1-0f45-466a-affa-98ac811256cf",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 4663,
+          "completion_tokens": 425,
+          "total_tokens": 5088,
+          "prompt_tokens_details": {
+            "cached_tokens": 256
+          },
+          "prompt_cache_hit_tokens": 256,
+          "prompt_cache_miss_tokens": 4407
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.000916818,
+        "startedAt": "2026-10-22T04:10:54.645Z",
+        "modelCompletedAt": "2026-10-22T04:10:56.308Z",
+        "readyAt": "2026-10-22T04:10:58.625Z",
+        "accepted": true,
+        "verifiedDuringGeneration": true,
+        "nativeDiagnostics": []
+      }
+    ]
+  },
+  {
+    "runId": "11-workflow-01-excalidraw",
+    "taskId": "workflow-01",
+    "arm": "Excalidraw MCP",
+    "format": "excalidraw",
+    "selectedSubmission": 1,
+    "status": "delivered",
+    "source": "cases/workflow-01/excalidraw/candidate-1.json",
+    "preview": "cases/workflow-01/excalidraw/diagram.png",
+    "nativeFile": "cases/workflow-01/excalidraw/diagram.excalidraw",
+    "artifactSha256": "d06a52e5c2575adc9a08cc70c97ffcdd1506fd09a384b96d06c1fe523f620e0d",
+    "previewSha256": "819d6ed3120b00beab57a4b35c0ed145548b589934da667dab42120c6c98e470",
+    "startedAt": "2026-10-22T04:11:03.082Z",
+    "completedAt": "2026-10-22T04:11:10.705Z",
+    "usage": {
+      "inputTokens": 8985,
+      "outputTokens": 674,
+      "cachedInputTokens": 8832,
+      "reasoningTokens": null,
+      "costUsd": 0.000453846,
+      "totalTokens": 9659,
+      "observed": {
+        "inputTokens": 8985,
+        "outputTokens": 674,
+        "cachedInputTokens": 8832,
+        "reasoningTokens": 0,
+        "costUsd": 0.000453846,
+        "totalTokens": 9659
+      },
+      "complete": true,
+      "status": "complete",
+      "calls": [
+        {
+          "callId": "candidate-1",
+          "inputTokens": 8985,
+          "outputTokens": 674,
+          "cachedInputTokens": 8832,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.000453846,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 153,
+            "providerUsage": {
+              "prompt_tokens": 8985,
+              "completion_tokens": 674,
+              "total_tokens": 9659,
+              "prompt_tokens_details": {
+                "cached_tokens": 8832
+              },
+              "prompt_cache_hit_tokens": 8832,
+              "prompt_cache_miss_tokens": 153
+            }
+          },
+          "totalTokens": 9659,
+          "status": "complete"
+        }
+      ]
+    },
+    "semantic": {
+      "status": "verified",
+      "passed": true,
+      "nodes": {
+        "matched": 4,
+        "expected": 4,
+        "actual": 4,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "edges": {
+        "matched": 3,
+        "expected": 3,
+        "actual": 3,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "violations": []
+    },
+    "geometry": {
+      "status": "verified",
+      "passed": true,
+      "violations": [],
+      "metrics": {
+        "nodes": 4,
+        "texts": 7,
+        "edges": 3,
+        "defects": 0,
+        "defectsPerNode": 0,
+        "counts": {},
+        "minFontPx": 12,
+        "epsilonPx": 0.5,
+        "calibrated": false,
+        "pilot": true
+      }
+    },
+    "editability": {
+      "status": "verified",
+      "passed": true,
+      "method": "actual-native-reload-label-edit"
+    },
+    "attempts": [
+      {
+        "submission": 1,
+        "source": "cases/workflow-01/excalidraw/candidate-1.json",
+        "sourceSha256": "c35f933557dbdcea33499909c53789ce7419c9cde298ddaab1699090d7c827bc",
+        "responseId": "762cbe0c-8646-4b62-96a9-0c9f8800f264",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 8985,
+          "completion_tokens": 674,
+          "total_tokens": 9659,
+          "prompt_tokens_details": {
+            "cached_tokens": 8832
+          },
+          "prompt_cache_hit_tokens": 8832,
+          "prompt_cache_miss_tokens": 153
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.000453846,
+        "startedAt": "2026-10-22T04:11:03.082Z",
+        "modelCompletedAt": "2026-10-22T04:11:06.780Z",
+        "readyAt": "2026-10-22T04:11:10.705Z",
+        "accepted": true,
+        "verifiedDuringGeneration": true,
+        "nativeDiagnostics": []
+      }
+    ]
+  },
+  {
+    "runId": "12-workflow-01-archify",
+    "taskId": "workflow-01",
+    "arm": "Archify Skill",
+    "format": "archify",
+    "selectedSubmission": 3,
+    "status": "delivered",
+    "source": "cases/workflow-01/archify/candidate-3.json",
+    "preview": "cases/workflow-01/archify/diagram.png",
+    "nativeFile": null,
+    "artifactSha256": "92e83ff635ec3eff40d90dbd982610265431af55e10b3d59e3582c4f321184be",
+    "previewSha256": "f0a158123d56e72dbcbaf5ec768ab2de21a74285ecd9aa8bf718c1ed750412d5",
+    "startedAt": "2026-10-22T04:11:15.507Z",
+    "completedAt": "2026-10-22T04:11:32.869Z",
+    "usage": {
+      "inputTokens": 120906,
+      "outputTokens": 987,
+      "cachedInputTokens": 116224,
+      "reasoningTokens": null,
+      "costUsd": 0.001643172,
+      "totalTokens": 121893,
+      "observed": {
+        "inputTokens": 120906,
+        "outputTokens": 987,
+        "cachedInputTokens": 116224,
+        "reasoningTokens": 0,
+        "costUsd": 0.001643172,
+        "totalTokens": 121893
+      },
+      "complete": true,
+      "status": "complete",
+      "calls": [
+        {
+          "callId": "candidate-1",
+          "inputTokens": 37783,
+          "outputTokens": 329,
+          "cachedInputTokens": 37632,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.00033294600000000003,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 151,
+            "providerUsage": {
+              "prompt_tokens": 37783,
+              "completion_tokens": 329,
+              "total_tokens": 38112,
+              "prompt_tokens_details": {
+                "cached_tokens": 37632
+              },
+              "prompt_cache_hit_tokens": 37632,
+              "prompt_cache_miss_tokens": 151
+            }
+          },
+          "totalTokens": 38112,
+          "status": "complete"
+        },
+        {
+          "callId": "candidate-2",
+          "inputTokens": 40252,
+          "outputTokens": 329,
+          "cachedInputTokens": 38016,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.000646848,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 2236,
+            "providerUsage": {
+              "prompt_tokens": 40252,
+              "completion_tokens": 329,
+              "total_tokens": 40581,
+              "prompt_tokens_details": {
+                "cached_tokens": 38016
+              },
+              "prompt_cache_hit_tokens": 38016,
+              "prompt_cache_miss_tokens": 2236
+            }
+          },
+          "totalTokens": 40581,
+          "status": "complete"
+        },
+        {
+          "callId": "candidate-3",
+          "inputTokens": 42871,
+          "outputTokens": 329,
+          "cachedInputTokens": 40576,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.0006633780000000001,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 2295,
+            "providerUsage": {
+              "prompt_tokens": 42871,
+              "completion_tokens": 329,
+              "total_tokens": 43200,
+              "prompt_tokens_details": {
+                "cached_tokens": 40576
+              },
+              "prompt_cache_hit_tokens": 40576,
+              "prompt_cache_miss_tokens": 2295
+            }
+          },
+          "totalTokens": 43200,
+          "status": "complete"
+        }
+      ]
+    },
+    "semantic": {
+      "status": "verified",
+      "passed": true,
+      "nodes": {
+        "matched": 4,
+        "expected": 4,
+        "actual": 4,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "edges": {
+        "matched": 3,
+        "expected": 3,
+        "actual": 3,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "violations": []
+    },
+    "geometry": {
+      "status": "verified",
+      "passed": false,
+      "violations": [
+        {
+          "code": "tiny_font",
+          "text": "提交申请",
+          "fontSize": 11.383399209486166
+        },
+        {
+          "code": "tiny_font",
+          "text": "审核",
+          "fontSize": 11.383399209486166
+        },
+        {
+          "code": "tiny_font",
+          "text": "授权",
+          "fontSize": 11.383399209486166
+        },
+        {
+          "code": "tiny_font",
+          "text": "结束",
+          "fontSize": 11.383399209486166
+        },
+        {
+          "code": "tiny_font",
+          "text": "approved",
+          "fontSize": 11.383399209486166
+        },
+        {
+          "code": "tiny_font",
+          "text": "denied",
+          "fontSize": 11.383399209486166
+        },
+        {
+          "code": "tiny_font",
+          "text": "submit",
+          "fontSize": 11.383399209486166
+        },
+        {
+          "code": "tiny_font",
+          "text": "用户界面",
+          "fontSize": 10.67193675889328
+        },
+        {
+          "code": "tiny_font",
+          "text": "Agent 逻辑",
+          "fontSize": 10.67193675889328
+        },
+        {
+          "code": "tiny_font",
+          "text": "策略",
+          "fontSize": 10.67193675889328
+        },
+        {
+          "code": "tiny_font",
+          "text": "外部系统",
+          "fontSize": 10.67193675889328
+        }
+      ],
+      "metrics": {
+        "nodes": 4,
+        "texts": 17,
+        "edges": 3,
+        "defects": 11,
+        "defectsPerNode": 2.75,
+        "counts": {
+          "tiny_font": 11
+        },
+        "minFontPx": 12,
+        "epsilonPx": 0.5,
+        "calibrated": false,
+        "pilot": true
+      }
+    },
+    "editability": {
+      "status": "verified",
+      "passed": true,
+      "method": "archify-reload-rename-render"
+    },
+    "attempts": [
+      {
+        "submission": 1,
+        "source": "cases/workflow-01/archify/candidate-1.json",
+        "sourceSha256": "e645d75f9306b2df21678f8075c218fcafdd39d1c8db5feba237a24a73de5272",
+        "responseId": "fe1d14d8-ca20-445d-8353-1ed5c571a5d2",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 37783,
+          "completion_tokens": 329,
+          "total_tokens": 38112,
+          "prompt_tokens_details": {
+            "cached_tokens": 37632
+          },
+          "prompt_cache_hit_tokens": 37632,
+          "prompt_cache_miss_tokens": 151
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.00033294600000000003,
+        "startedAt": "2026-10-22T04:11:15.507Z",
+        "modelCompletedAt": "2026-10-22T04:11:17.105Z",
+        "readyAt": "2026-10-22T04:11:18.995Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      },
+      {
+        "submission": 2,
+        "source": "cases/workflow-01/archify/candidate-2.json",
+        "sourceSha256": "3ff268d9939e4b7f4221f1fc0d5cd93cc18a19fa085d646d45dde35b55cc3538",
+        "responseId": "b6156090-ccad-4a5a-a45d-0970f50ee9c2",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 40252,
+          "completion_tokens": 329,
+          "total_tokens": 40581,
+          "prompt_tokens_details": {
+            "cached_tokens": 38016
+          },
+          "prompt_cache_hit_tokens": 38016,
+          "prompt_cache_miss_tokens": 2236
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.000646848,
+        "startedAt": "2026-10-22T04:11:20.571Z",
+        "modelCompletedAt": "2026-10-22T04:11:26.054Z",
+        "readyAt": "2026-10-22T04:11:27.938Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      },
+      {
+        "submission": 3,
+        "source": "cases/workflow-01/archify/candidate-3.json",
+        "sourceSha256": "3ff268d9939e4b7f4221f1fc0d5cd93cc18a19fa085d646d45dde35b55cc3538",
+        "responseId": "d3456f22-69f5-49e1-a9ae-93892b8d1067",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 42871,
+          "completion_tokens": 329,
+          "total_tokens": 43200,
+          "prompt_tokens_details": {
+            "cached_tokens": 40576
+          },
+          "prompt_cache_hit_tokens": 40576,
+          "prompt_cache_miss_tokens": 2295
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.0006633780000000001,
+        "startedAt": "2026-10-22T04:11:29.442Z",
+        "modelCompletedAt": "2026-10-22T04:11:30.891Z",
+        "readyAt": "2026-10-22T04:11:32.869Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      }
+    ]
+  },
+  {
+    "runId": "13-architecture-04-svg",
+    "taskId": "architecture-04",
+    "arm": "直接 SVG",
+    "format": "svg",
+    "selectedSubmission": 3,
+    "status": "delivered",
+    "source": "cases/architecture-04/svg/candidate-3.svg",
+    "preview": "cases/architecture-04/svg/diagram.png",
+    "nativeFile": null,
+    "artifactSha256": "5e718d74765c4f33a99e3309eddc8cae10732b059fcc6fef3772bb2ac96f0bbf",
+    "previewSha256": "7f09e096aff8020ec542138ccf0036480d3c2f73e1c27e358fb78d25655b50d7",
+    "startedAt": "2026-10-22T04:11:34.304Z",
+    "completedAt": "2026-10-22T04:11:47.037Z",
+    "usage": {
+      "inputTokens": 9534,
+      "outputTokens": 3610,
+      "cachedInputTokens": 6272,
+      "reasoningTokens": null,
+      "costUsd": 0.002674116,
+      "totalTokens": 13144,
+      "observed": {
+        "inputTokens": 9534,
+        "outputTokens": 3610,
+        "cachedInputTokens": 6272,
+        "reasoningTokens": 0,
+        "costUsd": 0.002674116,
+        "totalTokens": 13144
+      },
+      "complete": true,
+      "status": "complete",
+      "calls": [
+        {
+          "callId": "candidate-1",
+          "inputTokens": 448,
+          "outputTokens": 1231,
+          "cachedInputTokens": 256,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.000768168,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 192,
+            "providerUsage": {
+              "prompt_tokens": 448,
+              "completion_tokens": 1231,
+              "total_tokens": 1679,
+              "prompt_tokens_details": {
+                "cached_tokens": 256
+              },
+              "prompt_cache_hit_tokens": 256,
+              "prompt_cache_miss_tokens": 192
+            }
+          },
+          "totalTokens": 1679,
+          "status": "complete"
+        },
+        {
+          "callId": "candidate-2",
+          "inputTokens": 3152,
+          "outputTokens": 1226,
+          "cachedInputTokens": 1664,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.000963792,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 1488,
+            "providerUsage": {
+              "prompt_tokens": 3152,
+              "completion_tokens": 1226,
+              "total_tokens": 4378,
+              "prompt_tokens_details": {
+                "cached_tokens": 1664
+              },
+              "prompt_cache_hit_tokens": 1664,
+              "prompt_cache_miss_tokens": 1488
+            }
+          },
+          "totalTokens": 4378,
+          "status": "complete"
+        },
+        {
+          "callId": "candidate-3",
+          "inputTokens": 5934,
+          "outputTokens": 1153,
+          "cachedInputTokens": 4352,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.000942156,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 1582,
+            "providerUsage": {
+              "prompt_tokens": 5934,
+              "completion_tokens": 1153,
+              "total_tokens": 7087,
+              "prompt_tokens_details": {
+                "cached_tokens": 4352
+              },
+              "prompt_cache_hit_tokens": 4352,
+              "prompt_cache_miss_tokens": 1582
+            }
+          },
+          "totalTokens": 7087,
+          "status": "complete"
+        }
+      ]
+    },
+    "semantic": {
+      "status": "verified",
+      "passed": false,
+      "nodes": {
+        "matched": 6,
+        "expected": 6,
+        "actual": 6,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "edges": {
+        "matched": 4,
+        "expected": 6,
+        "actual": 5,
+        "precision": 0.8,
+        "recall": 0.6666666666666666,
+        "f1": 0.7272727272727272
+      },
+      "violations": [
+        {
+          "code": "missing_edge",
+          "from": "n2",
+          "to": "n5",
+          "label": "charge"
+        },
+        {
+          "code": "missing_edge",
+          "from": "n5",
+          "to": "n2",
+          "label": "payment result"
+        },
+        {
+          "code": "missing_required_label",
+          "label": "charge"
+        },
+        {
+          "code": "unexpected_edges",
+          "count": 1
+        }
+      ]
+    },
+    "geometry": {
+      "status": "verified",
+      "passed": false,
+      "violations": [
+        {
+          "code": "text_node_overlap",
+          "nodeId": "observed-node-5",
+          "text": "payment result"
+        }
+      ],
+      "metrics": {
+        "nodes": 6,
+        "texts": 11,
+        "edges": 5,
+        "defects": 1,
+        "defectsPerNode": 0.16666666666666666,
+        "counts": {
+          "text_node_overlap": 1
+        },
+        "minFontPx": 12,
+        "epsilonPx": 0.5,
+        "calibrated": false,
+        "pilot": true
+      }
+    },
+    "editability": {
+      "status": "verified",
+      "passed": true,
+      "method": "actual-native-reload-label-edit"
+    },
+    "attempts": [
+      {
+        "submission": 1,
+        "source": "cases/architecture-04/svg/candidate-1.svg",
+        "sourceSha256": "b20bf0f9003621dd77c4760ac153412eca7ace8cedc12c3349bcc0b5bc0fe7c5",
+        "responseId": "31e20d55-19f1-482b-8cfb-51f39ef18eb5",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 448,
+          "completion_tokens": 1231,
+          "total_tokens": 1679,
+          "prompt_tokens_details": {
+            "cached_tokens": 256
+          },
+          "prompt_cache_hit_tokens": 256,
+          "prompt_cache_miss_tokens": 192
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.000768168,
+        "startedAt": "2026-10-22T04:11:34.304Z",
+        "modelCompletedAt": "2026-10-22T04:11:38.277Z",
+        "readyAt": "2026-10-22T04:11:38.279Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      },
+      {
+        "submission": 2,
+        "source": "cases/architecture-04/svg/candidate-2.svg",
+        "sourceSha256": "68b59d3150bb0cbffef4513c93a3b2e3f280686170f91d984094e6f09d5989df",
+        "responseId": "50de07a6-a10c-4998-a943-ec4be585a1c3",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 3152,
+          "completion_tokens": 1226,
+          "total_tokens": 4378,
+          "prompt_tokens_details": {
+            "cached_tokens": 1664
+          },
+          "prompt_cache_hit_tokens": 1664,
+          "prompt_cache_miss_tokens": 1488
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.000963792,
+        "startedAt": "2026-10-22T04:11:39.613Z",
+        "modelCompletedAt": "2026-10-22T04:11:42.870Z",
+        "readyAt": "2026-10-22T04:11:42.877Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      },
+      {
+        "submission": 3,
+        "source": "cases/architecture-04/svg/candidate-3.svg",
+        "sourceSha256": "12fc1b46268511c95157c37cfb89a6d446fae6a2e7bd01c8c7b20c331735c205",
+        "responseId": "0dcae7be-4cde-4bfe-b95b-e4185cbb00c7",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 5934,
+          "completion_tokens": 1153,
+          "total_tokens": 7087,
+          "prompt_tokens_details": {
+            "cached_tokens": 4352
+          },
+          "prompt_cache_hit_tokens": 4352,
+          "prompt_cache_miss_tokens": 1582
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.000942156,
+        "startedAt": "2026-10-22T04:11:43.857Z",
+        "modelCompletedAt": "2026-10-22T04:11:47.032Z",
+        "readyAt": "2026-10-22T04:11:47.037Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      }
+    ]
+  },
+  {
+    "runId": "14-architecture-04-html",
+    "taskId": "architecture-04",
+    "arm": "直接 HTML",
+    "format": "html",
+    "selectedSubmission": 3,
+    "status": "delivered",
+    "source": "cases/architecture-04/html/candidate-3.html",
+    "preview": "cases/architecture-04/html/diagram.png",
+    "nativeFile": null,
+    "artifactSha256": "6d135310078b774e8f4397c5ca6277690f9f95821d4d865accceded86af9968c",
+    "previewSha256": "9199d3563248d7e51e650d1570a8cbcfa15a17eec7e27e139c1fcccb6e213cc0",
+    "startedAt": "2026-10-22T04:11:47.984Z",
+    "completedAt": "2026-10-22T04:12:01.145Z",
+    "usage": {
+      "inputTokens": 12321,
+      "outputTokens": 3354,
+      "cachedInputTokens": 6912,
+      "reasoningTokens": null,
+      "costUsd": 0.002844486,
+      "totalTokens": 15675,
+      "observed": {
+        "inputTokens": 12321,
+        "outputTokens": 3354,
+        "cachedInputTokens": 6912,
+        "reasoningTokens": 0,
+        "costUsd": 0.002844486,
+        "totalTokens": 15675
+      },
+      "complete": true,
+      "status": "complete",
+      "calls": [
+        {
+          "callId": "candidate-1",
+          "inputTokens": 441,
+          "outputTokens": 1118,
+          "cachedInputTokens": 256,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.000699318,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 185,
+            "providerUsage": {
+              "prompt_tokens": 441,
+              "completion_tokens": 1118,
+              "total_tokens": 1559,
+              "prompt_tokens_details": {
+                "cached_tokens": 256
+              },
+              "prompt_cache_hit_tokens": 256,
+              "prompt_cache_miss_tokens": 185
+            }
+          },
+          "totalTokens": 1559,
+          "status": "complete"
+        },
+        {
+          "callId": "candidate-2",
+          "inputTokens": 4107,
+          "outputTokens": 1118,
+          "cachedInputTokens": 1536,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.001061058,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 2571,
+            "providerUsage": {
+              "prompt_tokens": 4107,
+              "completion_tokens": 1118,
+              "total_tokens": 5225,
+              "prompt_tokens_details": {
+                "cached_tokens": 1536
+              },
+              "prompt_cache_hit_tokens": 1536,
+              "prompt_cache_miss_tokens": 2571
+            }
+          },
+          "totalTokens": 5225,
+          "status": "complete"
+        },
+        {
+          "callId": "candidate-3",
+          "inputTokens": 7773,
+          "outputTokens": 1118,
+          "cachedInputTokens": 5120,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.0010841099999999999,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 2653,
+            "providerUsage": {
+              "prompt_tokens": 7773,
+              "completion_tokens": 1118,
+              "total_tokens": 8891,
+              "prompt_tokens_details": {
+                "cached_tokens": 5120
+              },
+              "prompt_cache_hit_tokens": 5120,
+              "prompt_cache_miss_tokens": 2653
+            }
+          },
+          "totalTokens": 8891,
+          "status": "complete"
+        }
+      ]
+    },
+    "semantic": {
+      "status": "verified",
+      "passed": false,
+      "nodes": {
+        "matched": 6,
+        "expected": 6,
+        "actual": 6,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "edges": {
+        "matched": 5,
+        "expected": 6,
+        "actual": 5,
+        "precision": 1,
+        "recall": 0.8333333333333334,
+        "f1": 0.9090909090909091
+      },
+      "violations": [
+        {
+          "code": "missing_edge",
+          "from": "n5",
+          "to": "n2",
+          "label": "payment result"
+        }
+      ]
+    },
+    "geometry": {
+      "status": "verified",
+      "passed": true,
+      "violations": [],
+      "metrics": {
+        "nodes": 6,
+        "texts": 12,
+        "edges": 5,
+        "defects": 0,
+        "defectsPerNode": 0,
+        "counts": {},
+        "minFontPx": 12,
+        "epsilonPx": 0.5,
+        "calibrated": false,
+        "pilot": true
+      }
+    },
+    "editability": {
+      "status": "verified",
+      "passed": true,
+      "method": "actual-native-reload-label-edit"
+    },
+    "attempts": [
+      {
+        "submission": 1,
+        "source": "cases/architecture-04/html/candidate-1.html",
+        "sourceSha256": "6d135310078b774e8f4397c5ca6277690f9f95821d4d865accceded86af9968c",
+        "responseId": "e02a10db-6204-4213-866e-aebe45e7acb1",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 441,
+          "completion_tokens": 1118,
+          "total_tokens": 1559,
+          "prompt_tokens_details": {
+            "cached_tokens": 256
+          },
+          "prompt_cache_hit_tokens": 256,
+          "prompt_cache_miss_tokens": 185
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.000699318,
+        "startedAt": "2026-10-22T04:11:47.984Z",
+        "modelCompletedAt": "2026-10-22T04:11:51.220Z",
+        "readyAt": "2026-10-22T04:11:51.233Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      },
+      {
+        "submission": 2,
+        "source": "cases/architecture-04/html/candidate-2.html",
+        "sourceSha256": "6d135310078b774e8f4397c5ca6277690f9f95821d4d865accceded86af9968c",
+        "responseId": "903898f8-81f8-42f1-9411-aff7f053700f",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 4107,
+          "completion_tokens": 1118,
+          "total_tokens": 5225,
+          "prompt_tokens_details": {
+            "cached_tokens": 1536
+          },
+          "prompt_cache_hit_tokens": 1536,
+          "prompt_cache_miss_tokens": 2571
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.001061058,
+        "startedAt": "2026-10-22T04:11:52.189Z",
+        "modelCompletedAt": "2026-10-22T04:11:56.494Z",
+        "readyAt": "2026-10-22T04:11:56.500Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      },
+      {
+        "submission": 3,
+        "source": "cases/architecture-04/html/candidate-3.html",
+        "sourceSha256": "6d135310078b774e8f4397c5ca6277690f9f95821d4d865accceded86af9968c",
+        "responseId": "06c978f5-ed78-40ef-a68b-64ad5f5580cd",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 7773,
+          "completion_tokens": 1118,
+          "total_tokens": 8891,
+          "prompt_tokens_details": {
+            "cached_tokens": 5120
+          },
+          "prompt_cache_hit_tokens": 5120,
+          "prompt_cache_miss_tokens": 2653
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.0010841099999999999,
+        "startedAt": "2026-10-22T04:11:57.443Z",
+        "modelCompletedAt": "2026-10-22T04:12:01.135Z",
+        "readyAt": "2026-10-22T04:12:01.145Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      }
+    ]
+  },
+  {
+    "runId": "15-architecture-04-drawio",
+    "taskId": "architecture-04",
+    "arm": "Next AI Draw.io MCP",
+    "format": "drawio",
+    "selectedSubmission": 3,
+    "status": "delivered",
+    "source": "cases/architecture-04/drawio/candidate-3.xml",
+    "preview": "cases/architecture-04/drawio/diagram.png",
+    "nativeFile": "cases/architecture-04/drawio/diagram.drawio",
+    "artifactSha256": "bfe821b6b61324ee69a09752d942a4e97a4dfa5c7ad4b33cef9ca356adbba77e",
+    "previewSha256": "81c5a725e97809dc61783b3ce5b91c0e7c82f740f30b7f8a550758e90aa1067c",
+    "startedAt": "2026-10-22T04:12:02.129Z",
+    "completedAt": "2026-10-22T04:12:38.669Z",
+    "usage": {
+      "inputTokens": 23356,
+      "outputTokens": 1731,
+      "cachedInputTokens": 13696,
+      "reasoningTokens": null,
+      "costUsd": 0.0025286880000000003,
+      "totalTokens": 25087,
+      "observed": {
+        "inputTokens": 23356,
+        "outputTokens": 1731,
+        "cachedInputTokens": 13696,
+        "reasoningTokens": 0,
+        "costUsd": 0.0025286880000000003,
+        "totalTokens": 25087
+      },
+      "complete": true,
+      "status": "complete",
+      "calls": [
+        {
+          "callId": "candidate-1",
+          "inputTokens": 4718,
+          "outputTokens": 577,
+          "cachedInputTokens": 128,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.0010350840000000001,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 4590,
+            "providerUsage": {
+              "prompt_tokens": 4718,
+              "completion_tokens": 577,
+              "total_tokens": 5295,
+              "prompt_tokens_details": {
+                "cached_tokens": 128
+              },
+              "prompt_cache_hit_tokens": 128,
+              "prompt_cache_miss_tokens": 4590
+            }
+          },
+          "totalTokens": 5295,
+          "status": "complete"
+        },
+        {
+          "callId": "candidate-2",
+          "inputTokens": 7811,
+          "outputTokens": 577,
+          "cachedInputTokens": 5248,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.000746394,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 2563,
+            "providerUsage": {
+              "prompt_tokens": 7811,
+              "completion_tokens": 577,
+              "total_tokens": 8388,
+              "prompt_tokens_details": {
+                "cached_tokens": 5248
+              },
+              "prompt_cache_hit_tokens": 5248,
+              "prompt_cache_miss_tokens": 2563
+            }
+          },
+          "totalTokens": 8388,
+          "status": "complete"
+        },
+        {
+          "callId": "candidate-3",
+          "inputTokens": 10827,
+          "outputTokens": 577,
+          "cachedInputTokens": 8320,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.00074721,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 2507,
+            "providerUsage": {
+              "prompt_tokens": 10827,
+              "completion_tokens": 577,
+              "total_tokens": 11404,
+              "prompt_tokens_details": {
+                "cached_tokens": 8320
+              },
+              "prompt_cache_hit_tokens": 8320,
+              "prompt_cache_miss_tokens": 2507
+            }
+          },
+          "totalTokens": 11404,
+          "status": "complete"
+        }
+      ]
+    },
+    "semantic": {
+      "status": "verified",
+      "passed": true,
+      "nodes": {
+        "matched": 6,
+        "expected": 6,
+        "actual": 6,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "edges": {
+        "matched": 6,
+        "expected": 6,
+        "actual": 6,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "violations": []
+    },
+    "geometry": {
+      "status": "verified",
+      "passed": false,
+      "violations": [
+        {
+          "code": "text_overlap",
+          "texts": [
+            "charge",
+            "payment result"
+          ]
+        }
+      ],
+      "metrics": {
+        "nodes": 6,
+        "texts": 12,
+        "edges": 6,
+        "defects": 1,
+        "defectsPerNode": 0.16666666666666666,
+        "counts": {
+          "text_overlap": 1
+        },
+        "minFontPx": 12,
+        "epsilonPx": 0.5,
+        "calibrated": false,
+        "pilot": true
+      }
+    },
+    "editability": {
+      "status": "verified",
+      "passed": true,
+      "method": "actual-native-reload-label-edit"
+    },
+    "attempts": [
+      {
+        "submission": 1,
+        "source": "cases/architecture-04/drawio/candidate-1.xml",
+        "sourceSha256": "eb673f7f844dfc0c997aad5b0dcb8502dbb6ac021d1bd83bea1501e706d0c8cb",
+        "responseId": "26dc863a-d738-415a-be31-b368b8cd42fa",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 4718,
+          "completion_tokens": 577,
+          "total_tokens": 5295,
+          "prompt_tokens_details": {
+            "cached_tokens": 128
+          },
+          "prompt_cache_hit_tokens": 128,
+          "prompt_cache_miss_tokens": 4590
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.0010350840000000001,
+        "startedAt": "2026-10-22T04:12:02.129Z",
+        "modelCompletedAt": "2026-10-22T04:12:04.634Z",
+        "readyAt": "2026-10-22T04:12:08.700Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      },
+      {
+        "submission": 2,
+        "source": "cases/architecture-04/drawio/candidate-2.xml",
+        "sourceSha256": "c7dbcd80b31bf83c7b2811b95a39381bd9489e93ab37c7857a81c38c4d9dd9dd",
+        "responseId": "9570450e-3571-4fea-8aeb-28cf2cbd9eb1",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 7811,
+          "completion_tokens": 577,
+          "total_tokens": 8388,
+          "prompt_tokens_details": {
+            "cached_tokens": 5248
+          },
+          "prompt_cache_hit_tokens": 5248,
+          "prompt_cache_miss_tokens": 2563
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.000746394,
+        "startedAt": "2026-10-22T04:12:13.203Z",
+        "modelCompletedAt": "2026-10-22T04:12:22.552Z",
+        "readyAt": "2026-10-22T04:12:26.696Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      },
+      {
+        "submission": 3,
+        "source": "cases/architecture-04/drawio/candidate-3.xml",
+        "sourceSha256": "c7dbcd80b31bf83c7b2811b95a39381bd9489e93ab37c7857a81c38c4d9dd9dd",
+        "responseId": "f1fc011a-2b41-4dc3-b16d-6b85d04a3f39",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 10827,
+          "completion_tokens": 577,
+          "total_tokens": 11404,
+          "prompt_tokens_details": {
+            "cached_tokens": 8320
+          },
+          "prompt_cache_hit_tokens": 8320,
+          "prompt_cache_miss_tokens": 2507
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.00074721,
+        "startedAt": "2026-10-22T04:12:31.100Z",
+        "modelCompletedAt": "2026-10-22T04:12:35.229Z",
+        "readyAt": "2026-10-22T04:12:38.669Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      }
+    ]
+  },
+  {
+    "runId": "16-architecture-04-excalidraw",
+    "taskId": "architecture-04",
+    "arm": "Excalidraw MCP",
+    "format": "excalidraw",
+    "selectedSubmission": 3,
+    "status": "delivered",
+    "source": "cases/architecture-04/excalidraw/candidate-3.json",
+    "preview": "cases/architecture-04/excalidraw/diagram.png",
+    "nativeFile": "cases/architecture-04/excalidraw/diagram.excalidraw",
+    "artifactSha256": "2e6404d4f68da543567ef3ca173683221bcb9eba48714e46181e5d4ceb16d07c",
+    "previewSha256": "493a22a4b715fcb42f1eef01ce3621e998c85365b6af364b828bf69c77435db7",
+    "startedAt": "2026-10-22T04:12:43.147Z",
+    "completedAt": "2026-10-22T04:13:15.196Z",
+    "usage": {
+      "inputTokens": 37845,
+      "outputTokens": 3606,
+      "cachedInputTokens": 32768,
+      "reasoningTokens": null,
+      "costUsd": 0.003023454,
+      "totalTokens": 41451,
+      "observed": {
+        "inputTokens": 37845,
+        "outputTokens": 3606,
+        "cachedInputTokens": 32768,
+        "reasoningTokens": 0,
+        "costUsd": 0.003023454,
+        "totalTokens": 41451
+      },
+      "complete": true,
+      "status": "complete",
+      "calls": [
+        {
+          "callId": "candidate-1",
+          "inputTokens": 9040,
+          "outputTokens": 1202,
+          "cachedInputTokens": 8832,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.000778896,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 208,
+            "providerUsage": {
+              "prompt_tokens": 9040,
+              "completion_tokens": 1202,
+              "total_tokens": 10242,
+              "prompt_tokens_details": {
+                "cached_tokens": 8832
+              },
+              "prompt_cache_hit_tokens": 8832,
+              "prompt_cache_miss_tokens": 208
+            }
+          },
+          "totalTokens": 10242,
+          "status": "complete"
+        },
+        {
+          "callId": "candidate-2",
+          "inputTokens": 12615,
+          "outputTokens": 1202,
+          "cachedInputTokens": 10240,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.0011081700000000001,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 2375,
+            "providerUsage": {
+              "prompt_tokens": 12615,
+              "completion_tokens": 1202,
+              "total_tokens": 13817,
+              "prompt_tokens_details": {
+                "cached_tokens": 10240
+              },
+              "prompt_cache_hit_tokens": 10240,
+              "prompt_cache_miss_tokens": 2375
+            }
+          },
+          "totalTokens": 13817,
+          "status": "complete"
+        },
+        {
+          "callId": "candidate-3",
+          "inputTokens": 16190,
+          "outputTokens": 1202,
+          "cachedInputTokens": 13696,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.001136388,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 2494,
+            "providerUsage": {
+              "prompt_tokens": 16190,
+              "completion_tokens": 1202,
+              "total_tokens": 17392,
+              "prompt_tokens_details": {
+                "cached_tokens": 13696
+              },
+              "prompt_cache_hit_tokens": 13696,
+              "prompt_cache_miss_tokens": 2494
+            }
+          },
+          "totalTokens": 17392,
+          "status": "complete"
+        }
+      ]
+    },
+    "semantic": {
+      "status": "verified",
+      "passed": true,
+      "nodes": {
+        "matched": 6,
+        "expected": 6,
+        "actual": 6,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "edges": {
+        "matched": 6,
+        "expected": 6,
+        "actual": 6,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "violations": []
+    },
+    "geometry": {
+      "status": "verified",
+      "passed": false,
+      "violations": [
+        {
+          "code": "text_overlap",
+          "texts": [
+            "charge",
+            "payment result"
+          ]
+        }
+      ],
+      "metrics": {
+        "nodes": 6,
+        "texts": 12,
+        "edges": 6,
+        "defects": 1,
+        "defectsPerNode": 0.16666666666666666,
+        "counts": {
+          "text_overlap": 1
+        },
+        "minFontPx": 12,
+        "epsilonPx": 0.5,
+        "calibrated": false,
+        "pilot": true
+      }
+    },
+    "editability": {
+      "status": "verified",
+      "passed": true,
+      "method": "actual-native-reload-label-edit"
+    },
+    "attempts": [
+      {
+        "submission": 1,
+        "source": "cases/architecture-04/excalidraw/candidate-1.json",
+        "sourceSha256": "622de98a867cbecef9f1aad805a804456fd45b045acac27a2cc7aaa183795a8e",
+        "responseId": "9f8ef94f-095f-4b02-931e-ac13ef8487d9",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 9040,
+          "completion_tokens": 1202,
+          "total_tokens": 10242,
+          "prompt_tokens_details": {
+            "cached_tokens": 8832
+          },
+          "prompt_cache_hit_tokens": 8832,
+          "prompt_cache_miss_tokens": 208
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.000778896,
+        "startedAt": "2026-10-22T04:12:43.147Z",
+        "modelCompletedAt": "2026-10-22T04:12:46.885Z",
+        "readyAt": "2026-10-22T04:12:50.843Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      },
+      {
+        "submission": 2,
+        "source": "cases/architecture-04/excalidraw/candidate-2.json",
+        "sourceSha256": "622de98a867cbecef9f1aad805a804456fd45b045acac27a2cc7aaa183795a8e",
+        "responseId": "cae1af86-3b61-4fc9-8b2f-3480530e06e4",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 12615,
+          "completion_tokens": 1202,
+          "total_tokens": 13817,
+          "prompt_tokens_details": {
+            "cached_tokens": 10240
+          },
+          "prompt_cache_hit_tokens": 10240,
+          "prompt_cache_miss_tokens": 2375
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.0011081700000000001,
+        "startedAt": "2026-10-22T04:12:55.599Z",
+        "modelCompletedAt": "2026-10-22T04:12:58.920Z",
+        "readyAt": "2026-10-22T04:13:02.804Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      },
+      {
+        "submission": 3,
+        "source": "cases/architecture-04/excalidraw/candidate-3.json",
+        "sourceSha256": "35cff8ceaaa291f49d2db34c9c96fee81311160ae2852fb29f4440bf607e58f7",
+        "responseId": "fcd142e8-6852-44f0-b7b3-25aa7d025e39",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 16190,
+          "completion_tokens": 1202,
+          "total_tokens": 17392,
+          "prompt_tokens_details": {
+            "cached_tokens": 13696
+          },
+          "prompt_cache_hit_tokens": 13696,
+          "prompt_cache_miss_tokens": 2494
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.001136388,
+        "startedAt": "2026-10-22T04:13:07.600Z",
+        "modelCompletedAt": "2026-10-22T04:13:11.320Z",
+        "readyAt": "2026-10-22T04:13:15.196Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      }
+    ]
+  },
+  {
+    "runId": "17-architecture-04-archify",
+    "taskId": "architecture-04",
+    "arm": "Archify Skill",
+    "format": "archify",
+    "selectedSubmission": 3,
+    "status": "delivered",
+    "source": "cases/architecture-04/archify/candidate-3.json",
+    "preview": "cases/architecture-04/archify/diagram.png",
+    "nativeFile": null,
+    "artifactSha256": "5e86d92f5edaf001a707eadd5a74482725f0fe30c0768337b051f9da4fc3e880",
+    "previewSha256": "6413305bb68c99cc45c2db96a5543d22fdd863cedcc8e531e9326027829a8008",
+    "startedAt": "2026-10-22T04:13:19.923Z",
+    "completedAt": "2026-10-22T04:13:31.456Z",
+    "usage": {
+      "inputTokens": 107616,
+      "outputTokens": 1163,
+      "cachedInputTokens": 103424,
+      "reasoningTokens": null,
+      "costUsd": 0.0016368719999999997,
+      "totalTokens": 108779,
+      "observed": {
+        "inputTokens": 107616,
+        "outputTokens": 1163,
+        "cachedInputTokens": 103424,
+        "reasoningTokens": 0,
+        "costUsd": 0.0016368719999999997,
+        "totalTokens": 108779
+      },
+      "complete": true,
+      "status": "complete",
+      "calls": [
+        {
+          "callId": "candidate-1",
+          "inputTokens": 33271,
+          "outputTokens": 381,
+          "cachedInputTokens": 33024,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.000364722,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 247,
+            "providerUsage": {
+              "prompt_tokens": 33271,
+              "completion_tokens": 381,
+              "total_tokens": 33652,
+              "prompt_tokens_details": {
+                "cached_tokens": 33024
+              },
+              "prompt_cache_hit_tokens": 33024,
+              "prompt_cache_miss_tokens": 247
+            }
+          },
+          "totalTokens": 33652,
+          "status": "complete"
+        },
+        {
+          "callId": "candidate-2",
+          "inputTokens": 36503,
+          "outputTokens": 393,
+          "cachedInputTokens": 33536,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.000781458,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 2967,
+            "providerUsage": {
+              "prompt_tokens": 36503,
+              "completion_tokens": 393,
+              "total_tokens": 36896,
+              "prompt_tokens_details": {
+                "cached_tokens": 33536
+              },
+              "prompt_cache_hit_tokens": 33536,
+              "prompt_cache_miss_tokens": 2967
+            }
+          },
+          "totalTokens": 36896,
+          "status": "complete"
+        },
+        {
+          "callId": "candidate-3",
+          "inputTokens": 37842,
+          "outputTokens": 389,
+          "cachedInputTokens": 36864,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.0004906919999999999,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 978,
+            "providerUsage": {
+              "prompt_tokens": 37842,
+              "completion_tokens": 389,
+              "total_tokens": 38231,
+              "prompt_tokens_details": {
+                "cached_tokens": 36864
+              },
+              "prompt_cache_hit_tokens": 36864,
+              "prompt_cache_miss_tokens": 978
+            }
+          },
+          "totalTokens": 38231,
+          "status": "complete"
+        }
+      ]
+    },
+    "semantic": {
+      "status": "verified",
+      "passed": true,
+      "nodes": {
+        "matched": 6,
+        "expected": 6,
+        "actual": 6,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "edges": {
+        "matched": 6,
+        "expected": 6,
+        "actual": 6,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "violations": []
+    },
+    "geometry": {
+      "status": "verified",
+      "passed": false,
+      "violations": [
+        {
+          "code": "tiny_font",
+          "text": "结算界面",
+          "fontSize": 11.519787644787645
+        },
+        {
+          "code": "tiny_font",
+          "text": "订单接口",
+          "fontSize": 11.519787644787645
+        },
+        {
+          "code": "tiny_font",
+          "text": "库存服务",
+          "fontSize": 11.519787644787645
+        },
+        {
+          "code": "tiny_font",
+          "text": "库存库",
+          "fontSize": 11.519787644787645
+        },
+        {
+          "code": "tiny_font",
+          "text": "支付服务",
+          "fontSize": 11.519787644787645
+        },
+        {
+          "code": "tiny_font",
+          "text": "审计记录",
+          "fontSize": 11.519787644787645
+        },
+        {
+          "code": "tiny_font",
+          "text": "checkout",
+          "fontSize": 10.239811239811239
+        },
+        {
+          "code": "tiny_font",
+          "text": "reserve",
+          "fontSize": 10.239811239811239
+        },
+        {
+          "code": "tiny_font",
+          "text": "update",
+          "fontSize": 10.239811239811239
+        },
+        {
+          "code": "tiny_font",
+          "text": "charge",
+          "fontSize": 10.239811239811239
+        },
+        {
+          "code": "tiny_font",
+          "text": "payment result",
+          "fontSize": 10.239811239811239
+        },
+        {
+          "code": "tiny_font",
+          "text": "record",
+          "fontSize": 10.239811239811239
+        }
+      ],
+      "metrics": {
+        "nodes": 6,
+        "texts": 22,
+        "edges": 6,
+        "defects": 12,
+        "defectsPerNode": 2,
+        "counts": {
+          "tiny_font": 12
+        },
+        "minFontPx": 12,
+        "epsilonPx": 0.5,
+        "calibrated": false,
+        "pilot": true
+      }
+    },
+    "editability": {
+      "status": "verified",
+      "passed": true,
+      "method": "archify-reload-rename-render"
+    },
+    "attempts": [
+      {
+        "submission": 1,
+        "source": "cases/architecture-04/archify/candidate-1.json",
+        "sourceSha256": "1b9ffa727929e1715c56f17e7efd9bed9f50951754a32ed8a1d8402c4cd2cc67",
+        "responseId": "02328cbb-53c5-401b-b869-010098fca50b",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 33271,
+          "completion_tokens": 381,
+          "total_tokens": 33652,
+          "prompt_tokens_details": {
+            "cached_tokens": 33024
+          },
+          "prompt_cache_hit_tokens": 33024,
+          "prompt_cache_miss_tokens": 247
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.000364722,
+        "startedAt": "2026-10-22T04:13:19.923Z",
+        "modelCompletedAt": "2026-10-22T04:13:21.965Z",
+        "readyAt": "2026-10-22T04:13:23.899Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      },
+      {
+        "submission": 2,
+        "source": "cases/architecture-04/archify/candidate-2.json",
+        "sourceSha256": "a7d575d143ad61468b076a82b79bb0a819cd4565f8b20145e2d19e3e8b8a7bdc",
+        "responseId": "ea03ac93-0e9f-4575-b5f1-0b62c8993004",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 36503,
+          "completion_tokens": 393,
+          "total_tokens": 36896,
+          "prompt_tokens_details": {
+            "cached_tokens": 33536
+          },
+          "prompt_cache_hit_tokens": 33536,
+          "prompt_cache_miss_tokens": 2967
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.000781458,
+        "startedAt": "2026-10-22T04:13:25.764Z",
+        "modelCompletedAt": "2026-10-22T04:13:27.690Z",
+        "readyAt": "2026-10-22T04:13:27.946Z",
+        "accepted": false,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": [
+          {
+            "code": "schema/maxItems",
+            "severity": "error",
+            "message": "/meta/viewBox must NOT have more than 2 items",
+            "subject": {
+              "diagramType": "architecture",
+              "path": "/meta/viewBox"
+            },
+            "evidence": {
+              "keyword": "maxItems",
+              "limit": 2
+            },
+            "supportedFixes": [
+              "provide at most 2 item(s)"
+            ]
+          },
+          {
+            "code": "schema/minimum",
+            "severity": "error",
+            "message": "/meta/viewBox/0 must be >= 320",
+            "subject": {
+              "diagramType": "architecture",
+              "path": "/meta/viewBox/0"
+            },
+            "evidence": {
+              "keyword": "minimum",
+              "comparison": ">=",
+              "limit": 320
+            },
+            "supportedFixes": [
+              "use a value >= 320"
+            ]
+          },
+          {
+            "code": "schema/items",
+            "severity": "error",
+            "message": "/meta/viewBox must NOT have more than 2 items",
+            "subject": {
+              "diagramType": "architecture",
+              "path": "/meta/viewBox"
+            },
+            "evidence": {
+              "keyword": "items",
+              "limit": 2
+            }
+          },
+          {
+            "code": "schema/minimum",
+            "severity": "error",
+            "message": "/meta/viewBox/1 must be >= 240",
+            "subject": {
+              "diagramType": "architecture",
+              "path": "/meta/viewBox/1"
+            },
+            "evidence": {
+              "keyword": "minimum",
+              "comparison": ">=",
+              "limit": 240
+            },
+            "supportedFixes": [
+              "use a value >= 240"
+            ]
+          }
+        ]
+      },
+      {
+        "submission": 3,
+        "source": "cases/architecture-04/archify/candidate-3.json",
+        "sourceSha256": "854304dc0dc3008aecb7756181dee6186563cb54d79ca6eb19482b06d4565e3f",
+        "responseId": "ec65ab7b-e67b-4d71-a9f7-01abcd0db54e",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 37842,
+          "completion_tokens": 389,
+          "total_tokens": 38231,
+          "prompt_tokens_details": {
+            "cached_tokens": 36864
+          },
+          "prompt_cache_hit_tokens": 36864,
+          "prompt_cache_miss_tokens": 978
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.0004906919999999999,
+        "startedAt": "2026-10-22T04:13:27.951Z",
+        "modelCompletedAt": "2026-10-22T04:13:29.606Z",
+        "readyAt": "2026-10-22T04:13:31.456Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      }
+    ]
+  },
+  {
+    "runId": "18-architecture-04-mermaid",
+    "taskId": "architecture-04",
+    "arm": "直接 Mermaid",
+    "format": "mermaid",
+    "selectedSubmission": 1,
+    "status": "delivered",
+    "source": "cases/architecture-04/mermaid/candidate-1.mmd",
+    "preview": "cases/architecture-04/mermaid/diagram.png",
+    "nativeFile": null,
+    "artifactSha256": "f71ae0562ab5fa583f7771c960e1fed3c6d3d6c862f954440ad8fda8a8aa76ca",
+    "previewSha256": "1ef249267a67baff9915c1b755660dacff183bd1571bfa170b5a47517601a7dc",
+    "startedAt": "2026-10-22T04:13:33.088Z",
+    "completedAt": "2026-10-22T04:13:38.686Z",
+    "usage": {
+      "inputTokens": 397,
+      "outputTokens": 109,
+      "cachedInputTokens": 256,
+      "reasoningTokens": null,
+      "costUsd": 0.00008731799999999998,
+      "totalTokens": 506,
+      "observed": {
+        "inputTokens": 397,
+        "outputTokens": 109,
+        "cachedInputTokens": 256,
+        "reasoningTokens": 0,
+        "costUsd": 0.00008731799999999998,
+        "totalTokens": 506
+      },
+      "complete": true,
+      "status": "complete",
+      "calls": [
+        {
+          "callId": "candidate-1",
+          "inputTokens": 397,
+          "outputTokens": 109,
+          "cachedInputTokens": 256,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.00008731799999999998,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 141,
+            "providerUsage": {
+              "prompt_tokens": 397,
+              "completion_tokens": 109,
+              "total_tokens": 506,
+              "prompt_tokens_details": {
+                "cached_tokens": 256
+              },
+              "prompt_cache_hit_tokens": 256,
+              "prompt_cache_miss_tokens": 141
+            }
+          },
+          "totalTokens": 506,
+          "status": "complete"
+        }
+      ]
+    },
+    "semantic": {
+      "status": "verified",
+      "passed": true,
+      "nodes": {
+        "matched": 6,
+        "expected": 6,
+        "actual": 6,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "edges": {
+        "matched": 6,
+        "expected": 6,
+        "actual": 6,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "violations": []
+    },
+    "geometry": {
+      "status": "verified",
+      "passed": true,
+      "violations": [],
+      "metrics": {
+        "nodes": 6,
+        "texts": 12,
+        "edges": 6,
+        "defects": 0,
+        "defectsPerNode": 0,
+        "counts": {},
+        "minFontPx": 12,
+        "epsilonPx": 0.5,
+        "calibrated": false,
+        "pilot": true
+      }
+    },
+    "editability": {
+      "status": "verified",
+      "passed": true,
+      "method": "actual-native-reload-label-edit"
+    },
+    "attempts": [
+      {
+        "submission": 1,
+        "source": "cases/architecture-04/mermaid/candidate-1.mmd",
+        "sourceSha256": "4066fdc1617fbc2fff60f4e3764e661aec1c29091b50913ed099f6e589d382ac",
+        "responseId": "1932863d-db79-47e1-b9a3-97316648daa9",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 397,
+          "completion_tokens": 109,
+          "total_tokens": 506,
+          "prompt_tokens_details": {
+            "cached_tokens": 256
+          },
+          "prompt_cache_hit_tokens": 256,
+          "prompt_cache_miss_tokens": 141
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.00008731799999999998,
+        "startedAt": "2026-10-22T04:13:33.088Z",
+        "modelCompletedAt": "2026-10-22T04:13:37.872Z",
+        "readyAt": "2026-10-22T04:13:38.686Z",
+        "accepted": true,
+        "verifiedDuringGeneration": true,
+        "nativeDiagnostics": []
+      }
+    ]
+  },
+  {
+    "runId": "19-workflow-04-html",
+    "taskId": "workflow-04",
+    "arm": "直接 HTML",
+    "format": "html",
+    "selectedSubmission": 3,
+    "status": "delivered",
+    "source": "cases/workflow-04/html/candidate-3.html",
+    "preview": "cases/workflow-04/html/diagram.png",
+    "nativeFile": null,
+    "artifactSha256": "5af0cb49ca702cea78606ebb66075d454332b6c14329ee27bf4c7b556ef97a9c",
+    "previewSha256": "c9c495c431af3ebcf9050b7f04709a0ce70be825c04012667805052765857edb",
+    "startedAt": "2026-10-22T04:13:40.402Z",
+    "completedAt": "2026-10-22T04:13:57.403Z",
+    "usage": {
+      "inputTokens": 10851,
+      "outputTokens": 2802,
+      "cachedInputTokens": 6016,
+      "reasoningTokens": null,
+      "costUsd": 0.0024244979999999998,
+      "totalTokens": 13653,
+      "observed": {
+        "inputTokens": 10851,
+        "outputTokens": 2802,
+        "cachedInputTokens": 6016,
+        "reasoningTokens": 0,
+        "costUsd": 0.0024244979999999998,
+        "totalTokens": 13653
+      },
+      "complete": true,
+      "status": "complete",
+      "calls": [
+        {
+          "callId": "candidate-1",
+          "inputTokens": 440,
+          "outputTokens": 934,
+          "cachedInputTokens": 256,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.000588768,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 184,
+            "providerUsage": {
+              "prompt_tokens": 440,
+              "completion_tokens": 934,
+              "total_tokens": 1374,
+              "prompt_tokens_details": {
+                "cached_tokens": 256
+              },
+              "prompt_cache_hit_tokens": 256,
+              "prompt_cache_miss_tokens": 184
+            }
+          },
+          "totalTokens": 1374,
+          "status": "complete"
+        },
+        {
+          "callId": "candidate-2",
+          "inputTokens": 3617,
+          "outputTokens": 934,
+          "cachedInputTokens": 1280,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.00091479,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 2337,
+            "providerUsage": {
+              "prompt_tokens": 3617,
+              "completion_tokens": 934,
+              "total_tokens": 4551,
+              "prompt_tokens_details": {
+                "cached_tokens": 1280
+              },
+              "prompt_cache_hit_tokens": 1280,
+              "prompt_cache_miss_tokens": 2337
+            }
+          },
+          "totalTokens": 4551,
+          "status": "complete"
+        },
+        {
+          "callId": "candidate-3",
+          "inputTokens": 6794,
+          "outputTokens": 934,
+          "cachedInputTokens": 4480,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.00092094,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 2314,
+            "providerUsage": {
+              "prompt_tokens": 6794,
+              "completion_tokens": 934,
+              "total_tokens": 7728,
+              "prompt_tokens_details": {
+                "cached_tokens": 4480
+              },
+              "prompt_cache_hit_tokens": 4480,
+              "prompt_cache_miss_tokens": 2314
+            }
+          },
+          "totalTokens": 7728,
+          "status": "complete"
+        }
+      ]
+    },
+    "semantic": {
+      "status": "verified",
+      "passed": false,
+      "nodes": {
+        "matched": 6,
+        "expected": 6,
+        "actual": 6,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "edges": {
+        "matched": 1,
+        "expected": 6,
+        "actual": 4,
+        "precision": 0.25,
+        "recall": 0.16666666666666666,
+        "f1": 0.2
+      },
+      "violations": [
+        {
+          "code": "missing_edge",
+          "from": "n2",
+          "to": "n3",
+          "label": "ineligible"
+        },
+        {
+          "code": "missing_edge",
+          "from": "n2",
+          "to": "n4",
+          "label": "eligible"
+        },
+        {
+          "code": "missing_edge",
+          "from": "n4",
+          "to": "n5",
+          "label": "arrived"
+        },
+        {
+          "code": "missing_edge",
+          "from": "n5",
+          "to": "n6",
+          "label": "accepted"
+        },
+        {
+          "code": "missing_edge",
+          "from": "n5",
+          "to": "n3",
+          "label": "damaged"
+        },
+        {
+          "code": "missing_required_label",
+          "label": "damaged"
+        },
+        {
+          "code": "unexpected_edges",
+          "count": 3
+        }
+      ]
+    },
+    "geometry": {
+      "status": "verified",
+      "passed": false,
+      "violations": [
+        {
+          "code": "edge_node_intrusion",
+          "nodeId": "observed-node-4",
+          "from": "observed-node-5",
+          "to": "observed-node-2"
+        }
+      ],
+      "metrics": {
+        "nodes": 6,
+        "texts": 11,
+        "edges": 4,
+        "defects": 1,
+        "defectsPerNode": 0.16666666666666666,
+        "counts": {
+          "edge_node_intrusion": 1
+        },
+        "minFontPx": 12,
+        "epsilonPx": 0.5,
+        "calibrated": false,
+        "pilot": true
+      }
+    },
+    "editability": {
+      "status": "verified",
+      "passed": true,
+      "method": "actual-native-reload-label-edit"
+    },
+    "attempts": [
+      {
+        "submission": 1,
+        "source": "cases/workflow-04/html/candidate-1.html",
+        "sourceSha256": "5af0cb49ca702cea78606ebb66075d454332b6c14329ee27bf4c7b556ef97a9c",
+        "responseId": "cd64c62a-75e5-4d14-9497-52182331713b",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 440,
+          "completion_tokens": 934,
+          "total_tokens": 1374,
+          "prompt_tokens_details": {
+            "cached_tokens": 256
+          },
+          "prompt_cache_hit_tokens": 256,
+          "prompt_cache_miss_tokens": 184
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.000588768,
+        "startedAt": "2026-10-22T04:13:40.402Z",
+        "modelCompletedAt": "2026-10-22T04:13:43.704Z",
+        "readyAt": "2026-10-22T04:13:43.719Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      },
+      {
+        "submission": 2,
+        "source": "cases/workflow-04/html/candidate-2.html",
+        "sourceSha256": "5af0cb49ca702cea78606ebb66075d454332b6c14329ee27bf4c7b556ef97a9c",
+        "responseId": "6b1ce8ed-2dc5-4ce6-a290-8944251d3461",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 3617,
+          "completion_tokens": 934,
+          "total_tokens": 4551,
+          "prompt_tokens_details": {
+            "cached_tokens": 1280
+          },
+          "prompt_cache_hit_tokens": 1280,
+          "prompt_cache_miss_tokens": 2337
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.00091479,
+        "startedAt": "2026-10-22T04:13:44.838Z",
+        "modelCompletedAt": "2026-10-22T04:13:49.412Z",
+        "readyAt": "2026-10-22T04:13:49.418Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      },
+      {
+        "submission": 3,
+        "source": "cases/workflow-04/html/candidate-3.html",
+        "sourceSha256": "5af0cb49ca702cea78606ebb66075d454332b6c14329ee27bf4c7b556ef97a9c",
+        "responseId": "c7754e82-bef9-473b-889a-853efb4b660e",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 6794,
+          "completion_tokens": 934,
+          "total_tokens": 7728,
+          "prompt_tokens_details": {
+            "cached_tokens": 4480
+          },
+          "prompt_cache_hit_tokens": 4480,
+          "prompt_cache_miss_tokens": 2314
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.00092094,
+        "startedAt": "2026-10-22T04:13:50.487Z",
+        "modelCompletedAt": "2026-10-22T04:13:57.393Z",
+        "readyAt": "2026-10-22T04:13:57.403Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      }
+    ]
+  },
+  {
+    "runId": "20-workflow-04-drawio",
+    "taskId": "workflow-04",
+    "arm": "Next AI Draw.io MCP",
+    "format": "drawio",
+    "selectedSubmission": 1,
+    "status": "delivered",
+    "source": "cases/workflow-04/drawio/candidate-1.xml",
+    "preview": "cases/workflow-04/drawio/diagram.png",
+    "nativeFile": "cases/workflow-04/drawio/diagram.drawio",
+    "artifactSha256": "657078471d01eb903838e5b4355912ba48916dba005133b036886b83884a003b",
+    "previewSha256": "c505757655791543e9a25c6971f2a36752e2e17cea2913d033ab208884c340a5",
+    "startedAt": "2026-10-22T04:13:58.387Z",
+    "completedAt": "2026-10-22T04:14:04.730Z",
+    "usage": {
+      "inputTokens": 4717,
+      "outputTokens": 659,
+      "cachedInputTokens": 128,
+      "reasoningTokens": null,
+      "costUsd": 0.001084134,
+      "totalTokens": 5376,
+      "observed": {
+        "inputTokens": 4717,
+        "outputTokens": 659,
+        "cachedInputTokens": 128,
+        "reasoningTokens": 0,
+        "costUsd": 0.001084134,
+        "totalTokens": 5376
+      },
+      "complete": true,
+      "status": "complete",
+      "calls": [
+        {
+          "callId": "candidate-1",
+          "inputTokens": 4717,
+          "outputTokens": 659,
+          "cachedInputTokens": 128,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.001084134,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 4589,
+            "providerUsage": {
+              "prompt_tokens": 4717,
+              "completion_tokens": 659,
+              "total_tokens": 5376,
+              "prompt_tokens_details": {
+                "cached_tokens": 128
+              },
+              "prompt_cache_hit_tokens": 128,
+              "prompt_cache_miss_tokens": 4589
+            }
+          },
+          "totalTokens": 5376,
+          "status": "complete"
+        }
+      ]
+    },
+    "semantic": {
+      "status": "verified",
+      "passed": true,
+      "nodes": {
+        "matched": 6,
+        "expected": 6,
+        "actual": 6,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "edges": {
+        "matched": 6,
+        "expected": 6,
+        "actual": 6,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "violations": []
+    },
+    "geometry": {
+      "status": "verified",
+      "passed": true,
+      "violations": [],
+      "metrics": {
+        "nodes": 6,
+        "texts": 12,
+        "edges": 6,
+        "defects": 0,
+        "defectsPerNode": 0,
+        "counts": {},
+        "minFontPx": 12,
+        "epsilonPx": 0.5,
+        "calibrated": false,
+        "pilot": true
+      }
+    },
+    "editability": {
+      "status": "verified",
+      "passed": true,
+      "method": "actual-native-reload-label-edit"
+    },
+    "attempts": [
+      {
+        "submission": 1,
+        "source": "cases/workflow-04/drawio/candidate-1.xml",
+        "sourceSha256": "35a6442628083d05da7c4c4cfc15a4699053c176aa0eea6dd168ed82241965fb",
+        "responseId": "2e9c7b55-c73d-4967-867f-07ffe82754d9",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 4717,
+          "completion_tokens": 659,
+          "total_tokens": 5376,
+          "prompt_tokens_details": {
+            "cached_tokens": 128
+          },
+          "prompt_cache_hit_tokens": 128,
+          "prompt_cache_miss_tokens": 4589
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.001084134,
+        "startedAt": "2026-10-22T04:13:58.387Z",
+        "modelCompletedAt": "2026-10-22T04:14:00.580Z",
+        "readyAt": "2026-10-22T04:14:04.730Z",
+        "accepted": true,
+        "verifiedDuringGeneration": true,
+        "nativeDiagnostics": []
+      }
+    ]
+  },
+  {
+    "runId": "21-workflow-04-excalidraw",
+    "taskId": "workflow-04",
+    "arm": "Excalidraw MCP",
+    "format": "excalidraw",
+    "selectedSubmission": 3,
+    "status": "delivered",
+    "source": "cases/workflow-04/excalidraw/candidate-3.json",
+    "preview": "cases/workflow-04/excalidraw/diagram.png",
+    "nativeFile": "cases/workflow-04/excalidraw/diagram.excalidraw",
+    "artifactSha256": "dbb2df98f0be5e98a78c6cf3485ecc21853a1fa1b42c4dbe7699dfb38c7c6d93",
+    "previewSha256": "28018478d06e8ea345c663aa45b5fdcb02f3c79f194bc63ae7f7607af08b7d2e",
+    "startedAt": "2026-10-22T04:14:09.238Z",
+    "completedAt": "2026-10-22T04:14:40.941Z",
+    "usage": {
+      "inputTokens": 38241,
+      "outputTokens": 3600,
+      "cachedInputTokens": 32768,
+      "reasoningTokens": null,
+      "costUsd": 0.003079254,
+      "totalTokens": 41841,
+      "observed": {
+        "inputTokens": 38241,
+        "outputTokens": 3600,
+        "cachedInputTokens": 32768,
+        "reasoningTokens": 0,
+        "costUsd": 0.003079254,
+        "totalTokens": 41841
+      },
+      "complete": true,
+      "status": "complete",
+      "calls": [
+        {
+          "callId": "candidate-1",
+          "inputTokens": 9039,
+          "outputTokens": 1200,
+          "cachedInputTokens": 8832,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.000777546,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 207,
+            "providerUsage": {
+              "prompt_tokens": 9039,
+              "completion_tokens": 1200,
+              "total_tokens": 10239,
+              "prompt_tokens_details": {
+                "cached_tokens": 8832
+              },
+              "prompt_cache_hit_tokens": 8832,
+              "prompt_cache_miss_tokens": 207
+            }
+          },
+          "totalTokens": 10239,
+          "status": "complete"
+        },
+        {
+          "callId": "candidate-2",
+          "inputTokens": 12747,
+          "outputTokens": 1200,
+          "cachedInputTokens": 10112,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.001145586,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 2635,
+            "providerUsage": {
+              "prompt_tokens": 12747,
+              "completion_tokens": 1200,
+              "total_tokens": 13947,
+              "prompt_tokens_details": {
+                "cached_tokens": 10112
+              },
+              "prompt_cache_hit_tokens": 10112,
+              "prompt_cache_miss_tokens": 2635
+            }
+          },
+          "totalTokens": 13947,
+          "status": "complete"
+        },
+        {
+          "callId": "candidate-3",
+          "inputTokens": 16455,
+          "outputTokens": 1200,
+          "cachedInputTokens": 13824,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.0011561219999999999,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 2631,
+            "providerUsage": {
+              "prompt_tokens": 16455,
+              "completion_tokens": 1200,
+              "total_tokens": 17655,
+              "prompt_tokens_details": {
+                "cached_tokens": 13824
+              },
+              "prompt_cache_hit_tokens": 13824,
+              "prompt_cache_miss_tokens": 2631
+            }
+          },
+          "totalTokens": 17655,
+          "status": "complete"
+        }
+      ]
+    },
+    "semantic": {
+      "status": "verified",
+      "passed": false,
+      "nodes": {
+        "matched": 6,
+        "expected": 6,
+        "actual": 6,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "edges": {
+        "matched": 5,
+        "expected": 6,
+        "actual": 5,
+        "precision": 1,
+        "recall": 0.8333333333333334,
+        "f1": 0.9090909090909091
+      },
+      "violations": [
+        {
+          "code": "missing_edge",
+          "from": "n5",
+          "to": "n3",
+          "label": "damaged"
+        }
+      ]
+    },
+    "geometry": {
+      "status": "verified",
+      "passed": true,
+      "violations": [],
+      "metrics": {
+        "nodes": 6,
+        "texts": 12,
+        "edges": 5,
+        "defects": 0,
+        "defectsPerNode": 0,
+        "counts": {},
+        "minFontPx": 12,
+        "epsilonPx": 0.5,
+        "calibrated": false,
+        "pilot": true
+      }
+    },
+    "editability": {
+      "status": "verified",
+      "passed": true,
+      "method": "actual-native-reload-label-edit"
+    },
+    "attempts": [
+      {
+        "submission": 1,
+        "source": "cases/workflow-04/excalidraw/candidate-1.json",
+        "sourceSha256": "ea4b2f937dac914bd5509a97b88f12da1f5a2baea7c68b77d7396887f8e69134",
+        "responseId": "9474ae21-6ea1-44f1-9e1c-72a8094c9c14",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 9039,
+          "completion_tokens": 1200,
+          "total_tokens": 10239,
+          "prompt_tokens_details": {
+            "cached_tokens": 8832
+          },
+          "prompt_cache_hit_tokens": 8832,
+          "prompt_cache_miss_tokens": 207
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.000777546,
+        "startedAt": "2026-10-22T04:14:09.238Z",
+        "modelCompletedAt": "2026-10-22T04:14:12.721Z",
+        "readyAt": "2026-10-22T04:14:16.462Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      },
+      {
+        "submission": 2,
+        "source": "cases/workflow-04/excalidraw/candidate-2.json",
+        "sourceSha256": "ea4b2f937dac914bd5509a97b88f12da1f5a2baea7c68b77d7396887f8e69134",
+        "responseId": "4af71b07-e87b-4ee2-aec4-d0f7b49780cb",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 12747,
+          "completion_tokens": 1200,
+          "total_tokens": 13947,
+          "prompt_tokens_details": {
+            "cached_tokens": 10112
+          },
+          "prompt_cache_hit_tokens": 10112,
+          "prompt_cache_miss_tokens": 2635
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.001145586,
+        "startedAt": "2026-10-22T04:14:21.270Z",
+        "modelCompletedAt": "2026-10-22T04:14:24.668Z",
+        "readyAt": "2026-10-22T04:14:28.718Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      },
+      {
+        "submission": 3,
+        "source": "cases/workflow-04/excalidraw/candidate-3.json",
+        "sourceSha256": "ea4b2f937dac914bd5509a97b88f12da1f5a2baea7c68b77d7396887f8e69134",
+        "responseId": "f1566a7d-f231-49fb-be58-93fe77602ab7",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 16455,
+          "completion_tokens": 1200,
+          "total_tokens": 17655,
+          "prompt_tokens_details": {
+            "cached_tokens": 13824
+          },
+          "prompt_cache_hit_tokens": 13824,
+          "prompt_cache_miss_tokens": 2631
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.0011561219999999999,
+        "startedAt": "2026-10-22T04:14:33.555Z",
+        "modelCompletedAt": "2026-10-22T04:14:37.065Z",
+        "readyAt": "2026-10-22T04:14:40.941Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      }
+    ]
+  },
+  {
+    "runId": "22-workflow-04-archify",
+    "taskId": "workflow-04",
+    "arm": "Archify Skill",
+    "format": "archify",
+    "selectedSubmission": null,
+    "status": "no_candidate",
+    "preview": null,
+    "nativeFile": null,
+    "artifactSha256": null,
+    "previewSha256": null,
+    "startedAt": "2026-10-22T04:14:45.785Z",
+    "completedAt": "2026-10-22T04:15:00.821Z",
+    "usage": {
+      "inputTokens": 117873,
+      "outputTokens": 1917,
+      "cachedInputTokens": 78336,
+      "reasoningTokens": null,
+      "costUsd": 0.0073157579999999995,
+      "totalTokens": 119790,
+      "observed": {
+        "inputTokens": 117873,
+        "outputTokens": 1917,
+        "cachedInputTokens": 78336,
+        "reasoningTokens": 0,
+        "costUsd": 0.0073157579999999995,
+        "totalTokens": 119790
+      },
+      "complete": true,
+      "status": "complete",
+      "calls": [
+        {
+          "callId": "candidate-1",
+          "inputTokens": 37837,
+          "outputTokens": 637,
+          "cachedInputTokens": 128,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.006038933999999999,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 37709,
+            "providerUsage": {
+              "prompt_tokens": 37837,
+              "completion_tokens": 637,
+              "total_tokens": 38474,
+              "prompt_tokens_details": {
+                "cached_tokens": 128
+              },
+              "prompt_cache_hit_tokens": 128,
+              "prompt_cache_miss_tokens": 37709
+            }
+          },
+          "totalTokens": 38474,
+          "status": "complete"
+        },
+        {
+          "callId": "candidate-2",
+          "inputTokens": 39291,
+          "outputTokens": 637,
+          "cachedInputTokens": 38400,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.00063105,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 891,
+            "providerUsage": {
+              "prompt_tokens": 39291,
+              "completion_tokens": 637,
+              "total_tokens": 39928,
+              "prompt_tokens_details": {
+                "cached_tokens": 38400
+              },
+              "prompt_cache_hit_tokens": 38400,
+              "prompt_cache_miss_tokens": 891
+            }
+          },
+          "totalTokens": 39928,
+          "status": "complete"
+        },
+        {
+          "callId": "candidate-3",
+          "inputTokens": 40745,
+          "outputTokens": 643,
+          "cachedInputTokens": 39808,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.000645774,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 937,
+            "providerUsage": {
+              "prompt_tokens": 40745,
+              "completion_tokens": 643,
+              "total_tokens": 41388,
+              "prompt_tokens_details": {
+                "cached_tokens": 39808
+              },
+              "prompt_cache_hit_tokens": 39808,
+              "prompt_cache_miss_tokens": 937
+            }
+          },
+          "totalTokens": 41388,
+          "status": "complete"
+        }
+      ]
+    },
+    "semantic": {
+      "status": "unverified",
+      "passed": false,
+      "violations": []
+    },
+    "geometry": {
+      "status": "unverified",
+      "passed": false,
+      "violations": []
+    },
+    "editability": {
+      "status": "unverified",
+      "passed": false,
+      "method": null
+    },
+    "attempts": [
+      {
+        "submission": 1,
+        "source": "cases/workflow-04/archify/candidate-1.json",
+        "sourceSha256": "1a40a99f518ec273441d5acf2ea25cf6ebafabb779d0035cc18350c63cbbceaf",
+        "responseId": "6585bd83-9693-44fd-b0d4-8a664d796582",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 37837,
+          "completion_tokens": 637,
+          "total_tokens": 38474,
+          "prompt_tokens_details": {
+            "cached_tokens": 128
+          },
+          "prompt_cache_hit_tokens": 128,
+          "prompt_cache_miss_tokens": 37709
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.006038933999999999,
+        "startedAt": "2026-10-22T04:14:45.785Z",
+        "modelCompletedAt": "2026-10-22T04:14:54.838Z",
+        "readyAt": "2026-10-22T04:14:55.248Z",
+        "accepted": false,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": [
+          {
+            "code": "workflow/route-preset-conflict",
+            "severity": "error",
+            "message": "Workflow edge \"ineligible\" cannot satisfy route preset \"drop\": candidate violates perpendicular endpoint-side direction.",
+            "subject": {
+              "diagramType": "workflow",
+              "edge": "ineligible",
+              "from": "eligibility_check",
+              "to": "reject",
+              "route": "drop"
+            },
+            "evidence": {
+              "invariant": "perpendicular endpoint-side direction",
+              "attemptedCandidateFamily": "drop",
+              "points": [
+                [
+                  390,
+                  119
+                ],
+                [
+                  390,
+                  228
+                ],
+                [
+                  528,
+                  228
+                ],
+                [
+                  528,
+                  367
+                ]
+              ],
+              "fromSide": "right",
+              "toSide": "left",
+              "requiredEndpointStubPx": 8,
+              "requiredInteriorSegmentPx": 16,
+              "requiredDirectClearancePx": 28
+            }
+          }
+        ]
+      },
+      {
+        "submission": 2,
+        "source": "cases/workflow-04/archify/candidate-2.json",
+        "sourceSha256": "1a40a99f518ec273441d5acf2ea25cf6ebafabb779d0035cc18350c63cbbceaf",
+        "responseId": "e6e5a07f-d3ae-46d0-acff-11e06e32f258",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 39291,
+          "completion_tokens": 637,
+          "total_tokens": 39928,
+          "prompt_tokens_details": {
+            "cached_tokens": 38400
+          },
+          "prompt_cache_hit_tokens": 38400,
+          "prompt_cache_miss_tokens": 891
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.00063105,
+        "startedAt": "2026-10-22T04:14:55.251Z",
+        "modelCompletedAt": "2026-10-22T04:14:57.599Z",
+        "readyAt": "2026-10-22T04:14:58.019Z",
+        "accepted": false,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": [
+          {
+            "code": "workflow/route-preset-conflict",
+            "severity": "error",
+            "message": "Workflow edge \"ineligible\" cannot satisfy route preset \"drop\": candidate violates perpendicular endpoint-side direction.",
+            "subject": {
+              "diagramType": "workflow",
+              "edge": "ineligible",
+              "from": "eligibility_check",
+              "to": "reject",
+              "route": "drop"
+            },
+            "evidence": {
+              "invariant": "perpendicular endpoint-side direction",
+              "attemptedCandidateFamily": "drop",
+              "points": [
+                [
+                  390,
+                  119
+                ],
+                [
+                  390,
+                  228
+                ],
+                [
+                  528,
+                  228
+                ],
+                [
+                  528,
+                  367
+                ]
+              ],
+              "fromSide": "right",
+              "toSide": "left",
+              "requiredEndpointStubPx": 8,
+              "requiredInteriorSegmentPx": 16,
+              "requiredDirectClearancePx": 28
+            }
+          }
+        ]
+      },
+      {
+        "submission": 3,
+        "source": "cases/workflow-04/archify/candidate-3.json",
+        "sourceSha256": "c47cd3055e8979b3bb36ecd6d1bf006b22b90de5181f1ca968c22388acb93af5",
+        "responseId": "53dbcabc-3239-4b13-a709-3e9abab07fbc",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 40745,
+          "completion_tokens": 643,
+          "total_tokens": 41388,
+          "prompt_tokens_details": {
+            "cached_tokens": 39808
+          },
+          "prompt_cache_hit_tokens": 39808,
+          "prompt_cache_miss_tokens": 937
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.000645774,
+        "startedAt": "2026-10-22T04:14:58.023Z",
+        "modelCompletedAt": "2026-10-22T04:15:00.371Z",
+        "readyAt": "2026-10-22T04:15:00.821Z",
+        "accepted": false,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": [
+          {
+            "code": "workflow/explicit-pin-conflict",
+            "severity": "error",
+            "message": "Workflow edge \"accepted\" has explicit geometry that violates explicit route-route crossing.",
+            "subject": {
+              "diagramType": "workflow",
+              "edge": "accepted",
+              "from": "inspect",
+              "to": "refund"
+            },
+            "evidence": {
+              "invariant": "explicit route-route crossing",
+              "conflictingPins": [
+                {
+                  "edge": "accepted",
+                  "field": "route",
+                  "path": "/edges/4/route",
+                  "value": "drop"
+                },
+                {
+                  "edge": "ineligible",
+                  "field": "fromSide",
+                  "path": "/edges/1/fromSide",
+                  "value": "bottom"
+                },
+                {
+                  "edge": "ineligible",
+                  "field": "toSide",
+                  "path": "/edges/1/toSide",
+                  "value": "top"
+                }
+              ],
+              "point": [
+                698,
+                325
+              ],
+              "segmentIndex": 2,
+              "otherSegmentIndex": 3,
+              "routeSegments": [
+                {
+                  "edge": "accepted",
+                  "from": [
+                    698,
+                    290
+                  ],
+                  "to": [
+                    698,
+                    341
+                  ]
+                },
+                {
+                  "edge": "ineligible",
+                  "from": [
+                    736,
+                    325
+                  ],
+                  "to": [
+                    574,
+                    325
+                  ]
+                }
+              ],
+              "sourceRouteSegments": [
+                {
+                  "edge": "accepted",
+                  "from": [
+                    698,
+                    290
+                  ],
+                  "to": [
+                    698,
+                    341
+                  ]
+                },
+                {
+                  "edge": "ineligible",
+                  "from": [
+                    736,
+                    325
+                  ],
+                  "to": [
+                    574,
+                    325
+                  ]
+                }
+              ]
+            },
+            "supportedFixes": [
+              "remove route from edge \"accepted\" and remove fromSide and toSide from edge \"ineligible\" so readable-v2 can replan the remaining authored route assertions"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "runId": "23-workflow-04-mermaid",
+    "taskId": "workflow-04",
+    "arm": "直接 Mermaid",
+    "format": "mermaid",
+    "selectedSubmission": 3,
+    "status": "delivered",
+    "source": "cases/workflow-04/mermaid/candidate-3.mmd",
+    "preview": "cases/workflow-04/mermaid/diagram.png",
+    "nativeFile": null,
+    "artifactSha256": "76314933eca60e47300cd3e5548dcd405a5b44825150e7c5a72d1974cdc5b588",
+    "previewSha256": "fb34cc4a921a2587c915e797a4cc25040bd8866dffdcbdb7f196c913cfbd98f4",
+    "startedAt": "2026-10-22T04:15:00.830Z",
+    "completedAt": "2026-10-22T04:15:12.590Z",
+    "usage": {
+      "inputTokens": 9386,
+      "outputTokens": 231,
+      "cachedInputTokens": 3712,
+      "reasoningTokens": null,
+      "costUsd": 0.001000836,
+      "totalTokens": 9617,
+      "observed": {
+        "inputTokens": 9386,
+        "outputTokens": 231,
+        "cachedInputTokens": 3712,
+        "reasoningTokens": 0,
+        "costUsd": 0.001000836,
+        "totalTokens": 9617
+      },
+      "complete": true,
+      "status": "complete",
+      "calls": [
+        {
+          "callId": "candidate-1",
+          "inputTokens": 396,
+          "outputTokens": 77,
+          "cachedInputTokens": 128,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.00008678399999999999,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 268,
+            "providerUsage": {
+              "prompt_tokens": 396,
+              "completion_tokens": 77,
+              "total_tokens": 473,
+              "prompt_tokens_details": {
+                "cached_tokens": 128
+              },
+              "prompt_cache_hit_tokens": 128,
+              "prompt_cache_miss_tokens": 268
+            }
+          },
+          "totalTokens": 473,
+          "status": "complete"
+        },
+        {
+          "callId": "candidate-2",
+          "inputTokens": 3232,
+          "outputTokens": 77,
+          "cachedInputTokens": 384,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.00047455199999999994,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 2848,
+            "providerUsage": {
+              "prompt_tokens": 3232,
+              "completion_tokens": 77,
+              "total_tokens": 3309,
+              "prompt_tokens_details": {
+                "cached_tokens": 384
+              },
+              "prompt_cache_hit_tokens": 384,
+              "prompt_cache_miss_tokens": 2848
+            }
+          },
+          "totalTokens": 3309,
+          "status": "complete"
+        },
+        {
+          "callId": "candidate-3",
+          "inputTokens": 5758,
+          "outputTokens": 77,
+          "cachedInputTokens": 3200,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.0004395,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 2558,
+            "providerUsage": {
+              "prompt_tokens": 5758,
+              "completion_tokens": 77,
+              "total_tokens": 5835,
+              "prompt_tokens_details": {
+                "cached_tokens": 3200
+              },
+              "prompt_cache_hit_tokens": 3200,
+              "prompt_cache_miss_tokens": 2558
+            }
+          },
+          "totalTokens": 5835,
+          "status": "complete"
+        }
+      ]
+    },
+    "semantic": {
+      "status": "verified",
+      "passed": true,
+      "nodes": {
+        "matched": 6,
+        "expected": 6,
+        "actual": 6,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "edges": {
+        "matched": 6,
+        "expected": 6,
+        "actual": 6,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "violations": []
+    },
+    "geometry": {
+      "status": "verified",
+      "passed": true,
+      "violations": [],
+      "metrics": {
+        "nodes": 6,
+        "texts": 12,
+        "edges": 6,
+        "defects": 0,
+        "defectsPerNode": 0,
+        "counts": {},
+        "minFontPx": 12,
+        "epsilonPx": 0.5,
+        "calibrated": false,
+        "pilot": true
+      }
+    },
+    "editability": {
+      "status": "verified",
+      "passed": true,
+      "method": "actual-native-reload-label-edit"
+    },
+    "attempts": [
+      {
+        "submission": 1,
+        "source": "cases/workflow-04/mermaid/candidate-1.mmd",
+        "sourceSha256": "a196009de0b3529360d162a9d7c4ad83269a676c8d3c3702f15f4c558803aafd",
+        "responseId": "0a6d7d9d-4a16-4d02-ac7f-58edac0af0e3",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 396,
+          "completion_tokens": 77,
+          "total_tokens": 473,
+          "prompt_tokens_details": {
+            "cached_tokens": 128
+          },
+          "prompt_cache_hit_tokens": 128,
+          "prompt_cache_miss_tokens": 268
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.00008678399999999999,
+        "startedAt": "2026-10-22T04:15:00.830Z",
+        "modelCompletedAt": "2026-10-22T04:15:01.885Z",
+        "readyAt": "2026-10-22T04:15:02.743Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      },
+      {
+        "submission": 2,
+        "source": "cases/workflow-04/mermaid/candidate-2.mmd",
+        "sourceSha256": "34b1ab684600e9ab73e54f45c806d50d0f4f754f3ceb2bd7a453637af49ae310",
+        "responseId": "29d7f813-8ec3-43b0-8b49-852f2c81c22e",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 3232,
+          "completion_tokens": 77,
+          "total_tokens": 3309,
+          "prompt_tokens_details": {
+            "cached_tokens": 384
+          },
+          "prompt_cache_hit_tokens": 384,
+          "prompt_cache_miss_tokens": 2848
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.00047455199999999994,
+        "startedAt": "2026-10-22T04:15:04.614Z",
+        "modelCompletedAt": "2026-10-22T04:15:07.581Z",
+        "readyAt": "2026-10-22T04:15:08.456Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      },
+      {
+        "submission": 3,
+        "source": "cases/workflow-04/mermaid/candidate-3.mmd",
+        "sourceSha256": "a196009de0b3529360d162a9d7c4ad83269a676c8d3c3702f15f4c558803aafd",
+        "responseId": "fb4ea3a1-ce89-4b3d-9bd0-bab925c1d0c9",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 5758,
+          "completion_tokens": 77,
+          "total_tokens": 5835,
+          "prompt_tokens_details": {
+            "cached_tokens": 3200
+          },
+          "prompt_cache_hit_tokens": 3200,
+          "prompt_cache_miss_tokens": 2558
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.0004395,
+        "startedAt": "2026-10-22T04:15:10.314Z",
+        "modelCompletedAt": "2026-10-22T04:15:11.728Z",
+        "readyAt": "2026-10-22T04:15:12.590Z",
+        "accepted": true,
+        "verifiedDuringGeneration": false,
+        "nativeDiagnostics": []
+      }
+    ]
+  },
+  {
+    "runId": "24-workflow-04-svg",
+    "taskId": "workflow-04",
+    "arm": "直接 SVG",
+    "format": "svg",
+    "selectedSubmission": 1,
+    "status": "delivered",
+    "source": "cases/workflow-04/svg/candidate-1.svg",
+    "preview": "cases/workflow-04/svg/diagram.png",
+    "nativeFile": null,
+    "artifactSha256": "04053783d806ed2207613f056888d4bec2b3b7038045c7aaf8451a1782310827",
+    "previewSha256": "72dd083018f6e705afd51aec8034c9caa5b74d1d2c828bee5d129a226f3774b0",
+    "startedAt": "2026-10-22T04:15:14.390Z",
+    "completedAt": "2026-10-22T04:15:17.757Z",
+    "usage": {
+      "inputTokens": 447,
+      "outputTokens": 1174,
+      "cachedInputTokens": 128,
+      "reasoningTokens": null,
+      "costUsd": 0.000752634,
+      "totalTokens": 1621,
+      "observed": {
+        "inputTokens": 447,
+        "outputTokens": 1174,
+        "cachedInputTokens": 128,
+        "reasoningTokens": 0,
+        "costUsd": 0.000752634,
+        "totalTokens": 1621
+      },
+      "complete": true,
+      "status": "complete",
+      "calls": [
+        {
+          "callId": "candidate-1",
+          "inputTokens": 447,
+          "outputTokens": 1174,
+          "cachedInputTokens": 128,
+          "reasoningTokens": null,
+          "cachedIncludedInInput": true,
+          "reasoningIncludedInOutput": true,
+          "costUsd": 0.000752634,
+          "complete": true,
+          "costBasis": {
+            "kind": "provider-usage-times-official-tariff",
+            "tariff": {
+              "currency": "USD",
+              "model": "deepseek-flash",
+              "modelVersion": "DeepSeek-V4.1-Flash-1017",
+              "window": "off-peak",
+              "perMillion": {
+                "cachedInput": 0.003,
+                "input": 0.15,
+                "output": 0.6
+              },
+              "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+              "retrieved": "2026-10-22",
+              "publicHoliday": false
+            },
+            "cacheMissTokens": 319,
+            "providerUsage": {
+              "prompt_tokens": 447,
+              "completion_tokens": 1174,
+              "total_tokens": 1621,
+              "prompt_tokens_details": {
+                "cached_tokens": 128
+              },
+              "prompt_cache_hit_tokens": 128,
+              "prompt_cache_miss_tokens": 319
+            }
+          },
+          "totalTokens": 1621,
+          "status": "complete"
+        }
+      ]
+    },
+    "semantic": {
+      "status": "verified",
+      "passed": true,
+      "nodes": {
+        "matched": 6,
+        "expected": 6,
+        "actual": 6,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "edges": {
+        "matched": 6,
+        "expected": 6,
+        "actual": 6,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "violations": []
+    },
+    "geometry": {
+      "status": "verified",
+      "passed": true,
+      "violations": [],
+      "metrics": {
+        "nodes": 6,
+        "texts": 12,
+        "edges": 6,
+        "defects": 0,
+        "defectsPerNode": 0,
+        "counts": {},
+        "minFontPx": 12,
+        "epsilonPx": 0.5,
+        "calibrated": false,
+        "pilot": true
+      }
+    },
+    "editability": {
+      "status": "verified",
+      "passed": true,
+      "method": "actual-native-reload-label-edit"
+    },
+    "attempts": [
+      {
+        "submission": 1,
+        "source": "cases/workflow-04/svg/candidate-1.svg",
+        "sourceSha256": "56305f70d0b049d8f6b89885a6f2453320ccb08fcab0c589d7e4bbb78f82fe7e",
+        "responseId": "a93f1bcf-7f18-48b2-9d5a-775f22937c1a",
+        "model": "deepseek-flash",
+        "finishReason": "stop",
+        "usage": {
+          "prompt_tokens": 447,
+          "completion_tokens": 1174,
+          "total_tokens": 1621,
+          "prompt_tokens_details": {
+            "cached_tokens": 128
+          },
+          "prompt_cache_hit_tokens": 128,
+          "prompt_cache_miss_tokens": 319
+        },
+        "tariff": {
+          "currency": "USD",
+          "model": "deepseek-flash",
+          "modelVersion": "DeepSeek-V4.1-Flash-1017",
+          "window": "off-peak",
+          "perMillion": {
+            "cachedInput": 0.003,
+            "input": 0.15,
+            "output": 0.6
+          },
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "retrieved": "2026-10-22",
+          "publicHoliday": false
+        },
+        "costUsd": 0.000752634,
+        "startedAt": "2026-10-22T04:15:14.390Z",
+        "modelCompletedAt": "2026-10-22T04:15:17.751Z",
+        "readyAt": "2026-10-22T04:15:17.757Z",
+        "accepted": true,
+        "verifiedDuringGeneration": true,
+        "nativeDiagnostics": []
+      }
+    ]
+  }
+]

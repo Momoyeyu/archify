@@ -1,0 +1,23 @@
+<mxStyle name="proc" value="rounded=0;fillColor=#dae8fc;strokeColor=#6c8ebf;"/>
+<mxStyle name="term" value="rounded=0;fillColor=#d5e8d4;strokeColor=#82b366;"/>
+<mxStyle name="rej" value="rounded=0;fillColor=#f8cecc;strokeColor=#b85450;"/>
+<mxStyle name="flow" value="edgeStyle=orthogonalEdgeStyle;endArrow=block;"/>
+<mxCell id="2" value="Return Request" style="term;" x="40" y="240" w="140" h="60"/>
+<mxCell id="3" value="Eligibility Check" style="proc;" x="240" y="240" w="140" h="60"/>
+<mxCell id="4" value="Reject" style="rej;" x="460" y="400" w="140" h="60"/>
+<mxCell id="5" value="Receive Parcel" style="proc;" x="460" y="240" w="140" h="60"/>
+<mxCell id="6" value="Inspect" style="proc;" x="660" y="240" w="140" h="60"/>
+<mxCell id="7" value="Refund" style="term;" x="660" y="80" w="140" h="60"/>
+<mxCell id="8" value="submit" style="flow;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" source="2" target="3"/>
+<mxCell id="9" value="ineligible" style="flow;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" source="3" target="4"/>
+<mxCell id="10" value="eligible" style="flow;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" source="3" target="5"/>
+<mxCell id="11" value="arrived" style="flow;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" source="5" target="6"/>
+<mxCell id="12" value="accepted" style="flow;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" source="6" target="7"/>
+<mxCell id="13" value="damaged" style="flow;exitX=0.5;exitY=1;entryX=1;entryY=0.5;" source="6" target="4">
+  <mxGeometry relative="1" as="geometry">
+    <Array as="points">
+      <mxPoint x="730" y="370"/>
+      <mxPoint x="630" y="370"/>
+    </Array>
+  </mxGeometry>
+</mxCell>

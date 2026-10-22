@@ -1,0 +1,9 @@
+flowchart LR
+    Browser["Browser"]
+    Gateway["Gateway"]
+    TicketAPI["Ticket API"]
+    SeatStore["Seat Store"]
+    Browser -->|HTTPS| Gateway
+    Gateway -->|reserve| TicketAPI
+    TicketAPI -->|hold seat| SeatStore
+    SeatStore -->|availability| TicketAPI

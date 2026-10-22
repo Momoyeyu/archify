@@ -1,5 +1,7 @@
 # 同模型实跑：完整自动成绩与真人评分（2026-10-22）
 
+[可直接在仓库查看的实验结果、柱状图、原图和真实人评](2026-10-22-peer-results/README.md)。
+
 **24/24格自动计分完整，没有自动缺测。** 4题 × 6方式，48次真实 deepseek-flash 调用。复用原有生成结果、源码、耗时与用量，修正验收器后以6个并发任务离线重评，约36秒；新增模型调用0次、费用0。没有PR或推送。
 
 ## 成绩
@@ -57,7 +59,7 @@ node benchmarks/diagram-quality/review-server.mjs \
 
 模型 deepseek-flash，temperature0.2，thinking disabled，每次输出8192上限。每格3候选、600秒、200,000实际输入输出tokens、USD0.25。Archify 当前完整Skill，Architecture v1／Workflow v2，原生finalize showcase；Next AI Draw.io MCP0.4.6／draw.io32.0.2，源码6cc5cd7925777a141e4b278d0017dfbcc8cdfef2（36,341 stars）；官方Excalidraw MCP源码157aa23ceb1976008aadc89eb05e3444060f09d6，原生Excalidraw0.18.0（5,556 stars）。stars为本轮调研快照。
 
-48次调用输入657,434、输出33,420，总690,854 tokens，官方费率核算USD0.038511528。Archify460,648 tokens；Mermaid10,933，差异包含本host文档预加载政策，不能外推默认按需Skill成本。缓存状态未控制，真实命中均记录。前期作废开发实验82次已知费用USD0.143264052，另一次传输错误usage未知，均单独保留、不进入成绩。
+48次调用输入657,434、输出33,420，总690,854 tokens，官方费率核算USD0.038511528。Archify460,648 tokens；Mermaid10,933，差异包含本host文档预加载政策，不能外推默认按需Skill成本。缓存状态未控制，真实命中均记录。前期作废开发实验82次已知费用USD0.143264052，另两次传输错误usage未知，均单独保留、不进入成绩。
 
 ## 验证与清理
 

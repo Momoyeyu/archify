@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#333333"/>
+    </marker>
+  </defs>
+
+  <!-- Nodes -->
+  <g>
+    <rect x="60" y="300" width="160" height="60" rx="4" fill="#E8F0FE" stroke="#333333" stroke-width="2"/>
+    <text x="140" y="336" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#111111">Return Request</text>
+  </g>
+
+  <g>
+    <rect x="320" y="300" width="170" height="60" rx="4" fill="#E8F0FE" stroke="#333333" stroke-width="2"/>
+    <text x="405" y="336" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#111111">Eligibility Check</text>
+  </g>
+
+  <g>
+    <rect x="600" y="120" width="120" height="60" rx="4" fill="#FCE8E6" stroke="#333333" stroke-width="2"/>
+    <text x="660" y="156" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#111111">Reject</text>
+  </g>
+
+  <g>
+    <rect x="600" y="300" width="160" height="60" rx="4" fill="#E8F0FE" stroke="#333333" stroke-width="2"/>
+    <text x="680" y="336" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#111111">Receive Parcel</text>
+  </g>
+
+  <g>
+    <rect x="880" y="300" width="120" height="60" rx="4" fill="#E8F0FE" stroke="#333333" stroke-width="2"/>
+    <text x="940" y="336" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#111111">Inspect</text>
+  </g>
+
+  <g>
+    <rect x="1120" y="300" width="120" height="60" rx="4" fill="#E6F4EA" stroke="#333333" stroke-width="2"/>
+    <text x="1180" y="336" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#111111">Refund</text>
+  </g>
+
+  <!-- Edges -->
+  <path d="M 220 330 L 320 330" fill="none" stroke="#333333" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="270" y="320" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#333333">submit</text>
+
+  <path d="M 405 300 L 405 210 L 600 210 L 600 150" fill="none" stroke="#333333" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="500" y="200" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#333333">ineligible</text>
+
+  <path d="M 490 330 L 600 330" fill="none" stroke="#333333" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="545" y="320" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#333333">eligible</text>
+
+  <path d="M 760 330 L 880 330" fill="none" stroke="#333333" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="820" y="320" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#333333">arrived</text>
+
+  <path d="M 1000 330 L 1120 330" fill="none" stroke="#333333" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="1060" y="320" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#333333">accepted</text>
+
+  <path d="M 940 300 L 940 210 L 660 210 L 660 180" fill="none" stroke="#333333" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="800" y="200" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#333333">damaged</text>
+</svg>

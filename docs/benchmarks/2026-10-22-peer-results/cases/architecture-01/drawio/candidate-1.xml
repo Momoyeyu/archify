@@ -1,0 +1,10 @@
+<mxStyle name="box" value="rounded=0;fillColor=#ffffff;strokeColor=#000000;fontSize=14;"/>
+<mxStyle name="flow" value="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;endFill=1;strokeColor=#000000;fontSize=12;labelBackgroundColor=#ffffff;"/>
+<mxCell id="2" value="Browser" style="box;" x="40" y="240" w="160" h="70"/>
+<mxCell id="3" value="Gateway" style="box;" x="280" y="240" w="160" h="70"/>
+<mxCell id="4" value="Ticket API" style="box;" x="520" y="240" w="160" h="70"/>
+<mxCell id="5" value="Seat Store" style="box;" x="520" y="420" w="160" h="70"/>
+<mxCell id="6" value="HTTPS" style="flow;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" source="2" target="3"/>
+<mxCell id="7" value="reserve" style="flow;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" source="3" target="4"/>
+<mxCell id="8" value="hold seat" style="flow;exitX=0.3;exitY=1;entryX=0.3;entryY=0;" source="4" target="5"/>
+<mxCell id="9" value="availability" style="flow;exitX=0.7;exitY=0;entryX=0.7;entryY=1;" source="5" target="4"/>

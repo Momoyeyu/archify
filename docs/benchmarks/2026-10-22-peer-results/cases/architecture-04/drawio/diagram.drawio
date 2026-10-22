@@ -1,0 +1,46 @@
+<mxfile host="localhost">
+  <diagram id="m083y249-ukrt" name="Page-1">
+    <mxGraphModel dx="860" dy="593" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2" parent="1" style="rounded=0;fillColor=#dae8fc;strokeColor=#6c8ebf;whiteSpace=wrap;html=1;" value="Shop UI" vertex="1">
+          <mxGeometry height="60" width="140" x="40" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="3" parent="1" style="rounded=0;fillColor=#dae8fc;strokeColor=#6c8ebf;whiteSpace=wrap;html=1;" value="Order API" vertex="1">
+          <mxGeometry height="60" width="140" x="260" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="4" parent="1" style="rounded=0;fillColor=#dae8fc;strokeColor=#6c8ebf;whiteSpace=wrap;html=1;" value="Inventory Service" vertex="1">
+          <mxGeometry height="60" width="160" x="480" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="5" parent="1" style="rounded=0;fillColor=#d5e8d4;strokeColor=#82b366;whiteSpace=wrap;html=1;" value="Inventory DB" vertex="1">
+          <mxGeometry height="60" width="140" x="720" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="6" parent="1" style="rounded=0;fillColor=#dae8fc;strokeColor=#6c8ebf;whiteSpace=wrap;html=1;" value="Payment Service" vertex="1">
+          <mxGeometry height="60" width="160" x="480" y="360" as="geometry" />
+        </mxCell>
+        <mxCell id="7" parent="1" style="rounded=0;fillColor=#d5e8d4;strokeColor=#82b366;whiteSpace=wrap;html=1;" value="Audit Log" vertex="1">
+          <mxGeometry height="60" width="140" x="260" y="440" as="geometry" />
+        </mxCell>
+        <mxCell id="8" edge="1" parent="1" source="2" style="edgeStyle=orthogonalEdgeStyle;endArrow=block;endFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;html=1;" target="3" value="checkout">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="9" edge="1" parent="1" source="3" style="edgeStyle=orthogonalEdgeStyle;endArrow=block;endFill=1;exitX=1;exitY=0.3;entryX=0;entryY=0.5;html=1;" target="4" value="reserve">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="10" edge="1" parent="1" source="4" style="edgeStyle=orthogonalEdgeStyle;endArrow=block;endFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;html=1;" target="5" value="update">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="11" edge="1" parent="1" source="3" style="edgeStyle=orthogonalEdgeStyle;endArrow=block;endFill=1;exitX=1;exitY=0.7;entryX=0;entryY=0.3;html=1;" target="6" value="charge">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="12" edge="1" parent="1" source="6" style="edgeStyle=orthogonalEdgeStyle;endArrow=block;endFill=1;exitX=0;exitY=0.7;entryX=1;entryY=0.7;html=1;" target="3" value="payment result">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="13" edge="1" parent="1" source="3" style="edgeStyle=orthogonalEdgeStyle;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;html=1;" target="7" value="record">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

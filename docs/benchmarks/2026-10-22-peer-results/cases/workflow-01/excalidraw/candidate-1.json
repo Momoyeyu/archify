@@ -1,0 +1,10 @@
+[
+  {"type":"cameraUpdate","width":800,"height":600,"x":-40,"y":-40},
+  {"type":"rectangle","id":"Request","x":60,"y":240,"width":180,"height":80,"roundness":{"type":3},"backgroundColor":"#a5d8ff","fillStyle":"solid","strokeColor":"#4a9eed","strokeWidth":2,"seed":101,"label":{"text":"Request","fontSize":20}},
+  {"type":"rectangle","id":"Review","x":340,"y":240,"width":180,"height":80,"roundness":{"type":3},"backgroundColor":"#fff3bf","fillStyle":"solid","strokeColor":"#f59e0b","strokeWidth":2,"seed":102,"label":{"text":"Review","fontSize":20}},
+  {"type":"arrow","id":"a_submit","x":240,"y":280,"width":100,"height":0,"points":[[0,0],[100,0]],"strokeColor":"#1e1e1e","strokeWidth":2,"endArrowhead":"arrow","seed":201,"startBinding":{"elementId":"Request","fixedPoint":[1,0.5]},"endBinding":{"elementId":"Review","fixedPoint":[0,0.5]},"label":{"text":"submit","fontSize":16}},
+  {"type":"rectangle","id":"Grant","x":620,"y":140,"width":180,"height":80,"roundness":{"type":3},"backgroundColor":"#b2f2bb","fillStyle":"solid","strokeColor":"#22c55e","strokeWidth":2,"seed":103,"label":{"text":"Grant","fontSize":20}},
+  {"type":"rectangle","id":"Reject","x":620,"y":340,"width":180,"height":80,"roundness":{"type":3},"backgroundColor":"#ffc9c9","fillStyle":"solid","strokeColor":"#ef4444","strokeWidth":2,"seed":104,"label":{"text":"Reject","fontSize":20}},
+  {"type":"arrow","id":"a_approved","x":520,"y":280,"width":100,"height":-100,"points":[[0,0],[100,-100]],"strokeColor":"#22c55e","strokeWidth":2,"endArrowhead":"arrow","seed":202,"startBinding":{"elementId":"Review","fixedPoint":[1,0.5]},"endBinding":{"elementId":"Grant","fixedPoint":[0,0.5]},"label":{"text":"approved","fontSize":16}},
+  {"type":"arrow","id":"a_denied","x":520,"y":280,"width":100,"height":100,"points":[[0,0],[100,100]],"strokeColor":"#ef4444","strokeWidth":2,"endArrowhead":"arrow","seed":203,"startBinding":{"elementId":"Review","fixedPoint":[1,0.5]},"endBinding":{"elementId":"Reject","fixedPoint":[0,0.5]},"label":{"text":"denied","fontSize":16}}
+]

@@ -1,0 +1,14 @@
+flowchart LR
+    ShopUI["Shop UI"]
+    OrderAPI["Order API"]
+    InventoryService["Inventory Service"]
+    InventoryDB["Inventory DB"]
+    PaymentService["Payment Service"]
+    AuditLog["Audit Log"]
+
+    ShopUI -->|checkout| OrderAPI
+    OrderAPI -->|reserve| InventoryService
+    InventoryService -->|update| InventoryDB
+    OrderAPI -->|charge| PaymentService
+    PaymentService -->|payment result| OrderAPI
+    OrderAPI -->|record| AuditLog
