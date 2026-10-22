@@ -1,7 +1,0 @@
-flowchart TD
-    A["Return Request"] -->|submit| B["Eligibility Check"]
-    B -->|ineligible| C["Reject"]
-    B -->|eligible| D["Receive Parcel"]
-    D -->|arrived| E["Inspect"]
-    E -->|accepted| F["Refund"]
-    E -->|damaged| C

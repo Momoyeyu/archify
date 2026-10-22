@@ -6,13 +6,20 @@
 
 ## 先看效果
 
-[本次真实实验：完整成绩、柱状图、23张原图和人工评分](../../docs/benchmarks/2026-10-22-peer-results/README.md)。
+同一 `deepseek-flash`、4题、6种方式，共48次调用；23张交付图完成单人五项评分。
 
-最新实跑：[四题 × 六方式完整结果与真人评分](../../docs/benchmarks/2026-10-22-peer-rerun.md)。**24/24格自动计分完整**：Mermaid **100.0**、Next AI Draw.io MCP **99.9**、SVG **90.8**、Excalidraw MCP **85.0**、HTML **77.9**、Archify **74.1**。复用同一48次真实调用，修正验收器后并发重评，新增模型费用0。人评入口 `http://127.0.0.1:6388`，23图五项1–5分、自动保存、即时个人综合表与柱状图。
+| 方法 | 自动分 | 人评 H | 综合分 | 交付 |
+| --- | ---: | ---: | ---: | ---: |
+| Mermaid | 100.0 | 77.5 | 96.6 | 4/4 |
+| Next AI Draw.io MCP | 99.9 | 77.5 | 96.5 | 4/4 |
+| SVG | 90.8 | 67.5 | 87.3 | 4/4 |
+| Excalidraw MCP | 85.0 | 60.0 | 81.2 | 4/4 |
+| HTML | 77.9 | 73.8 | 77.2 | 4/4 |
+| Archify | 74.1 | 72.5 | 73.9 | 3/4 |
 
-已有一轮真实 API 首稿对比：[两题 × 四种方式的结果与限制](../../docs/benchmarks/2026-10-21-real-pilot.md)。同一个 `deepseek-flash`、相同题目，每格只生成一次，保留失败；自动分为 Archify **49.4**、直接 Mermaid **100.0**、直接 SVG **82.6**、直接 HTML **100.0**。这不是正式工具排名，人评尚未进行。
+Archify一道退货流程题因路由约束冲突交付失败，按0分计入均值；成功交付三图的人评均分为96.7。综合分为85%自动分＋15%人评，这是单人试点评分。
 
-**配置缺陷已确认（2026-10-22）：** 本轮 Archify 提示词强制 schema v1，使新 workflow 使用旧 fixed-v1，偏离当前文档要求的 readable-v2。原数据保留供审计，不能代表当前推荐用法。`executePilot` 留作原实验复现，不能直接沿用为公平比较的新协议。
+[完整实验归档：柱状图、原图、候选源码与真实评分](https://github.com/Momoyeyu/archify/blob/b75013b6e257bf1d3e6194fd3da944340a9ff7e8/docs/benchmarks/2026-10-22-peer-results/README.md)。实验材料保存在独立的历史快照，不随实现合入。
 
 在仓库根目录安装贡献指南中的测试依赖后，运行：
 
@@ -53,7 +60,7 @@ node benchmarks/diagram-quality/benchmark.mjs demo --output /tmp/archify-benchma
 | medium | 30 / 180 秒 | 0.03 / 0.75 |
 | large | 60 / 360 秒 | 0.06 / 1.50 |
 
-只有内容完全正确、交付可编辑且预算合规的结果才能获得效率分。内容有错但已测量完整，T/K 为零；缺少实际账目则是未测，不能虚构费用或把验收器的运行时间算作生成时间。详细契约见[评分设计](../../docs/superpowers/specs/2026-10-21-benchmark-scorecard-redesign.md)。
+只有内容完全正确、交付可编辑且预算合规的结果才能获得效率分。内容有错但已测量完整，T/K 为零；缺少实际账目则是未测，不能虚构费用或把验收器的运行时间算作生成时间。详细契约见[评分设计](https://github.com/Momoyeyu/archify/blob/b75013b6e257bf1d3e6194fd3da944340a9ff7e8/docs/superpowers/specs/2026-10-21-benchmark-scorecard-redesign.md)。
 
 ## 跑自己的实验
 
@@ -145,7 +152,7 @@ node benchmarks/diagram-quality/benchmark.mjs score \
 
 受限实跑入口是 [pilot.mjs](pilot.mjs) 的 `executePilot`，固定 `architecture-01/workflow-01` 与四种格式，调用前保存计划。调用者在内存提供凭据、全新输出目录、Chrome 路径和外部 Mermaid runtime 根目录；runtime 使用精确 `mermaid@12.2.0`，不安装到用户的 Archify。该入口只允许本次选定的 DeepSeek 官方源及模型，计费表冻结于 2026-10-21 非高峰窗口，过期费率需要先重新核实。无须重新调用模型即可用已保存回执重算分数。
 
-文献及方法溯源见[完整 v2 设计](../../docs/superpowers/specs/2026-10-21-benchmark-v2-design.md)与[研究核对](../../docs/benchmarks/2026-10-21-benchmark-audit.md)。论文启发、已有通行指标和本项目自行选择的公式/权重应分别披露。`ablate` 的删节点、反向边、遮挡、字号干预是评估器敏感性回放；`weight-sensitivity.json` 是评分权重分析，都不能冒充关闭工具组件后重跑模型的因果消融。真实组件消融与人评相关性仍需新实验。
+文献及方法溯源见[完整 v2 设计](https://github.com/Momoyeyu/archify/blob/b75013b6e257bf1d3e6194fd3da944340a9ff7e8/docs/superpowers/specs/2026-10-21-benchmark-v2-design.md)与[研究核对](https://github.com/Momoyeyu/archify/blob/b75013b6e257bf1d3e6194fd3da944340a9ff7e8/docs/benchmarks/2026-10-21-benchmark-audit.md)。论文启发、已有通行指标和本项目自行选择的公式/权重应分别披露。`ablate` 的删节点、反向边、遮挡、字号干预是评估器敏感性回放；`weight-sensitivity.json` 是评分权重分析，都不能冒充关闭工具组件后重跑模型的因果消融。真实组件消融与人评相关性仍需新实验。
 
 ## 兼容与验证
 

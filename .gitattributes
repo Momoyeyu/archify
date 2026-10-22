@@ -21,8 +21,3 @@
 
 # Release archives contain binary bytes and must not be line-normalized.
 archify.zip binary
-
-# Recorded experiment payloads; keep the authored result summary visible for review.
-/docs/benchmarks/2026-10-22-peer-results/cases/** linguist-generated=true
-/docs/benchmarks/2026-10-22-peer-results/runs.json linguist-generated=true
-/docs/benchmarks/2026-10-22-peer-results/manifest.json linguist-generated=true
