@@ -64,3 +64,9 @@ node benchmarks/diagram-quality/review-server.mjs \
 ## 验证与清理
 
 171项相关检查全部通过、0跳过；核心19项通过。真实Chrome测试人评点击保存、刷新恢复、加权公式与390px手机布局，使用独立临时数据并清理，未填实际人评分。报告浏览器检查6方法／24格／23图及下载链接。源码、产物、生成时间、用量均与原48次调用逐一一致。临时编辑副本与测试评分已清理，评分服务持续运行供用户参与。没有改用户.env、没有PR。
+
+## PR基线与最新dev验证
+
+本轮是已有benchmark的v2迭代，对应[提案 #1058](https://github.com/tt-a1i/archify/issues/1058)，PR目标为`dev`。候选`f396e706`已整合最新`upstream/dev`（`f90a1930`），重新验证171项相关检查及19项核心检查，全部通过、无跳过。对本次四道Archify原始候选另做离线finalize复验：三题通过，退货题仍报`workflow/explicit-pin-conflict`。
+
+生成实验的固定源码`d3597bb6`与最新dev上的兼容性验证分别记录；参见[基线与验证证据](evidence/2026-10-22-dev-refresh.json)。
