@@ -4,7 +4,7 @@
 
 ## 先看效果
 
-最新实跑：[四题 × 六方式，同模型与原生同类工具](../../docs/benchmarks/2026-10-22-peer-rerun.md)。Archify **74.1**、Next AI Draw.io MCP **99.9**、Excalidraw MCP **85.0**；Mermaid／SVG／HTML 各有一项自动验收缺测，总分保留空值。21/24格计分完整，不能据此做完整排名；报告列出失败、缺测及对比度盲点。
+最新实跑：[四题 × 六方式完整结果与真人评分](../../docs/benchmarks/2026-10-22-peer-rerun.md)。**24/24格自动计分完整**：Mermaid **100.0**、Next AI Draw.io MCP **99.9**、SVG **90.8**、Excalidraw MCP **85.0**、HTML **77.9**、Archify **74.1**。复用同一48次真实调用，修正验收器后并发重评，新增模型费用0。人评入口 `http://127.0.0.1:6388`，23图五项1–5分、自动保存、即时个人综合表与柱状图。
 
 已有一轮真实 API 首稿对比：[两题 × 四种方式的结果与限制](../../docs/benchmarks/2026-10-21-real-pilot.md)。同一个 `deepseek-flash`、相同题目，每格只生成一次，保留失败；自动分为 Archify **49.4**、直接 Mermaid **100.0**、直接 SVG **82.6**、直接 HTML **100.0**。这不是正式工具排名，人评尚未进行。
 

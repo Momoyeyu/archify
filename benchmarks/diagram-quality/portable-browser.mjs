@@ -38,6 +38,7 @@ export async function observePortableArtifact({ artifactPath, chromePath, screen
 async function inspectPortable() {
   await document.fonts.ready;
   const unknownReasons = [];
+  const measuredDefects = [];
   const norm = value => String(value || '').replace(/\s+/g, ' ').trim();
   const localReference = value => {
     const ref = value.match(/^url\(["']?([^"')]+)["']?\)$/)?.[1];
@@ -84,15 +85,24 @@ async function inspectPortable() {
   const contains = (r, p, tolerance = 0) => p.x >= r.x - tolerance && p.x <= r.x + r.width + tolerance && p.y >= r.y - tolerance && p.y <= r.y + r.height + tolerance;
   const center = r => ({ x: r.x + r.width / 2, y: r.y + r.height / 2 });
   const svg = document.querySelector('svg');
+  // SVG textContent omits the visual line break between independently
+  // positioned tspan rows. Read those rows in paint order, preserving spaces.
+  const textLabel = element => {
+    const rows = [...element.children].filter(e => e.tagName.toLowerCase() === 'tspan' && (e.hasAttribute('x') || e.hasAttribute('y')));
+    return norm(rows.length > 1 ? rows.map(e => e.textContent).join(' ') : element.textContent);
+  };
   const textVisible = element => {
     if (!visible(element) || !painted(element)) return false;
     if ([...element.querySelectorAll('tspan')].some(t => !visible(t) || !painted(t))) return false;
-    const r = rect(element);
-    for (const fraction of [0.25, 0.5, 0.75]) {
+    // Test glyph-run boxes rather than the enclosing multiline rectangle:
+    // the latter contains line whitespace where the node background is topmost.
+    const leaves = [...element.querySelectorAll('tspan')].filter(t => !t.querySelector('tspan'));
+    const boxes = leaves.length ? leaves.map(rect) : [rect(element)];
+    for (const r of boxes) for (const fraction of [0.25, 0.5, 0.75]) {
       const p = { x: r.x + r.width * fraction, y: r.y + r.height / 2 };
       const top = document.elementsFromPoint(p.x, p.y)[0];
-      if (top && top !== element && !element.contains(top) && !top.contains(element)) {
-        unknownReasons.push('Rendered text may be occluded: ' + norm(element.textContent));
+      if (top && top !== element && !element.contains(top) && !top.contains(element) && (element.compareDocumentPosition(top) & Node.DOCUMENT_POSITION_FOLLOWING)) {
+        measuredDefects.push('Rendered text is occluded by later paint: ' + textLabel(element));
         return false;
       }
       // Hit testing omits pointer-events:none paint. Check later SVG fills too.
@@ -102,7 +112,7 @@ async function inspectPortable() {
         if (!color(style.fill) || !(Number(style.fillOpacity) > 0) || typeof overlay.isPointInFill !== 'function') continue;
         const matrix = overlay.getScreenCTM();
         if (matrix && overlay.isPointInFill(new DOMPoint(p.x, p.y).matrixTransform(matrix.inverse()))) {
-          unknownReasons.push('Rendered text is covered by a later SVG fill: ' + norm(element.textContent));
+          measuredDefects.push('Rendered text is covered by a later SVG fill: ' + textLabel(element));
           return false;
         }
       }
@@ -126,8 +136,8 @@ async function inspectPortable() {
     const box = rect(shape);
     const texts = shape.namespaceURI === 'http://www.w3.org/2000/svg'
       ? svgTexts.filter(t => contains(box, center(rect(t)))) : [shape];
-    const label = norm(texts.map(t => t.namespaceURI === 'http://www.w3.org/2000/svg' ? t.textContent : t.innerText).join(' '));
-    if (!label) { unknownReasons.push('Visible node rectangle has no observable label'); continue; }
+    const label = norm(texts.map(t => t.namespaceURI === 'http://www.w3.org/2000/svg' ? textLabel(t) : t.innerText).join(' '));
+    if (!label) { measuredDefects.push('Visible node rectangle has no observable label'); continue; }
     const id = `observed-node-${nodes.length + 1}`;
     for (const text of texts) {
       if (owners.has(text)) unknownReasons.push('Rendered text belongs to multiple node boxes');
@@ -214,13 +224,15 @@ async function inspectPortable() {
   });
   const texts = [...svgTexts, ...htmlNodes].map(e => {
     const m = e.getScreenCTM?.();
-    return { element: e, text: norm(e.namespaceURI === 'http://www.w3.org/2000/svg' ? e.textContent : e.innerText), rect: rect(e), fontSize: parseFloat(getComputedStyle(e).fontSize) * (m ? Math.hypot(m.a, m.b) : 1), visible: true, nodeId: owners.get(e) || null, edgeFrom: null, edgeTo: null };
+    return { element: e, text: norm(e.namespaceURI === 'http://www.w3.org/2000/svg' ? textLabel(e) : e.innerText), rect: rect(e), fontSize: parseFloat(getComputedStyle(e).fontSize) * (m ? Math.hypot(m.a, m.b) : 1), visible: true, nodeId: owners.get(e) || null, edgeFrom: null, edgeTo: null };
   });
   for (const t of texts.filter(t => !t.nodeId && t.text)) {
     const p = center(t.rect);
     const distances = edges.map((e, index) => ({ index, distance: Math.min(...e.points.map(q => Math.hypot(p.x - q.x, p.y - q.y))) })).sort((a, b) => a.distance - b.distance);
     if (!distances.length || distances[0].distance > 60 || (distances[1] && distances[1].distance - distances[0].distance < 3)) {
-      unknownReasons.push('Visible text cannot be uniquely associated with a node or route: ' + t.text);
+      // Coincident/crossing routes are a measured readability defect. Do
+      // not guess a semantic edge owner or grant either route label credit.
+      measuredDefects.push('Visible text cannot be uniquely associated with a node or route: ' + t.text);
       continue;
     }
     const edge = edges[distances[0].index];
@@ -230,7 +242,7 @@ async function inspectPortable() {
   }
   const reasons = [...new Set(unknownReasons)], status = reasons.length ? 'unverified' : 'verified';
   return {
-    graph: { status, unknownReasons: reasons, nodes: nodes.map(({ id, label }) => ({ id, label })), edges: edges.filter(e => e.visible).map(({ id, from, to, label }) => ({ id, from, to, label })) },
-    observation: { status, unknownReasons: reasons, nodes: nodes.map(n => ({ ...n, rect: normalizedRect(n.rect), fontSize: n.fontSize * scale })), edges: edges.map(e => ({ ...e, points: e.points.map(point) })), texts: texts.map(({ element, ...t }) => ({ ...t, rect: normalizedRect(t.rect), fontSize: t.fontSize * scale })), bounds: { x: 80, y: 90, width: 1280, height: 720 }, profile: 'desktop-single-page-v1', scale },
+    graph: { status, unknownReasons: reasons, measuredDefects: [...new Set(measuredDefects)], nodes: nodes.map(({ id, label }) => ({ id, label })), edges: edges.filter(e => e.visible).map(({ id, from, to, label }) => ({ id, from, to, label })) },
+    observation: { status, unknownReasons: reasons, measuredDefects: [...new Set(measuredDefects)], nodes: nodes.map(n => ({ ...n, rect: normalizedRect(n.rect), fontSize: n.fontSize * scale })), edges: edges.map(e => ({ ...e, points: e.points.map(point) })), texts: texts.map(({ element, ...t }) => ({ ...t, rect: normalizedRect(t.rect), fontSize: t.fontSize * scale })), bounds: { x: 80, y: 90, width: 1280, height: 720 }, profile: 'desktop-single-page-v1', scale },
   };
 }

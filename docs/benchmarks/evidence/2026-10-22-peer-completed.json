@@ -1,0 +1,177 @@
+{
+  "status": "completed",
+  "kind": "offline-regrade-of-same-real-model-experiment",
+  "completeAutomaticCells": 24,
+  "plannedCells": 24,
+  "regradeConcurrency": 6,
+  "regradeSeconds": 35.762,
+  "newInferenceCalls": 0,
+  "newInferenceCostUsd": 0,
+  "originalExperimentIdentity": "607d088742fde94ceb870154057947a38579767d10d31cdc39ed90bf5461d987",
+  "correctedEvaluatorHash": "acf92b893724e9ddfa2a41a5b2c8f12a6087f9f95748c75d9cd1f9e2ce42133f",
+  "scorePolicy": "diagram-quality-score-v1-pilot-20261021",
+  "summary": {
+    "kind": "real-model-peer-comparison",
+    "totals": {
+      "calls": 48,
+      "inputTokens": 657434,
+      "outputTokens": 33420,
+      "tokens": 690854,
+      "tariffUsd": 0.038511528
+    },
+    "methods": [
+      {
+        "arm": "Archify Skill",
+        "format": "archify",
+        "first": 74.84302344889691,
+        "final": 74.0974661046696,
+        "scores": {
+          "content": 75,
+          "layout": 74.17748094484584,
+          "speed": 68.9735,
+          "cost": 75,
+          "human": null
+        },
+        "submissions": 12,
+        "delivered": 3,
+        "semanticCorrect": 3,
+        "tokens": 460648,
+        "tariffUsd": 0.012405839999999998,
+        "meanFinalDeliverySeconds": null
+      },
+      {
+        "arm": "直接 Mermaid",
+        "format": "mermaid",
+        "first": 100,
+        "final": 100,
+        "scores": {
+          "content": 100,
+          "layout": 99.99999999999999,
+          "speed": 100,
+          "cost": 100,
+          "human": null
+        },
+        "submissions": 6,
+        "delivered": 4,
+        "semanticCorrect": 4,
+        "tokens": 10933,
+        "tariffUsd": 0.001220622,
+        "meanFinalDeliverySeconds": 6.01325
+      },
+      {
+        "arm": "直接 SVG",
+        "format": "svg",
+        "first": 90.36764705882354,
+        "final": 90.84893048128342,
+        "scores": {
+          "content": 95.9090909090909,
+          "layout": 95.3125,
+          "speed": 75,
+          "cost": 75,
+          "human": null
+        },
+        "submissions": 6,
+        "delivered": 4,
+        "semanticCorrect": 3,
+        "tokens": 17232,
+        "tariffUsd": 0.004469886,
+        "meanFinalDeliverySeconds": 5.378
+      },
+      {
+        "arm": "直接 HTML",
+        "format": "html",
+        "first": 77.85160427807489,
+        "final": 77.85160427807489,
+        "scores": {
+          "content": 86.63636363636364,
+          "layout": 85.9375,
+          "speed": 50,
+          "cost": 50,
+          "human": null
+        },
+        "submissions": 8,
+        "delivered": 4,
+        "semanticCorrect": 2,
+        "tokens": 31839,
+        "tariffUsd": 0.006345407999999999,
+        "meanFinalDeliverySeconds": 8.927
+      },
+      {
+        "arm": "Next AI Draw.io MCP",
+        "format": "drawio",
+        "first": 99.91015814077905,
+        "final": 99.86367468064445,
+        "scores": {
+          "content": 100,
+          "layout": 99.96561739273889,
+          "speed": 98.91,
+          "cost": 100,
+          "human": null
+        },
+        "submissions": 6,
+        "delivered": 4,
+        "semanticCorrect": 4,
+        "tokens": 40633,
+        "tariffUsd": 0.005434758000000001,
+        "meanFinalDeliverySeconds": 13.2995
+      },
+      {
+        "arm": "Excalidraw MCP",
+        "format": "excalidraw",
+        "first": 84.99438235619871,
+        "final": 84.95768251551581,
+        "scores": {
+          "content": 96.4935064935065,
+          "layout": 94.13051108055251,
+          "speed": 49.658500000000004,
+          "cost": 50,
+          "human": null
+        },
+        "submissions": 10,
+        "delivered": 4,
+        "semanticCorrect": 2,
+        "tokens": 129569,
+        "tariffUsd": 0.008635014,
+        "meanFinalDeliverySeconds": 25.249
+      }
+    ],
+    "protocol": {
+      "tasks": [
+        "architecture-01",
+        "workflow-01",
+        "architecture-04",
+        "workflow-04"
+      ],
+      "configuration": {
+        "temperature": 0.2,
+        "thinking": {
+          "type": "disabled"
+        },
+        "max_tokens": 8192,
+        "stream": false
+      },
+      "budget": {
+        "maxCandidates": 3,
+        "maxDurationMs": 600000,
+        "maxTokens": 200000,
+        "maxCostUsd": 0.25
+      }
+    },
+    "humanRatingsCollected": 0
+  },
+  "invariance": {
+    "originalSourcesUnchanged": true,
+    "originalArtifactsUnchanged": true,
+    "usageUnchanged": true,
+    "generationTimingUnchanged": true,
+    "weightsAndThresholdsUnchanged": true
+  },
+  "reviewUrl": "http://127.0.0.1:6388",
+  "humanPolicy": {
+    "singleReviewer": "personal provisional weighted score",
+    "consensus": "existing two-independent-reviewer policy retained",
+    "formula": "0.85 * automatic + 0.15 * H",
+    "rubric": "five integer ratings1–5; H=25*(mean-1)"
+  },
+  "artifactDirectory": "/Users/momoyeyu/Projects/opensource/archify/deliverables/benchmark-peer-rerun-20261022/regraded-01"
+}

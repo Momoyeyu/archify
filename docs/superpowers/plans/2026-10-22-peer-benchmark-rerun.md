@@ -47,3 +47,7 @@
 ## Execution outcome
 
 actual-05 completed24cells/48calls. Automatic coverage21/24, missing measurements explicitly retained. Results and limitations: [Chinese readout](../../benchmarks/2026-10-22-peer-rerun.md). Native shape coverage and stale draw.io canvas invalidated earlier trials; original evidence preserved. Per-dispatch tariff schedule replaced fixed-window guards. Fresh browser audit and165focused+19core checks passed. No earlier-candidate fallback occurred; future harness selection timing corrected without changing frozen actual-05.
+
+## Completion correction
+
+User rejected incomplete handoff. Same48calls now fully offline regraded with corrected multiline/known-occlusion/route-label observer; all24automaticcells complete, firstandfinal. Sixworker regrade35.762seconds, zeroadditionalinference. Native light/full-bounds previews preserve original hashes. Persistent live humanreview server on127.0.0.1:6388,23anonymousimages,5numericratings, autosave andpersonalweightedresults. Existing two-reviewer policy kept; singleuserprovisionalclearlylabelled.171focusedchecks+19corepass. Originalactual-05preserved, newregraded-01boundtonewevaluatorhash.

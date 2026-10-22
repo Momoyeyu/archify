@@ -61,9 +61,9 @@ test('portable hidden route is a visible omission rather than an adapter skip', 
 test('portable later opaque fill cannot grant credit for a covered label even with pointer-events none', { skip: !chromePath }, async t => {
   for (const pointerEvents of ['auto', 'none']) {
     const result = await observe(t, svg(node(40, 80, 'Secret label') + node(360, 80, 'Visible label') + `<rect x="45" y="90" width="110" height="45" fill="white" pointer-events="${pointerEvents}"/>`));
-    assert.equal(result.graph.status, 'unverified');
+    assert.equal(result.graph.status, 'verified', JSON.stringify(result.graph.unknownReasons));
     assert.ok(!result.graph.nodes.some(n => n.label === 'Secret label'), 'covered paint must not be a semantic node');
-    assert.match(result.graph.unknownReasons.join(' '), /cover|occlu/i);
+    assert.match(result.graph.measuredDefects.join(' '), /cover|occlu/i);
   }
 });
 
@@ -109,4 +109,24 @@ test('portable measured dangling endpoint is a known missing relation',{skip:!ch
 test('portable competing endpoint boxes remain uncertain',{skip:!chromePath},async t=>{
  const result=await observe(t,svg(marker()+node(40,80,'Origin')+node(360,80,'Upper')+node(360,150,'Lower')+route('','M160 110 L200 110 L200 145 L360 145')));
  assert.equal(result.graph.status,'unverified');assert.match(result.graph.unknownReasons.join(' '),/ambiguous/i);
+});
+
+// These catch actual review-run boundaries, using unrelated labels and no gold input.
+test('portable multiline text reads positioned rows and ignores background in line whitespace', { skip: !chromePath }, async t => {
+ const source=svg('<rect x="40" y="80" width="160" height="90" fill="white" stroke="black"/><text x="60" y="110"><tspan x="60" y="110">Novel intake</tspan><tspan x="60" y="155">CHANGED</tspan></text>');
+ const result=await observe(t,source);
+ assert.equal(result.graph.status,'verified',JSON.stringify(result.graph.unknownReasons));
+ assert.deepEqual(result.graph.nodes.map(n=>n.label),['Novel intake CHANGED']);
+});
+test('portable later connector crossing is a measured label loss, not missing evidence', { skip: !chromePath }, async t => {
+ const result=await observe(t,svg(marker()+node(40,80,'Unrelated left')+node(360,80,'Unrelated right')+route()+'<text x="245" y="100">publish</text><path d="M260 40 L260 160" fill="none" stroke="black" stroke-width="3" marker-end="url(#arrow)"/>'));
+ assert.equal(result.graph.status,'verified',JSON.stringify(result.graph.unknownReasons));
+ assert.ok(result.graph.measuredDefects.some(v=>/occlu/i.test(v)));
+ assert.ok(!result.graph.edges.some(e=>e.label==='publish'));
+});
+test('portable coincident opposite routes give ambiguous visible labels no semantic credit', { skip: !chromePath }, async t => {
+ const result=await observe(t,svg(marker()+node(40,80,'Unrelated left')+node(360,80,'Unrelated right')+route()+route('','M360 110 L160 110')+'<text x="245" y="96">ambiguous</text>'));
+ assert.equal(result.graph.status,'verified',JSON.stringify(result.graph.unknownReasons));
+ assert.ok(result.graph.measuredDefects.some(v=>/uniquely associated/i.test(v)));
+ assert.deepEqual(result.graph.edges.map(e=>e.label),['','']);
 });
