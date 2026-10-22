@@ -157,7 +157,9 @@ async function inspectPortable() {
   };
   const bind = p => {
     const candidates = nodes.map(n => ({ id: n.id, distance: endpointDistance(p, n.rect) })).filter(n => n.distance <= 10).sort((a, b) => a.distance - b.distance);
-    return candidates.length === 1 || (candidates.length > 1 && candidates[1].distance - candidates[0].distance > 2) ? candidates[0].id : null;
+    if (!candidates.length) return { status: 'none', id: null };
+    return candidates.length === 1 || candidates[1].distance - candidates[0].distance > 2
+      ? { status: 'unique', id: candidates[0].id } : { status: 'ambiguous', id: null };
   };
   const triangle = e => {
     if (!painted(e) || e.hasAttribute('transform')) return false;
@@ -203,9 +205,10 @@ async function inspectPortable() {
       const p = e.getPointAtLength(length * j / samples), q = new DOMPoint(p.x, p.y).matrixTransform(m);
       return { x: q.x, y: q.y };
     });
-    const from = bind(points[0]), to = bind(points.at(-1));
+    const start = bind(points[0]), end = bind(points.at(-1)), from = start.id, to = end.id;
     const directed = arrow(e);
-    if (!from || !to || from === to) unknownReasons.push(`Route ${i + 1} endpoint binding is ambiguous or unsupported`);
+    // No nearby owner is a known visible omission, not uncertain evidence.
+    if (start.status === 'ambiguous' || end.status === 'ambiguous' || (from && from === to)) unknownReasons.push(`Route ${i + 1} endpoint binding is ambiguous`);
     if (!directed) unknownReasons.push(`Route ${i + 1} arrowhead paint cannot establish direction`);
     return { id: `observed-edge-${i + 1}`, from, to, label: '', visible: !!from && !!to && from !== to && directed, points };
   });

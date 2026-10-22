@@ -67,10 +67,11 @@ test('portable later opaque fill cannot grant credit for a covered label even wi
   }
 });
 
-test('portable painted route without local arrow and ambiguous endpoints stay unverified', { skip: !chromePath }, async t => {
+test('portable unsupported arrow paint stays unverified even with known dangling endpoints', { skip: !chromePath }, async t => {
   const result = await observe(t, svg(node(40, 80, 'First') + node(360, 80, 'Second') + '<path d="M220 220 L320 220" fill="none" stroke="black"/>'));
   assert.equal(result.graph.status, 'unverified');
-  assert.match(result.graph.unknownReasons.join(' '), /endpoint/i);
+  assert.equal(result.observation.edges[0].from, null);
+  assert.equal(result.observation.edges[0].to, null);
   assert.match(result.graph.unknownReasons.join(' '), /arrowhead/i);
 });
 
@@ -99,4 +100,13 @@ test('portable native Mermaid observes its rectangles, local shadow, markers and
   assert.deepEqual(result.graph.nodes.map(n => n.label), ['Strange α', 'Other β', 'Branch Ω']);
   assert.deepEqual(labels(result), [['Strange α', 'Other β', 'forward'], ['Other β', 'Strange α', 'return'], ['Other β', 'Branch Ω', 'branch']]);
   assert.equal(fs.existsSync(result.observation.browserProfile), false);
+});
+
+test('portable measured dangling endpoint is a known missing relation',{skip:!chromePath},async t=>{
+ const result=await observe(t,svg(marker()+node(40,80,'Origin')+node(360,80,'Destination')+route('','M160 110 L260 230')+'<text x="235" y="200">deliver</text>'));
+ assert.equal(result.graph.status,'verified',JSON.stringify(result.graph.unknownReasons));assert.deepEqual(result.graph.edges,[]);assert.equal(result.observation.edges.length,1);assert.equal(result.observation.edges[0].to,null);assert.equal(result.observation.edges[0].visible,false);
+});
+test('portable competing endpoint boxes remain uncertain',{skip:!chromePath},async t=>{
+ const result=await observe(t,svg(marker()+node(40,80,'Origin')+node(360,80,'Upper')+node(360,150,'Lower')+route('','M160 110 L200 110 L200 145 L360 145')));
+ assert.equal(result.graph.status,'unverified');assert.match(result.graph.unknownReasons.join(' '),/ambiguous/i);
 });

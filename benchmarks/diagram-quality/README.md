@@ -4,6 +4,8 @@
 
 ## 先看效果
 
+最新实跑：[四题 × 六方式，同模型与原生同类工具](../../docs/benchmarks/2026-10-22-peer-rerun.md)。Archify **74.1**、Next AI Draw.io MCP **99.9**、Excalidraw MCP **85.0**；Mermaid／SVG／HTML 各有一项自动验收缺测，总分保留空值。21/24格计分完整，不能据此做完整排名；报告列出失败、缺测及对比度盲点。
+
 已有一轮真实 API 首稿对比：[两题 × 四种方式的结果与限制](../../docs/benchmarks/2026-10-21-real-pilot.md)。同一个 `deepseek-flash`、相同题目，每格只生成一次，保留失败；自动分为 Archify **49.4**、直接 Mermaid **100.0**、直接 SVG **82.6**、直接 HTML **100.0**。这不是正式工具排名，人评尚未进行。
 
 **配置缺陷已确认（2026-10-22）：** 本轮 Archify 提示词强制 schema v1，使新 workflow 使用旧 fixed-v1，偏离当前文档要求的 readable-v2。原数据保留供审计，不能代表当前推荐用法。`executePilot` 留作原实验复现，不能直接沿用为公平比较的新协议。
