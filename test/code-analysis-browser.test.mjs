@@ -266,10 +266,10 @@ test('Code Analysis Atlas draws the analyzed tree, focuses a module and hands a 
   // Observe the actual Canvas strokes, rather than exposing animation internals
   // or freezing a particular radius. Module arcs are the non-full-circle strokes.
   await run(`(() => {
-    window.atlasArcs = []; window.atlasDots = []; window.atlasSegments = [];
+    window.atlasArcs = []; window.atlasDots = []; window.atlasSegments = []; window.atlasLabels = [];
     const proto = CanvasRenderingContext2D.prototype;
-    const clear = proto.clearRect, arc = proto.arc, begin = proto.beginPath, stroke = proto.stroke, fill = proto.fill, move = proto.moveTo, line = proto.lineTo;
-    proto.clearRect = function (...args) { if (!this.canvas.isConnected) { window.atlasArcs = []; window.atlasDots = []; window.atlasSegments = []; } return clear.apply(this, args); };
+    const clear = proto.clearRect, arc = proto.arc, begin = proto.beginPath, stroke = proto.stroke, fill = proto.fill, move = proto.moveTo, line = proto.lineTo, text = proto.fillText;
+    proto.clearRect = function (...args) { if (!this.canvas.isConnected) { window.atlasArcs = []; window.atlasDots = []; window.atlasSegments = []; window.atlasLabels = []; } return clear.apply(this, args); };
     proto.beginPath = function (...args) { this.testArc = null; this.testDot = null; this.testSegment = null; return begin.apply(this, args); };
     proto.arc = function (x, y, r, start, end, ...rest) {
       if (end - start < Math.PI * 2 - 0.001) this.testArc = { x, y, r, start, end };
@@ -284,10 +284,17 @@ test('Code Analysis Atlas draws the analyzed tree, focuses a module and hands a 
       return stroke.apply(this, args);
     };
     proto.fill = function (...args) { if (this.testDot && !this.canvas.isConnected) window.atlasDots.push(this.testDot); return fill.apply(this, args); };
+    proto.fillText = function (label, ...args) { if (!this.canvas.isConnected) window.atlasLabels.push(label); return text.call(this, label, ...args); };
     window.dispatchEvent(new Event('resize'));
   })()`);
   await until(`window.atlasArcs.length === ${atlas.modules.length}`, 'module strokes not captured');
   const resting = await run('window.atlasArcs');
+  const restingLabels = await run('window.atlasLabels');
+  const wheel = (deltaY, ctrlKey = false) => run(`(() => {
+    const e = new WheelEvent('wheel', { deltaY: ${deltaY}, ctrlKey: ${ctrlKey}, cancelable: true });
+    document.querySelector('#bauify-atlas canvas').dispatchEvent(e); return e.defaultPrevented;
+  })()`);
+  assert.equal(await wheel(-180), false, 'overview leaves ordinary scrolling available');
   // A module from the side panel becomes the focus; the panel names it.
   await run("document.querySelector('#bauify-atlas [data-module]').click()");
   const focused = await run("document.documentElement.getAttribute('data-bauify-atlas-focus')");
@@ -300,6 +307,16 @@ test('Code Analysis Atlas draws the analyzed tree, focuses a module and hands a 
   assert.ok(expanded[first].r > resting[first].r, 'selected module moves out');
   assert.equal(expanded[second].r, resting[second].r, 'background module stays in place');
   assert.ok(expanded[second].alpha < expanded[first].alpha, 'background module dims');
+  assert.equal(await wheel(-180, true), false, 'browser zoom gestures are left alone');
+  for (let i = 0; i < 6; i++) assert.equal(await wheel(-180), true);
+  await until("!document.documentElement.hasAttribute('data-bauify-atlas-animating')", 'wheel zoom did not settle');
+  const zoomed = await run('window.atlasArcs');
+  assert.ok(zoomed[first].end - zoomed[first].start > expanded[first].end - expanded[first].start, 'wheel opens more angular space for the selected module');
+  assert.equal(zoomed[first].r, expanded[first].r, 'wheel does not push the module farther out');
+  assert.deepEqual(zoomed[second], expanded[second], 'wheel leaves background geometry unchanged');
+  const zoomedLabels = await run('window.atlasLabels');
+  assert.ok(zoomedLabels.includes(atlas.modules[first].label), 'selected module keeps its name');
+  assert.ok(zoomedLabels.length < restingLabels.length, 'background names yield where the expanded sector passes');
   // Sample both arcs within the SAME page task so protocol latency cannot
   // turn a correct intermediate frame into a flaky endpoint assertion.
   const switching = await run(`new Promise(resolve => {
@@ -316,6 +333,7 @@ test('Code Analysis Atlas draws the analyzed tree, focuses a module and hands a 
   await run(`document.querySelector('#bauify-atlas [data-module="${first}"]').click(); document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))`);
   await until("!document.documentElement.hasAttribute('data-bauify-atlas-animating')", 'cancel did not settle');
   assert.deepEqual(await run('window.atlasArcs'), resting, 'cancel restores geometry and opacity');
+  assert.deepEqual(await run('window.atlasLabels'), restingLabels, 'cancel restores the background names');
 
   // Hit testing must follow expanded geometry, including with reduced motion.
   await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
@@ -327,6 +345,21 @@ test('Code Analysis Atlas draws the analyzed tree, focuses a module and hands a 
     canvas.dispatchEvent(new MouseEvent('click', { clientX: b.left + a.x + a.r * Math.cos(angle), clientY: b.top + a.y + a.r * Math.sin(angle) }));
   })()`);
   assert.equal(await run("document.documentElement.getAttribute('data-bauify-atlas-focus')"), '', 'clicking the expanded arc clears that module');
+  // Expansion mode is independent of selection: off keeps highlighting usable.
+  await run(`document.querySelector('#bauify-atlas [data-module="${first}"]').click(); document.querySelector('#bauify-atlas .atlas-expand').click()`);
+  assert.equal(await run("document.documentElement.getAttribute('data-bauify-atlas-focus')"), focused, 'disabling expansion retains the selection');
+  assert.equal(await run("document.querySelector('#bauify-atlas .atlas-expand').getAttribute('aria-pressed')"), 'false');
+  assert.deepEqual(await run('window.atlasArcs'), resting, 'disabled mode retracts the diagram');
+  assert.equal(await wheel(-180), false, 'disabled mode leaves scrolling available');
+  await run(`document.querySelector('#bauify-atlas [data-module="${second}"]').click()`);
+  assert.equal(await run("document.documentElement.getAttribute('data-bauify-atlas-focus')"), atlas.modules[second].id, 'highlighting still selects another module');
+  assert.deepEqual(await run('window.atlasArcs'), resting, 'selecting another module in disabled mode does not expand it');
+  await run("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))");
+  assert.equal(await run("document.documentElement.getAttribute('data-bauify-atlas-expansion')"), 'off', 'clearing selection preserves the mode');
+  await run(`document.querySelector('#bauify-atlas [data-module="${second}"]').click(); document.querySelector('#bauify-atlas .atlas-expand').click()`);
+  assert.equal(await run("document.documentElement.getAttribute('data-bauify-atlas-focus')"), atlas.modules[second].id);
+  assert.ok((await run('window.atlasArcs'))[second].r > resting[second].r, 'enabling expansion opens the retained selection');
+  await run("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))");
   await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
 
   // Expansion is a reading context: inspecting a spike must not collapse it.
@@ -382,7 +415,7 @@ test('Code Analysis Atlas draws the analyzed tree, focuses a module and hands a 
   // True blank space clears both states, rather than hitting an invisible arc band.
   await run(`(() => { const c = document.querySelector('#bauify-atlas canvas'), b = c.getBoundingClientRect(); c.dispatchEvent(new MouseEvent('click', { clientX: b.left + 5, clientY: b.top + 5 })); })()`);
   assert.equal(await run("document.documentElement.getAttribute('data-bauify-atlas-focus')"), '');
-  await run("document.querySelector('#bauify-atlas .atlas-clear').click()");
+  await run("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))");
   await until("!document.documentElement.hasAttribute('data-bauify-atlas-animating')", 'inspection clear did not settle');
 
   // A selected import cycle gets a light that travels around it: the canvas keeps changing.
