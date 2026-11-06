@@ -159,6 +159,7 @@ html[data-bauify-view="atlas"] #bauify-reader { display: none; }
 #bauify-atlas button:focus-visible { outline: 2px solid var(--backend-stroke, #159f88); outline-offset: 2px; }
 #bauify-atlas .atlas-body { flex: 1; min-height: 0; display: flex; }
 #bauify-atlas .atlas-stage { flex: 1; min-width: 0; position: relative; }
+#bauify-atlas .atlas-help { position: absolute; left: 12px; right: 12px; bottom: 8px; pointer-events: none; color: var(--text-muted, #94a3b8); font-size: 11px; }
 #bauify-atlas canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; }
 #bauify-atlas .atlas-tip { position: absolute; pointer-events: none; max-width: 340px; padding: 6px 9px; border-radius: 6px; background: var(--panel, #0f172a); border: 1px solid var(--panel-border, #1e293b); font: 11px/1.45 ui-monospace, Menlo, Consolas, monospace; box-shadow: 0 8px 24px rgba(0,0,0,.25); overflow-wrap: anywhere; }
 #bauify-atlas .atlas-tip[hidden] { display: none; }
@@ -217,8 +218,8 @@ export const ATLAS_JS = `
   var panel = document.createElement('section');
   panel.id = 'bauify-atlas'; panel.hidden = true; panel.setAttribute('aria-label', 'Code analysis atlas');
   panel.innerHTML = '<nav class="atlas-nav" aria-label="Atlas navigation"><div class="atlas-title">Atlas<span>' + esc(plural(F.length, 'file') + ' · ' + plural(E.length, 'file dependency', 'file dependencies') + ' · ' + plural(FN.length, 'function')) + '</span></div>' +
-    '<div><button type="button" class="atlas-clear">Clear selection</button> <button type="button" class="atlas-classic" title="Back to the diagram view with source evidence">Classic view</button></div></nav>' +
-    '<div class="atlas-body"><div class="atlas-stage"><canvas role="img"></canvas><div class="atlas-tip" hidden></div></div><aside class="atlas-side"></aside></div>';
+    '<div><button type="button" class="atlas-expand" aria-pressed="true">Disable expansion</button> <button type="button" class="atlas-classic" title="Back to the diagram view with source evidence">Classic view</button></div></nav>' +
+    '<div class="atlas-body"><div class="atlas-stage"><canvas role="img"></canvas><div class="atlas-tip" hidden></div><div class="atlas-help"></div></div><aside class="atlas-side"></aside></div>';
   document.body.appendChild(panel);
   var stage = panel.querySelector('.atlas-stage'), canvas = panel.querySelector('canvas'), tip = panel.querySelector('.atlas-tip'), side = panel.querySelector('.atlas-side');
   canvas.setAttribute('aria-label', 'Dependency atlas: ' + plural(M.length, 'module') + ' around a circle, ' + plural(F.length, 'file') + ' grouped by module, ' + plural(E.length, 'file dependency', 'file dependencies') + ' drawn between them, and ' + plural(FN.length, 'function') + ' as spikes whose length is their complexity. The side panel lists the same findings and modules.');
@@ -226,6 +227,8 @@ export const ATLAS_JS = `
   // ---- state ----
   var state = { focusModule: -1, finding: -1, hover: null };
   var focus = M.map(function () { return 0; }), focusFrom = focus.slice(), focusLevel = 0;
+  var expansionEnabled = true, focusZoom = 1, FOCUS_LIFT = 0.30;
+  var spread = focus.slice(), spreadFrom = spread.slice(), hiddenLabels = [];
   var LABEL_FONT = '11px ui-monospace, Menlo, Consolas, monospace';
   // Long module names are cut on the circle (the tooltip and side panel keep them whole).
   function shortLabel(label) { return label.length > 20 ? '…' + label.slice(-19) : label; }
@@ -252,7 +255,7 @@ export const ATLAS_JS = `
     // unselected modules never move when another module opens.
     var measure = canvas.getContext('2d'); measure.font = LABEL_FONT;
     var longest = M.reduce(function (n, m) { return Math.max(n, measure.measureText(shortLabel(m.label)).width); }, 0);
-    var R = Math.max(40, Math.min(size * 0.34, (size / 2 - Math.min(longest, size * 0.22) - 12) / 2.15)), gap = 2.2, slots = F.length + gap * M.length;
+    var R = Math.max(40, Math.min(size * 0.34, (size / 2 - Math.min(longest, size * 0.22) - 12) / (1.53 + FOCUS_LIFT))), gap = 2.2, slots = F.length + gap * M.length;
     var ang = new Float64Array(F.length), span = [], k = 0, fi = 0;
     M.forEach(function (m, mi) {
       var start = k;
@@ -263,13 +266,14 @@ export const ATLAS_JS = `
     geo = { w: w, h: h, dpr: dpr, cx: w / 2, cy: h / 2, R: R, slot: 2 * Math.PI / slots, ang: ang, span: span,
       tick: R * 0.04, spike0: R * 1.06, spikeMax: R * 0.36, arc: R * 1.48, label: R * 1.53 };
   }
-  function focusScale(mi) {
+  function expandedScale(mi) {
     var width = geo.span[mi][1] - geo.span[mi][0];
     // Wide modules already occupy the circle; never compress them to make room.
-    return 1 + (Math.max(1, Math.min(1.8, Math.PI * 1.7 / Math.max(width, 0.001))) - 1) * focus[mi];
+    return Math.max(1, Math.min(1.8 * focusZoom, Math.PI * 1.7 / Math.max(width, 0.001)));
   }
+  function focusScale(mi) { return 1 + spread[mi]; }
   function focusAngle(a, mi) { return mid(mi) + (a - mid(mi)) * focusScale(mi); }
-  function focusRadius(r, mi) { return r + geo.R * 0.62 * focus[mi]; }
+  function focusRadius(r, mi) { return r + geo.R * FOCUS_LIFT * focus[mi]; }
   function pt(a, r, mi) {
     if (mi != null) { a = focusAngle(a, mi); r = focusRadius(r, mi); }
     return [geo.cx + r * Math.cos(a), geo.cy + r * Math.sin(a)];
@@ -280,9 +284,39 @@ export const ATLAS_JS = `
   function updateFocus(now, snap) {
     var p = snap || !anim.focus ? 1 : Math.min(1, Math.max(0, (now - anim.focus) / FADE_MS));
     var ease = p * p * (3 - 2 * p);
-    focus.forEach(function (_, mi) { var goal = state.focusModule === mi ? 1 : 0; focus[mi] = focusFrom[mi] + (goal - focusFrom[mi]) * ease; });
+    focus.forEach(function (_, mi) {
+      var goal = expansionEnabled && state.focusModule === mi ? 1 : 0;
+      focus[mi] = focusFrom[mi] + (goal - focusFrom[mi]) * ease;
+      var width = goal ? expandedScale(mi) - 1 : 0;
+      spread[mi] = spreadFrom[mi] + (width - spreadFrom[mi]) * ease;
+    });
     focusLevel = Math.max.apply(Math, focus.concat([0]));
     if (p === 1) anim.focus = 0;
+  }
+  function captureFocus(now) {
+    if (anim.focus) updateFocus(now, false);
+    focusFrom = focus.slice(); spreadFrom = spread.slice();
+  }
+  // Background names yield only where their text crosses an expanded sector.
+  // The arcs and sidebar remain available, and names return as it retracts.
+  function labelOcclusions(ctx) {
+    var sectors = [];
+    M.forEach(function (_, mi) {
+      if (focus[mi] > 0.001 || spread[mi] > 0.001) sectors.push({
+        module: mi, center: mid(mi), half: (geo.span[mi][1] - geo.span[mi][0]) * focusScale(mi) / 2,
+        inner: focusRadius(geo.R, mi) - 4, outer: focusRadius(geo.arc, mi) + 6
+      });
+    });
+    return M.map(function (m, mi) {
+      if (mi === state.focusModule) return false;
+      var near = focusRadius(geo.label, mi) - 5, far = near + ctx.measureText(shortLabel(m.label)).width + 10;
+      var angle = mid(mi), half = Math.atan2(8, Math.max(near, 1));
+      return sectors.some(function (s) {
+        if (s.module === mi || far < s.inner || near > s.outer) return false;
+        var delta = Math.abs(Math.atan2(Math.sin(angle - s.center), Math.cos(angle - s.center)));
+        return delta <= s.half + half + 0.01;
+      });
+    });
   }
   function mid(mi) { return (geo.span[mi][0] + geo.span[mi][1]) / 2; }
   function spikeLen(cx) { return geo.spikeMax * (0.06 + 0.94 * Math.min(cx, 26) / 26); }
@@ -491,6 +525,7 @@ export const ATLAS_JS = `
     });
     // module arcs and labels
     ctx.font = LABEL_FONT; ctx.textBaseline = 'middle';
+    hiddenLabels = labelOcclusions(ctx);
     M.forEach(function (m, mi) {
       var on = !dimmed || sel.modules[mi] || F.some(function (f, i) { return f[1] === mi && sel.files[i]; });
       var hub = hubOf[mi] != null;
@@ -500,7 +535,7 @@ export const ATLAS_JS = `
       var a = mid(mi), deg = (a * 180 / Math.PI + 360) % 360, flip = deg > 90 && deg < 270, p = pt(a, geo.label, mi);
       // A module too narrow for its own label is named only when selected or hovered.
       var named = (geo.span[mi][1] - geo.span[mi][0]) * geo.arc >= 12 || sel.modules[mi] || focus[mi] > 0;
-      if (!named) return;
+      if (!named || hiddenLabels[mi]) return;
       ctx.save(); ctx.translate(p[0], p[1]); ctx.rotate(flip ? a + Math.PI : a);
       ctx.textAlign = flip ? 'right' : 'left'; ctx.fillStyle = hue(mi, t, on ? 1 : 0.35);
       ctx.fillText(shortLabel(m.label), 0, 0); ctx.restore();
@@ -517,7 +552,7 @@ export const ATLAS_JS = `
       var a = mid(h.index), deg = (a * 180 / Math.PI + 360) % 360, flip = deg > 90 && deg < 270, p = pt(a, geo.label, h.index);
       ctx.globalAlpha = 1; ctx.font = LABEL_FONT; ctx.textBaseline = 'middle'; ctx.fillStyle = t.text;
       ctx.translate(p[0], p[1]); ctx.rotate(flip ? a + Math.PI : a); ctx.textAlign = flip ? 'right' : 'left';
-      ctx.fillText(shortLabel(M[h.index].label), 0, 0);
+      if (!hiddenLabels[h.index]) ctx.fillText(shortLabel(M[h.index].label), 0, 0);
     }
     ctx.restore();
   }
@@ -548,7 +583,7 @@ export const ATLAS_JS = `
       var across = -dx * Math.sin(mid(mi)) + dy * Math.cos(mid(mi));
       var labelStart = focusRadius(geo.label, mi);
       var named = (geo.span[mi][1] - geo.span[mi][0]) * geo.arc >= 12 || focus[mi] > 0;
-      if (named && Math.abs(across) <= 7 && along >= labelStart - 4 && along <= labelStart + measure.measureText(shortLabel(M[mi].label)).width + 4) return { type: 'module', index: mi };
+      if (named && !hiddenLabels[mi] && Math.abs(across) <= 7 && along >= labelStart - 4 && along <= labelStart + measure.measureText(shortLabel(M[mi].label)).width + 4) return { type: 'module', index: mi };
     }
     return null;
   }
@@ -575,6 +610,18 @@ export const ATLAS_JS = `
     else if (h.type === 'function' && FN[h.index][6] !== -1) selectFinding(FN[h.index][6]);
     else select(F[h.type === 'function' ? FN[h.index][0] : h.index][1], -1);
   });
+  canvas.addEventListener('wheel', function (e) {
+    if (panel.hidden || !expansionEnabled || state.focusModule === -1 || e.ctrlKey || !e.deltaY) return;
+    var delta = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? stage.clientHeight : 1);
+    var zoom = Math.max(0.65, Math.min(3.8, focusZoom * Math.exp(-Math.max(-180, Math.min(180, delta)) * 0.002)));
+    e.preventDefault();
+    if (zoom === focusZoom) return;
+    var now = performance.now(); captureFocus(now); focusZoom = zoom;
+    state.hover = null; tip.hidden = true;
+    anim.focus = motion.matches ? 0 : now;
+    // Reuse the focus clock and paint once per frame, including a burst of wheel events.
+    if (motion.matches) draw('focus'); else { markMotion(); schedule(); }
+  }, { passive: false });
 
   // ---- side panel ----
   function selectFinding(index) {
@@ -590,15 +637,15 @@ export const ATLAS_JS = `
   }
   function select(module, finding) {
     var now = performance.now(), changing = module !== state.focusModule || !!anim.focus;
-    if (anim.focus) updateFocus(now, false);
-    focusFrom = focus.slice();
+    captureFocus(now);
+    if (module !== state.focusModule) focusZoom = 1;
     state.focusModule = module; state.finding = finding;
     state.hover = null; tip.hidden = true;
-    anim.focus = changing && !motion.matches ? now : 0;
+    anim.focus = changing && !motion.matches && (expansionEnabled || focusLevel > 0) ? now : 0;
     if (!anim.focus) updateFocus(now, true);
     root.setAttribute('data-bauify-atlas-focus', module === -1 ? '' : M[module].id);
     root.setAttribute('data-bauify-atlas-finding', finding === -1 ? '' : FD[finding].id);
-    renderSide(); draw(changing ? 'focus' : 'fade');
+    renderSide(); draw(anim.focus || (changing && expansionEnabled) ? 'focus' : 'fade');
   }
   function selectedCard() {
     var f = FD[state.finding];
@@ -672,7 +719,21 @@ export const ATLAS_JS = `
   }
   panel.querySelector('.atlas-classic').addEventListener('click', close);
   document.addEventListener('keydown', function (e) { if (!panel.hidden && e.key === 'Escape') { e.preventDefault(); select(-1, -1); } });
-  panel.querySelector('.atlas-clear').addEventListener('click', function () { select(-1, -1); });
+  function updateExpansionControl() {
+    var button = panel.querySelector('.atlas-expand');
+    button.textContent = expansionEnabled ? 'Disable expansion' : 'Enable expansion';
+    button.setAttribute('aria-pressed', String(expansionEnabled));
+    button.title = expansionEnabled ? 'Return to highlighting without expanding modules; keep the current selection.' : 'Expand selected modules and adjust them with the mouse wheel.';
+    panel.querySelector('.atlas-help').textContent = (expansionEnabled ? 'Select a module, then scroll to adjust expansion' : 'Click a module to highlight its dependencies') + ' · Blank space / Esc clears selection';
+    root.setAttribute('data-bauify-atlas-expansion', expansionEnabled ? 'on' : 'off');
+  }
+  panel.querySelector('.atlas-expand').addEventListener('click', function () {
+    var now = performance.now(); captureFocus(now);
+    expansionEnabled = !expansionEnabled; state.hover = null; tip.hidden = true;
+    anim.focus = motion.matches ? 0 : now;
+    updateExpansionControl(); draw('focus');
+  });
+  updateExpansionControl();
   window.__archifyAtlas = { open: open, close: close };
   new MutationObserver(function () { if (root.getAttribute('data-bauify') !== 'on' && !panel.hidden) close(); else if (!panel.hidden) { renderSide(); draw(); } }).observe(root, { attributes: true, attributeFilter: ['data-bauify', 'data-theme'] });
   var pending = 0;
